@@ -15,21 +15,27 @@ export interface DialogProps {
 /** Minimal, accessible modal dialog used for confirmations and detail views. */
 export function Dialog({ open, title, description, onClose, children, footer, className }: DialogProps) {
   const panelRef = useRef<HTMLDivElement>(null)
+  const closeRef = useRef(onClose)
+
+  useEffect(() => {
+    closeRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!open) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') closeRef.current()
     }
     document.addEventListener('keydown', onKeyDown)
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    panelRef.current?.focus()
+    // Focus the dialog panel once when it opens; don't steal focus on re-renders.
+    panelRef.current?.focus({ preventScroll: true })
     return () => {
       document.removeEventListener('keydown', onKeyDown)
       document.body.style.overflow = previousOverflow
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 
