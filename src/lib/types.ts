@@ -65,6 +65,10 @@ export interface Championship {
   terms_text: string | null
   form_config: FormConfig
   level?: 'state' | 'national'
+  /** Country the championship belongs to (always India for a state meet). */
+  nation?: string | null
+  /** Indian state, for a state-level meet (e.g. 'Tamil Nadu'). */
+  state_name?: string | null
   max_events_per_athlete?: number | null
   championship_categories: ChampionshipCategory[]
   championship_events: ChampionshipEvent[]

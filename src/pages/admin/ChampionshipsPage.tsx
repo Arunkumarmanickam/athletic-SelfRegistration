@@ -3,10 +3,12 @@ import { Alert, Badge, Card, CardContent, CardHeader, CardTitle, Separator, Spin
 import { Button } from '@/components/ui/button'
 import { Field, Input } from '@/components/ui/input'
 import { Checkbox, Select, Textarea } from '@/components/ui/form-controls'
+import { SearchCombobox } from '@/components/ui/search-combobox'
 import { ConfirmDialog } from '@/components/ui/dialog'
 import { Table, TableWrap, Td, Th } from '@/components/ui/table'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { ApiError, adminChampionships } from '@/lib/api'
+import { COUNTRIES, INDIAN_STATES } from '@/lib/geo'
 import { useToast } from '@/context/ToastContext'
 import { formatDate, formatDateTime, formatMoney, championshipStatusTone, titleCase } from '@/lib/format'
 import type {
@@ -49,6 +51,8 @@ interface ChampionshipFormState {
   base_fee_rupees: string
   terms_text: string
   level: 'state' | 'national'
+  nation: string
+  state_name: string
   max_events_per_athlete: string
 }
 
@@ -78,6 +82,8 @@ const EMPTY_FORM: ChampionshipFormState = {
   base_fee_rupees: '0',
   terms_text: '',
   level: 'state',
+  nation: 'India',
+  state_name: '',
   max_events_per_athlete: '',
 }
 
@@ -111,6 +117,8 @@ function formState(championship: AdminChampionship | null): ChampionshipFormStat
     base_fee_rupees: paiseToRupees(championship.base_fee_paise),
     terms_text: championship.terms_text ?? '',
     level: championship.level === 'national' ? 'national' : 'state',
+    nation: championship.nation ?? 'India',
+    state_name: championship.state_name ?? '',
     max_events_per_athlete: championship.max_events_per_athlete !== undefined && championship.max_events_per_athlete !== null ? String(championship.max_events_per_athlete) : '',
   }
 }
@@ -272,6 +280,12 @@ export function ChampionshipsPage() {
                     <Td>
                       <span className="font-medium text-slate-900">{championship.name}</span>
                       <span className="block text-xs text-slate-500">
+                        {championship.level === 'national'
+                          ? `National · ${championship.nation ?? 'Nation not set'}`
+                          : championship.state_name
+                            ? `State · ${championship.state_name}`
+                            : 'State'}
+                        {' · '}
                         {championship.championship_categories.length} categories ·{' '}
                         {championship.championship_events.length} events
                       </span>
@@ -396,6 +410,14 @@ function ChampionshipEditor({
       setFormError('Every selected event needs a name.')
       return
     }
+    if (form.level === 'state' && form.state_name.trim().length < 1) {
+      setFormError('Please choose the state this championship belongs to.')
+      return
+    }
+    if (form.level === 'national' && form.nation.trim().length < 1) {
+      setFormError('Please choose the nation this championship belongs to.')
+      return
+    }
     const payload: Record<string, unknown> = {
       name: form.name.trim(),
       slug: form.slug.trim(),
@@ -423,6 +445,8 @@ function ChampionshipEditor({
       },
       terms_text: form.terms_text,
       level: form.level,
+      nation: form.level === 'state' ? 'India' : form.nation.trim(),
+      state_name: form.level === 'state' ? form.state_name.trim() : null,
       max_events_per_athlete: form.max_events_per_athlete.trim() === '' ? null : Number(form.max_events_per_athlete.trim()),
     }
 
@@ -589,12 +613,38 @@ function ChampionshipEditor({
               <CardTitle>Fees &amp; numbering</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
-              <Field label="Level" htmlFor="c-level" hint="State asks for district; National asks for state.">
+              <Field label="Level" htmlFor="c-level" hint="Decides what athletes pick under “representing”.">
                 <Select id="c-level" value={form.level} onChange={(e) => setField({ level: e.target.value as 'state' | 'national' })}>
                   <option value="state">State</option>
                   <option value="national">National</option>
                 </Select>
               </Field>
+              {form.level === 'state' ? (
+                <Field
+                  label="State (India)"
+                  htmlFor="c-state"
+                  required
+                  hint="Athletes representing this meet pick a district of this state."
+                >
+                  <SearchCombobox
+                    id="c-state"
+                    value={form.state_name}
+                    onChange={(value) => setField({ state_name: value })}
+                    options={INDIAN_STATES}
+                    placeholder="Search Indian states"
+                  />
+                </Field>
+              ) : (
+                <Field label="Nation" htmlFor="c-nation" required hint="Pick the country this championship belongs to.">
+                  <SearchCombobox
+                    id="c-nation"
+                    value={form.nation}
+                    onChange={(value) => setField({ nation: value })}
+                    options={COUNTRIES}
+                    placeholder="Search countries"
+                  />
+                </Field>
+              )}
               <Field label="Max events per athlete" htmlFor="c-max-events" hint="Leave blank for no limit.">
                 <Input
                   id="c-max-events"

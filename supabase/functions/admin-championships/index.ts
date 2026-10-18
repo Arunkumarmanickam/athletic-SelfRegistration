@@ -229,6 +229,8 @@ interface ChampionshipValues {
   form_config?: Record<string, unknown>
   terms_text?: string | null
   level?: string
+  nation?: string | null
+  state_name?: string | null
   max_events_per_athlete?: number | null
 }
 
@@ -318,6 +320,42 @@ function buildChampionshipValues(
     if (level !== 'state' && level !== 'national') return { values, error: 'Level must be State or National.' }
     values.level = level
   }
+
+  if ('nation' in raw) {
+    const nation = str(raw.nation).slice(0, 80)
+    values.nation = nation || null
+  }
+  if ('state_name' in raw) {
+    const stateName = str(raw.state_name).slice(0, 120)
+    values.state_name = stateName || null
+  }
+
+  // The level decides what the registration form asks the athlete for, so the
+  // two location fields are kept in step here rather than in the UI: a state
+  // meet is always in India and names its state; a national meet names its
+  // nation and has no state of its own.
+  const level = values.level ?? (str(raw.level) || undefined)
+  if (level === 'state') {
+    values.nation = 'India'
+    const stateName = (values.state_name ?? '').trim()
+    if (stateName) {
+      values.state_name = stateName
+    } else if (!opts.partial || 'state_name' in raw) {
+      return { values, error: 'Please choose the state this championship belongs to.' }
+    } else {
+      delete values.state_name
+    }
+  } else if (level === 'national') {
+    const nation = (values.nation ?? '').trim()
+    if (nation) {
+      values.nation = nation
+    } else if (!opts.partial || 'nation' in raw) {
+      return { values, error: 'Please choose the nation this championship belongs to.' }
+    } else {
+      delete values.nation
+    }
+    values.state_name = null
+  }
   if ('max_events_per_athlete' in raw) {
     const max = toInt(raw.max_events_per_athlete)
     if (raw.max_events_per_athlete === null || str(raw.max_events_per_athlete) === '') {
@@ -346,7 +384,7 @@ Deno.serve(
       const { data: championships, error } = await supabase
         .from('championships')
         .select(
-          'id, slug, name, description, location, starts_on, ends_on, registration_opens_at, registration_closes_at, status, currency, base_fee_paise, form_config, terms_text, level, max_events_per_athlete, created_at, updated_at, championship_categories (id, name, gender, min_age, max_age, fee_paise, is_active, sort_order), championship_events (id, name, gender, category_ids, fee_paise, is_active, sort_order)',
+          'id, slug, name, description, location, starts_on, ends_on, registration_opens_at, registration_closes_at, status, currency, base_fee_paise, form_config, terms_text, level, nation, state_name, max_events_per_athlete, created_at, updated_at, championship_categories (id, name, gender, min_age, max_age, fee_paise, is_active, sort_order), championship_events (id, name, gender, category_ids, fee_paise, is_active, sort_order)',
         )
         .order('created_at', { ascending: false })
       if (error) {
@@ -479,6 +517,8 @@ Deno.serve(
           form_config: values.form_config ?? {},
           terms_text: values.terms_text ?? null,
           level: values.level ?? 'state',
+          nation: values.nation ?? 'India',
+          state_name: values.state_name ?? null,
           max_events_per_athlete: values.max_events_per_athlete ?? null,
         })
         .select('id, name, slug')

@@ -4,6 +4,7 @@ import { Alert, Card, CardContent, CardHeader, CardTitle } from '@/components/ui
 import { Button } from '@/components/ui/button'
 import { Field, Input, useFieldId } from '@/components/ui/input'
 import { Checkbox, Select } from '@/components/ui/form-controls'
+import { SearchCombobox } from '@/components/ui/search-combobox'
 import { EventMultiSelect } from '@/components/ui/event-multi-select'
 import { AadhaarReference } from './AadhaarReference'
 import { FeeSummary } from './FeeSummary'
@@ -13,7 +14,8 @@ import { ApiError, register, uploadAadhaar } from '@/lib/api'
 import { useToast } from '@/context/ToastContext'
 import { useConfig } from '@/context/ConfigContext'
 import { clearDraft, loadDraft, saveDraft } from '@/lib/draft'
-import { COUNTRY_CODES, INDIAN_STATES } from '@/lib/constants'
+import { COUNTRY_CODES } from '@/lib/constants'
+import { isIndia, districtsOf, INDIAN_STATES } from '@/lib/geo'
 import { formatAge, formatDate, formatMoney, toE164 } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { registrationFormSchema, validateWith, type RegistrationFormValues } from '@/lib/validation'
@@ -65,9 +67,29 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
   const toast = useToast()
   const { config } = useConfig()
 
-  const level = championship.level === 'national' ? 'national' : 'state'
   const maxEvents = championship.max_events_per_athlete ?? null
   const cutoff = ageCutoffDate(championship)
+
+  // What "representing" asks for follows where the championship is held: a
+  // state meet asks for a district of that state, a national meet held in India
+  // asks for the athlete's state, and any other country is free text.
+  const nation = (championship.nation ?? 'India').trim()
+  const championshipState = championship.state_name ?? null
+  const representingMode = !isIndia(nation) ? 'region' : championshipState ? 'district' : 'state'
+  const representingOptions = useMemo(
+    () =>
+      representingMode === 'region'
+        ? []
+        : representingMode === 'district'
+          ? districtsOf(championshipState)
+          : INDIAN_STATES,
+    [representingMode, championshipState],
+  )
+  /** Which stored column the answer belongs to — see create_registration(). */
+  const locationFields = (representing: string) =>
+    representingMode === 'district'
+      ? { state: championshipState ?? '', district: representing }
+      : { state: representing, district: '' }
 
   const nameId = useFieldId('full_name')
   const dobId = useFieldId('date_of_birth')
@@ -102,7 +124,10 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
         full_name: p.full_name,
         date_of_birth: p.date_of_birth,
         gender: p.gender === 'female' ? 'female' : p.gender === 'male' ? 'male' : '',
-        representing: level === 'national' ? p.state || p.representing : p.district || p.representing,
+        representing:
+          representingMode === 'district'
+            ? p.district || p.representing
+            : p.state || p.representing,
         event_ids: part.event_ids ?? [],
         mobile_country_code: p.mobile_country_code || '+91',
         mobile_number: p.mobile_number,
@@ -110,7 +135,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
       })
     }
     setHydrated(true)
-  }, [championship.id, level])
+  }, [championship.id, representingMode])
 
   useEffect(() => {
     if (!hydrated || result) return
@@ -123,8 +148,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
         mobile_country_code: values.mobile_country_code,
         mobile_number: values.mobile_number,
         email: '',
-        state: level === 'national' ? values.representing : '',
-        district: level === 'state' ? values.representing : '',
+        ...locationFields(values.representing),
         address: '',
         representing: values.representing,
       },
@@ -136,7 +160,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
       },
       stepIndex: 0,
     })
-  }, [hydrated, result, championship.id, level, values])
+  }, [hydrated, result, championship.id, representingMode, values])
 
   // ---- live derivations ------------------------------------------------------
   const age = values.date_of_birth ? Number(formatAge(values.date_of_birth, cutoff)) : null
@@ -223,8 +247,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
           mobile_number: values.mobile_number,
           mobile_e164: mobileE164,
           email: '',
-          state: level === 'national' ? values.representing : '',
-          district: level === 'state' ? values.representing : '',
+          ...locationFields(values.representing),
           address: '',
           representing: values.representing,
         },
@@ -443,11 +466,20 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
   }
 
   // ---- form view ------------------------------------------------------------
-  const representingLabel = level === 'state' ? 'District (you represent)' : 'State (you represent)'
+  const representingLabel =
+    representingMode === 'district'
+      ? `District (you represent) — ${championshipState}`
+      : representingMode === 'state'
+        ? 'State (you represent)'
+        : 'State / Province (you represent)'
   const representingHint =
-    level === 'state'
-      ? 'The district this entry represents.'
-      : 'The state this entry represents.'
+    representingMode === 'district'
+      ? `Start typing to find your district in ${championshipState}.`
+      : representingMode === 'state'
+        ? 'The Indian state this entry represents.'
+        : 'The region this entry represents.'
+  const representingPlaceholder =
+    representingMode === 'district' ? 'e.g. Coimbatore' : representingMode === 'state' ? 'e.g. Tamil Nadu' : 'Region'
 
   return (
     <div className="space-y-6">
@@ -560,14 +592,14 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
           )}
 
           <Field label={representingLabel} htmlFor={reprId} required error={errors.representing} hint={representingHint}>
-            <Input
+            <SearchCombobox
               id={reprId}
               name="representing"
-              list={level === 'national' ? 'state-options' : undefined}
               value={values.representing}
               invalid={Boolean(errors.representing)}
-              onChange={(event) => setValues((current) => ({ ...current, representing: event.target.value }))}
-              placeholder={level === 'state' ? 'e.g. Coimbatore' : 'e.g. Tamil Nadu'}
+              onChange={(value) => setValues((current) => ({ ...current, representing: value }))}
+              options={representingOptions}
+              placeholder={representingPlaceholder}
             />
           </Field>
 
@@ -684,14 +716,6 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
           </div>
         </CardContent>
       </Card>
-
-      {level === 'national' && (
-        <datalist id="state-options">
-          {INDIAN_STATES.map((state) => (
-            <option key={state} value={state} />
-          ))}
-        </datalist>
-      )}
     </div>
   )
 }
