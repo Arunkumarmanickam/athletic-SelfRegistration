@@ -12,6 +12,8 @@ export interface EventMultiSelectProps {
   invalid?: boolean
   /** When true, ineligible events are shown but disabled with a reason. */
   showIneligible?: boolean
+  /** Hard cap on how many events may be selected (null/undefined = unlimited). */
+  maxSelected?: number | null
 }
 
 /**
@@ -26,6 +28,7 @@ export function EventMultiSelect({
   categoryId,
   invalid,
   showIneligible = true,
+  maxSelected = null,
 }: EventMultiSelectProps) {
   const [search, setSearch] = useState('')
 
@@ -53,13 +56,17 @@ export function EventMultiSelect({
     return showIneligible ? filtered : filtered.filter((item) => item.eligible)
   }, [decorated, search, showIneligible])
 
-  const selectedLabel = `${selectedIds.length} selected`
+  const selectedLabel = `${selectedIds.length}${maxSelected != null ? ` / ${maxSelected}` : ''} selected`
 
   // Sticky chips follow the catalogue order so they never jump around.
   const selectedEvents = useMemo(
     () => events.filter((event) => selectedIds.includes(event.id)),
     [events, selectedIds],
   )
+
+  // Once the cap is reached, only the already-selected boxes stay clickable so
+  // the athlete can swap one out — every other box is disabled, not ignored.
+  const atLimit = maxSelected != null && selectedIds.length >= maxSelected
 
   return (
     <div className="space-y-3">
@@ -86,11 +93,17 @@ export function EventMultiSelect({
       >
         {selectedEvents.length > 0 && (
           <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-3 py-2 backdrop-blur">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Your selection</span>
               <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-bold text-orange-700">
                 {selectedEvents.length}
+                {maxSelected != null ? ` / ${maxSelected}` : ''}
               </span>
+              {atLimit && (
+                <span className="text-[11px] font-medium text-amber-700">
+                  Maximum reached — remove one to choose a different event
+                </span>
+              )}
             </div>
             <ul className="mt-1.5 flex flex-wrap gap-1.5">
               {selectedEvents.map((event) => (
@@ -117,20 +130,25 @@ export function EventMultiSelect({
         <ul className="divide-y divide-slate-100 p-1">
           {visible.map(({ event, eligible, reason }) => {
             const checked = selectedIds.includes(event.id)
+            // A blocked box is disabled (and labelled) instead of silently
+            // swallowing the click, so the athlete understands the cap.
+            const blocked = !checked && atLimit
+            const disabled = !eligible || blocked
+            const note = reason ?? (blocked ? `Maximum ${maxSelected} events already selected` : null)
             return (
               <li key={event.id}>
                 <label
                   className={cn(
-                    'flex cursor-pointer items-start gap-3 rounded-md px-3 py-2.5 text-sm transition-colors',
-                    eligible ? 'hover:bg-slate-50' : 'cursor-not-allowed opacity-60',
+                    'flex items-start gap-3 rounded-md px-3 py-2.5 text-sm transition-colors',
+                    disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-slate-50',
                     checked && eligible && 'bg-orange-50/70',
                   )}
                 >
                   <input
                     type="checkbox"
-                    className="mt-0.5 h-4.5 w-4.5 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+                    className="mt-0.5 h-4.5 w-4.5 rounded border-slate-300 text-orange-600 focus:ring-orange-500 disabled:cursor-not-allowed"
                     checked={checked}
-                    disabled={!eligible}
+                    disabled={disabled}
                     onChange={() => onToggle(event.id)}
                   />
                   <span className="min-w-0 flex-1">
@@ -138,7 +156,7 @@ export function EventMultiSelect({
                     <span className="block text-xs text-slate-500">
                       {event.fee_paise > 0 ? formatMoney(event.fee_paise) : 'No additional fee'}
                       {event.gender !== 'any' && ` · ${event.gender === 'male' ? 'Boys/Men' : 'Girls/Women'}`}
-                      {reason && ` · ${reason}`}
+                      {note && ` · ${note}`}
                     </span>
                   </span>
                 </label>

@@ -598,7 +598,9 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
                 Events <span className="text-red-600">*</span>
               </span>
               <span className="text-xs text-slate-500">
-                {values.event_ids.length} selected{maxEvents !== null ? ` · maximum ${maxEvents}` : ''}
+                {values.event_ids.length} selected
+                {maxEvents !== null ? ` · maximum ${maxEvents}` : ''}
+                {maxEvents !== null && values.event_ids.length >= maxEvents ? ' · untick one to change' : ''}
               </span>
             </div>
             <div className="mt-2">
@@ -609,6 +611,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
                 gender={values.gender}
                 categoryId={eligibleCategory?.id ?? ''}
                 invalid={Boolean(errors.event_ids)}
+                maxSelected={maxEvents}
               />
             </div>
             {errors.event_ids && (
