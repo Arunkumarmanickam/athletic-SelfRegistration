@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Field, Input, useFieldId } from '@/components/ui/input'
 import { Checkbox, Select } from '@/components/ui/form-controls'
 import { EventMultiSelect } from '@/components/ui/event-multi-select'
+import { AadhaarReference } from './AadhaarReference'
 import { FeeSummary } from './FeeSummary'
 import { PaymentPanel } from './PaymentPanel'
 import { DocumentUpload } from './DocumentUpload'
@@ -487,6 +488,30 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
             />
           </Field>
 
+          <Field label="Aadhaar card — front side" htmlFor={aadhaarId} required error={errors.aadhaar}>
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,300px)_minmax(0,1fr)] sm:items-start">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <AadhaarReference className="w-full" />
+                <p className="mt-2 text-center text-[11px] text-slate-500">Front side — for reference only</p>
+              </div>
+              <div className="space-y-3">
+                <input
+                  id={aadhaarId}
+                  name="aadhaar"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className={fileInputClass}
+                  onChange={(event) => pickAadhaar(event.target.files?.[0] ?? null)}
+                />
+                {aadhaarFile && <p className="text-xs text-slate-500">Selected: {aadhaarFile.name}</p>}
+                <Alert tone="info" className="text-xs">
+                  Make sure that your Aadhar Card&apos;s Date of Birth is exactly the same as the date of birth entered
+                  below. The card is only checked to confirm your date of birth and is not stored.
+                </Alert>
+              </div>
+            </div>
+          </Field>
+
           <Field
             label="Date of birth"
             htmlFor={dobId}
@@ -626,23 +651,8 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
             </Field>
           </div>
 
-          <Field label="Aadhaar card — front side" htmlFor={aadhaarId} required error={errors.aadhaar}>
-            <input
-              id={aadhaarId}
-              name="aadhaar"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className={fileInputClass}
-              onChange={(event) => pickAadhaar(event.target.files?.[0] ?? null)}
-            />
-          </Field>
-          {aadhaarFile && <p className="text-xs text-slate-500">Selected: {aadhaarFile.name}</p>}
-          <Alert tone="info" className="text-xs">
-            Make sure that your Aadhar Card&apos;s Date of Birth is exactly the same as above mentioned. The card is only
-            checked to confirm your date of birth and is not stored.
-          </Alert>
-
           <FeeSummary championship={championship} category={eligibleCategory} events={selectedEvents} />
+
 
           {championship.terms_text && (
             <div className="space-y-2">

@@ -14,8 +14,14 @@ export interface FeeSummaryProps {
  * always calculated again on the server from the same configuration.
  */
 export function FeeSummary({ championship, category, events = [], className }: FeeSummaryProps) {
+  const categoryFee = category?.fee_paise ?? 0
   const eventFee = events.reduce((total, event) => total + (event.fee_paise ?? 0), 0)
-  const total = (championship.base_fee_paise ?? 0) + (category?.fee_paise ?? 0) + eventFee
+  const total = (championship.base_fee_paise ?? 0) + categoryFee + eventFee
+
+  // Only show a line when it actually contributes something, so a ₹0 category
+  // or an empty event list does not clutter the breakdown.
+  const showCategory = category != null && categoryFee > 0
+  const showEvents = events.length > 0
 
   return (
     <div className={className}>
@@ -24,21 +30,22 @@ export function FeeSummary({ championship, category, events = [], className }: F
           <dt className="text-slate-600">Championship base fee</dt>
           <dd className="font-medium text-slate-900">{formatMoney(championship.base_fee_paise, championship.currency)}</dd>
         </div>
-        <div className="flex items-start justify-between gap-4">
-          <dt className="text-slate-600">
-            Category fee{category ? ` — ${category.name}` : ''}
-          </dt>
-          <dd className="font-medium text-slate-900">
-            {category ? formatMoney(category.fee_paise, championship.currency) : '—'}
-          </dd>
-        </div>
-        <div className="flex items-start justify-between gap-4">
-          <dt className="text-slate-600">
-            Events ({events.length}
-            {events.length > 0 ? `: ${events.map((event) => event.name).join(', ')}` : ''})
-          </dt>
-          <dd className="font-medium text-slate-900">{formatMoney(eventFee, championship.currency)}</dd>
-        </div>
+        {showCategory && (
+          <div className="flex items-start justify-between gap-4">
+            <dt className="text-slate-600">Category fee — {category.name}</dt>
+            <dd className="font-medium text-slate-900">{formatMoney(categoryFee, championship.currency)}</dd>
+          </div>
+        )}
+        {showEvents && (
+          <div className="flex items-start justify-between gap-4">
+            <dt className="text-slate-600">
+              Events ({events.length}: {events.map((event) => event.name).join(', ')})
+            </dt>
+            {eventFee > 0 && (
+              <dd className="font-medium text-slate-900">{formatMoney(eventFee, championship.currency)}</dd>
+            )}
+          </div>
+        )}
       </dl>
       <Separator className="my-3" />
       <div className="flex items-center justify-between">
