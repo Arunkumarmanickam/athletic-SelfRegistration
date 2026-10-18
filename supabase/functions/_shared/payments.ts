@@ -97,6 +97,11 @@ export async function markPaymentCaptured(
         .update({ payment_status: 'paid', status: 'confirmed', confirmed_at: now })
         .eq('id', registration.id)
         .neq('payment_status', 'paid')
+      try {
+        await supabase.rpc('assign_bib', { p_registration_id: registration.id })
+      } catch (err) {
+        console.error('assign_bib failed (idempotent)', err)
+      }
       return {
         ok: true,
         alreadyCaptured: true,
@@ -112,6 +117,14 @@ export async function markPaymentCaptured(
     .from('registrations')
     .update({ payment_status: 'paid', status: 'confirmed', confirmed_at: now })
     .eq('id', registration.id)
+
+  // Assign the bib number (race-safe). The function returns the bib if already
+  // assigned.
+  try {
+    await supabase.rpc('assign_bib', { p_registration_id: registration.id })
+  } catch (err) {
+    console.error('assign_bib failed', err)
+  }
 
   return {
     ok: true,
@@ -189,7 +202,7 @@ export async function loadConfirmation(
   const { data: registration } = await supabase
     .from('registrations')
     .select(
-      'id, registration_code, status, payment_status, fee_paise, currency, registered_at, confirmed_at, championships (id, name, slug, starts_on, ends_on, location), championship_categories (name), athlete_profiles (athlete_id, full_name, email), registration_events (event_name)',
+      'id, registration_code, bib_number, status, payment_status, fee_paise, currency, registered_at, confirmed_at, championships (id, name, slug, starts_on, ends_on, location), championship_categories (name), athlete_profiles (athlete_id, full_name, email), registration_events (event_name)',
     )
     .eq('id', registrationId)
     .maybeSingle()
@@ -229,7 +242,7 @@ export async function notifyConfirmedRegistration(
       athleteName: profile?.full_name ?? '',
       athleteId: profile?.athlete_id ?? '',
       championshipName: championship?.name ?? '',
-      registrationCode: String(reg.registration_code ?? ''),
+      registrationCode: String(reg.bib_number ?? reg.registration_code ?? ''),
       events: events.map((e) => e.event_name),
       amountPaise: Number(reg.fee_paise ?? 0),
       currency: String(reg.currency ?? 'INR'),

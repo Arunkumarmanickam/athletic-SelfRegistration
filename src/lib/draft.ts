@@ -25,7 +25,7 @@ export function loadDraft(championshipId: string): RegistrationDraft | null {
   }
 }
 
-export function saveDraft(draft: RegistrationDraft): void {
+export function saveDraft(draft: Omit<RegistrationDraft, 'updatedAt'>): void {
   try {
     window.localStorage.setItem(KEY, JSON.stringify({ ...draft, updatedAt: new Date().toISOString() }))
   } catch {

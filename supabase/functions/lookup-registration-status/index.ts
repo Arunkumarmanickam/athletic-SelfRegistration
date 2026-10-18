@@ -30,7 +30,7 @@ Deno.serve(
     const { data: registration } = await supabase
       .from('registrations')
       .select(
-        'id, registration_code, status, payment_status, fee_paise, currency, registered_at, confirmed_at, championships (name, starts_on, location), championship_categories (name), athlete_profiles (full_name, mobile_e164), registration_events (event_name)',
+        'id, registration_code, bib_number, status, payment_status, fee_paise, currency, registered_at, confirmed_at, championships (name, starts_on, location), championship_categories (name), athlete_profiles (full_name, mobile_e164), registration_events (event_name)',
       )
       .ilike('registration_code', registrationCode)
       .maybeSingle()
@@ -58,6 +58,7 @@ Deno.serve(
     return json(req, {
       registration: {
         registration_code: registration.registration_code,
+        bib_number: registration.bib_number ?? null,
         athlete_name_masked: maskName(profile.full_name),
         status: registration.status,
         payment_status: registration.payment_status,

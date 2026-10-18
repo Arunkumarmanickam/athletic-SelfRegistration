@@ -56,6 +56,16 @@ Deno.serve(
       return errorJson(req, 'NOT_RETRYABLE', 'This registration has been cancelled.', 409)
     }
 
+    // Mandatory Aadhaar upload must have been recorded before creating an order.
+    const { data: regCheck } = await supabase
+      .from('registrations')
+      .select('aadhaar_verified_at')
+      .eq('id', registration.id)
+      .maybeSingle()
+    if (!regCheck?.aadhaar_verified_at) {
+      return errorJson(req, 'AADHAAR_REQUIRED', 'Please upload your Aadhaar front before making payment.', 400)
+    }
+
     const championship = (registration as unknown as {
       championships?: { name: string; status: string; registration_closes_at: string | null }
     }).championships

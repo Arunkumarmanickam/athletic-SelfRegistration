@@ -58,7 +58,7 @@ function toEditState(profile: AthleteProfile): EditState {
     mobile_country_code: profile.mobile_country_code || '+91',
     mobile_number: profile.mobile_number,
     email: profile.email ?? '',
-    state: profile.state,
+    state: profile.state ?? '',
     district: profile.district ?? '',
     address: profile.address ?? '',
     representing: profile.representing ?? '',

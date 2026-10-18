@@ -1,215 +1,294 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Alert, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/display'
 import { Button } from '@/components/ui/button'
-import { StepIndicator } from '@/components/ui/step-indicator'
-import { PersonalStep } from './PersonalStep'
-import { ParticipationStep } from './ParticipationStep'
-import { ReviewStep } from './ReviewStep'
+import { Field, Input, useFieldId } from '@/components/ui/input'
+import { Checkbox, Select } from '@/components/ui/form-controls'
+import { EventMultiSelect } from '@/components/ui/event-multi-select'
+import { FeeSummary } from './FeeSummary'
 import { PaymentPanel } from './PaymentPanel'
 import { DocumentUpload } from './DocumentUpload'
-import { ApiError, register } from '@/lib/api'
+import { ApiError, register, uploadAadhaar } from '@/lib/api'
 import { useToast } from '@/context/ToastContext'
 import { useConfig } from '@/context/ConfigContext'
 import { clearDraft, loadDraft, saveDraft } from '@/lib/draft'
-import { formatMoney, toE164 } from '@/lib/format'
-import { REGISTRATION_STEPS } from '@/lib/constants'
-import {
-  participationStepSchema,
-  personalStepSchema,
-  reviewStepSchema,
-  validateWith,
-  type ParticipationStepValues,
-  type PersonalStepValues,
-  type ReviewStepValues,
-} from '@/lib/validation'
+import { COUNTRY_CODES, INDIAN_STATES } from '@/lib/constants'
+import { formatAge, formatDate, formatMoney, toE164 } from '@/lib/format'
+import { cn } from '@/lib/utils'
+import { registrationFormSchema, validateWith, type RegistrationFormValues } from '@/lib/validation'
 import { saveConfirmation } from '@/lib/receipt'
-import type { Championship, Confirmation, RegisterResponse } from '@/lib/types'
+import type { Championship, Confirmation, FormConfig, RegisterResponse } from '@/lib/types'
 
-const EMPTY_PERSONAL: PersonalStepValues = {
+/** Resolves the date on which age eligibility is evaluated. */
+function ageCutoffDate(championship: Championship): string {
+  const config: FormConfig = championship.form_config ?? {}
+  if (config.age_calculation_mode === 'fixed' && config.age_calculation_date) {
+    return config.age_calculation_date
+  }
+  return championship.starts_on ?? new Date().toISOString().slice(0, 10)
+}
+
+const EMPTY: RegistrationFormValues = {
   full_name: '',
   date_of_birth: '',
   gender: '',
+  representing: '',
+  event_ids: [],
   mobile_country_code: '+91',
   mobile_number: '',
-  email: '',
-  state: '',
-  district: '',
-  address: '',
-  representing: '',
+  accept_terms: false,
 }
 
-const EMPTY_PARTICIPATION: ParticipationStepValues = {
-  category_id: '',
-  event_ids: [],
-  emergency_contact_name: '',
-  emergency_contact_phone: '',
-}
+const AADHAAR_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const AADHAAR_MAX_BYTES = 5 * 1024 * 1024
 
-const EMPTY_REVIEW: ReviewStepValues = { accept_terms: false, confirm_details: false }
+const fileInputClass =
+  'block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-orange-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-orange-700'
 
 export interface RegistrationFormProps {
   championship: Championship
 }
 
 /**
- * Multi-step registration orchestrator. It validates for fast feedback only —
- * the Edge Function and Postgres recompute fees and eligibility authoritatively.
+ * Single-page registration form.
+ *
+ * Field order: name, date of birth (live age + category), representing
+ * (district for a state-level meet, state for a national one), gender, events,
+ * mobile number, mandatory Aadhaar front upload, then save & payment.
+ *
+ * The browser validates for fast feedback only — the Edge Function and Postgres
+ * recompute eligibility and fees and enforce every rule again.
  */
 export function RegistrationForm({ championship }: RegistrationFormProps) {
   const navigate = useNavigate()
   const toast = useToast()
   const { config } = useConfig()
 
-  const [stepIndex, setStepIndex] = useState(0)
-  const [personal, setPersonal] = useState<PersonalStepValues>(EMPTY_PERSONAL)
-  const [participation, setParticipation] = useState<ParticipationStepValues>(EMPTY_PARTICIPATION)
-  const [review, setReview] = useState<ReviewStepValues>(EMPTY_REVIEW)
+  const level = championship.level === 'national' ? 'national' : 'state'
+  const maxEvents = championship.max_events_per_athlete ?? null
+  const cutoff = ageCutoffDate(championship)
+
+  const nameId = useFieldId('full_name')
+  const dobId = useFieldId('date_of_birth')
+  const genderId = useFieldId('gender')
+  const reprId = useFieldId('representing')
+  const countryId = useFieldId('mobile_country_code')
+  const mobileId = useFieldId('mobile_number')
+  const aadhaarId = useFieldId('aadhaar')
+
+  const [values, setValues] = useState<RegistrationFormValues>(EMPTY)
+  const [aadhaarFile, setAadhaarFile] = useState<File | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [hydrated, setHydrated] = useState(false)
 
   const [result, setResult] = useState<RegisterResponse | null>(null)
-  const [athleteSessionToken, setAthleteSessionToken] = useState<string | null>(null)
-  const [postWarning, setPostWarning] = useState<string | null>(null)
+  const [sessionToken, setSessionToken] = useState<string | null>(null)
+  const [uploadPending, setUploadPending] = useState(false)
+  const [retryFile, setRetryFile] = useState<File | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [alreadyRegistered, setAlreadyRegistered] = useState(false)
 
   // ---- draft persistence ----------------------------------------------------
   useEffect(() => {
     const draft = loadDraft(championship.id)
     if (draft) {
-      setPersonal({ ...EMPTY_PERSONAL, ...draft.personal })
-      setParticipation({ ...EMPTY_PARTICIPATION, ...draft.participation })
-      setStepIndex(Math.min(Math.max(draft.stepIndex, 0), REGISTRATION_STEPS.length - 1))
+      const p = draft.personal
+      const part = draft.participation
+      setValues({
+        full_name: p.full_name,
+        date_of_birth: p.date_of_birth,
+        gender: p.gender === 'female' ? 'female' : p.gender === 'male' ? 'male' : '',
+        representing: level === 'national' ? p.state || p.representing : p.district || p.representing,
+        event_ids: part.event_ids ?? [],
+        mobile_country_code: p.mobile_country_code || '+91',
+        mobile_number: p.mobile_number,
+        accept_terms: false,
+      })
     }
     setHydrated(true)
-  }, [championship.id])
+  }, [championship.id, level])
 
   useEffect(() => {
     if (!hydrated || result) return
     saveDraft({
       championshipId: championship.id,
-      personal,
-      participation,
-      stepIndex,
-      updatedAt: new Date().toISOString(),
+      personal: {
+        full_name: values.full_name,
+        date_of_birth: values.date_of_birth,
+        gender: values.gender,
+        mobile_country_code: values.mobile_country_code,
+        mobile_number: values.mobile_number,
+        email: '',
+        state: level === 'national' ? values.representing : '',
+        district: level === 'state' ? values.representing : '',
+        address: '',
+        representing: values.representing,
+      },
+      participation: {
+        category_id: '',
+        event_ids: values.event_ids,
+        emergency_contact_name: '',
+        emergency_contact_phone: '',
+      },
+      stepIndex: 0,
     })
-  }, [hydrated, result, championship.id, personal, participation, stepIndex])
+  }, [hydrated, result, championship.id, level, values])
 
-  const formConfig = championship.form_config ?? {}
-  const category = useMemo(
-    () => championship.championship_categories.find((item) => item.id === participation.category_id) ?? null,
-    [championship.championship_categories, participation.category_id],
-  )
+  // ---- live derivations ------------------------------------------------------
+  const age = values.date_of_birth ? Number(formatAge(values.date_of_birth, cutoff)) : null
+
+  const eligibleCategory = useMemo(() => {
+    if (age === null || !Number.isFinite(age) || !values.gender) return null
+    return (
+      (championship.championship_categories ?? [])
+        .filter((category) => category.is_active)
+        .filter((category) => category.gender === 'any' || category.gender === values.gender)
+        .find((category) => age >= category.min_age && age <= category.max_age) ?? null
+    )
+  }, [age, values.gender, championship.championship_categories])
+
   const selectedEvents = useMemo(
-    () => championship.championship_events.filter((event) => participation.event_ids.includes(event.id)),
-    [championship.championship_events, participation.event_ids],
+    () => (championship.championship_events ?? []).filter((event) => values.event_ids.includes(event.id)),
+    [championship.championship_events, values.event_ids],
   )
 
-  const submit = useCallback(
-    async (sessionToken?: string | null) => {
-      setSubmitting(true)
-      setFormError(null)
-      setAlreadyRegistered(false)
-      try {
-        const payload: Record<string, unknown> = {
-          championshipId: championship.id,
-          categoryId: participation.category_id,
-          eventIds: participation.event_ids,
-          personal: {
-            ...personal,
-            emergency_contact_name: participation.emergency_contact_name,
-            emergency_contact_phone: participation.emergency_contact_phone,
-          },
-        }
-        if (sessionToken) payload.athleteSessionToken = sessionToken
+  const toggleEvent = (eventId: string) => {
+    setValues((current) => {
+      const has = current.event_ids.includes(eventId)
+      if (!has && maxEvents !== null && current.event_ids.length >= maxEvents) return current
+      return {
+        ...current,
+        event_ids: has
+          ? current.event_ids.filter((id) => id !== eventId)
+          : [...current.event_ids, eventId],
+      }
+    })
+  }
 
-        const response = await register(payload)
-        setResult(response)
-        if (response.athlete_session_token) setAthleteSessionToken(response.athlete_session_token)
-        clearDraft()
-        if (!response.payment.configured) {
-          toast.info('Registration saved', response.message ?? 'Complete payment to confirm your entry.')
-        }
-      } catch (err) {
-        if (err instanceof ApiError) {
-          if (err.code === 'ORDER_FAILED') {
-            const payload = err.payload as
-              | { registration?: RegisterResponse['registration']; athlete_session_token?: string | null }
-              | null
-            if (payload?.registration) {
-              setResult({
-                ok: true,
-                registration: payload.registration,
-                payment: { configured: false },
-                athlete_session_token: payload.athlete_session_token ?? null,
-                athlete_session_expires_at: null,
-              })
-              if (payload.athlete_session_token) setAthleteSessionToken(payload.athlete_session_token)
-              setPostWarning(
-                'Your registration was saved and your bib number is reserved, but the payment order could not be created. Please try the payment again below.',
-              )
-              clearDraft()
-              return
-            }
-          }
-          if (err.code === 'ALREADY_REGISTERED' || err.code === 'ALREADY_REGISTRATION') {
-            setAlreadyRegistered(true)
-            return
-          }
-          setFormError(err.message)
-          return
-        }
-        setFormError('Something went wrong while saving your registration. Please try again.')
-      } finally {
-        setSubmitting(false)
-      }
-    },
-    [championship.id, participation, personal, toast],
-  )
-
-  const goNext = () => {
-    setFormError(null)
-    if (stepIndex === 0) {
-      const result = validateWith(personalStepSchema, personal)
-      const conditional: Record<string, string> = {}
-      if (formConfig.require_email && !personal.email.trim()) conditional.email = 'Please enter your email address.'
-      if (formConfig.require_address && !personal.address.trim()) conditional.address = 'Please enter your address.'
-      if (formConfig.require_representing && !personal.representing.trim()) {
-        conditional.representing = 'Please enter who you represent.'
-      }
-      if (!result.success || Object.keys(conditional).length > 0) {
-        setErrors({ ...(result.success ? {} : result.errors), ...conditional })
-        return
-      }
-      setErrors({})
-      setStepIndex(1)
+  const pickAadhaar = (file: File | null) => {
+    setErrors((current) => ({ ...current, aadhaar: '' }))
+    if (!file) {
+      setAadhaarFile(null)
       return
     }
-    if (stepIndex === 1) {
-      const result = validateWith(participationStepSchema, participation)
-      const conditional: Record<string, string> = {}
-      if (formConfig.require_emergency && !participation.emergency_contact_name.trim()) {
-        conditional.emergency_contact_name = 'Please provide an emergency contact.'
-      }
-      if (!result.success || Object.keys(conditional).length > 0) {
-        setErrors({ ...(result.success ? {} : result.errors), ...conditional })
+    if (!AADHAAR_TYPES.includes(file.type)) {
+      setErrors((current) => ({ ...current, aadhaar: 'Please upload a JPG, PNG or WEBP image.' }))
+      return
+    }
+    if (file.size > AADHAAR_MAX_BYTES) {
+      setErrors((current) => ({ ...current, aadhaar: 'The image must be 5 MB or smaller.' }))
+      return
+    }
+    setAadhaarFile(file)
+  }
+
+  const mobileE164 = toE164(values.mobile_country_code, values.mobile_number)
+
+  const handleSubmit = async () => {
+    setFormError(null)
+    const parsed = validateWith(registrationFormSchema, values)
+    const extra: Record<string, string> = {}
+    if (!parsed.success) Object.assign(extra, parsed.errors)
+    if (age !== null && values.gender && !eligibleCategory) {
+      extra.date_of_birth = 'No age category in this championship matches your date of birth.'
+    }
+    if (maxEvents !== null && values.event_ids.length > maxEvents) {
+      extra.event_ids = `You can select up to ${maxEvents} events.`
+    }
+    if (!aadhaarFile) extra.aadhaar = 'Please upload the front side of your Aadhaar card.'
+    if (championship.terms_text && !values.accept_terms) {
+      extra.accept_terms = 'Please accept the terms and conditions.'
+    }
+    if (Object.keys(extra).length > 0 || !eligibleCategory) {
+      setErrors(extra)
+      return
+    }
+
+    setErrors({})
+    setSubmitting(true)
+    try {
+      const response = await register({
+        championshipId: championship.id,
+        categoryId: eligibleCategory.id,
+        eventIds: values.event_ids,
+        personal: {
+          full_name: values.full_name,
+          date_of_birth: values.date_of_birth,
+          gender: values.gender,
+          mobile_country_code: values.mobile_country_code,
+          mobile_number: values.mobile_number,
+          mobile_e164: mobileE164,
+          email: '',
+          state: level === 'national' ? values.representing : '',
+          district: level === 'state' ? values.representing : '',
+          address: '',
+          representing: values.representing,
+        },
+      })
+
+      clearDraft()
+      setSessionToken(response.athlete_session_token)
+      setResult(response)
+
+      // Mandatory Aadhaar front: uploaded right after saving, before payment.
+      if (!response.athlete_session_token) {
+        setUploadPending(true)
+        setUploadError('Your upload session could not be started. Please try the upload below again.')
         return
       }
-      setErrors({})
-      setStepIndex(2)
+      try {
+        await uploadAadhaar({
+          athleteSessionToken: response.athlete_session_token,
+          registrationId: response.registration.id,
+          file: aadhaarFile!,
+        })
+        toast.info('Registration saved', 'Upload received. Continue to payment to confirm your entry.')
+      } catch (err) {
+        setUploadPending(true)
+        setUploadError(err instanceof ApiError ? err.message : 'The Aadhaar upload failed. Please try again.')
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.code === 'ALREADY_REGISTERED') {
+          setAlreadyRegistered(true)
+          return
+        }
+        setFormError(err.message)
+        return
+      }
+      setFormError('Something went wrong while saving your registration. Please try again.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
-  const handleSubmit = () => {
-    const result = validateWith(reviewStepSchema, review)
-    if (!result.success) {
-      setErrors(result.errors)
+  const retryUpload = async () => {
+    if (!result) return
+    if (!retryFile) {
+      setUploadError('Please choose the front side of your Aadhaar card first.')
       return
     }
-    setErrors({})
-    void submit(athleteSessionToken)
+    if (!sessionToken) {
+      setUploadError(
+        'Your upload session has expired. Use “Retrieve my details” to verify again, or contact the organiser.',
+      )
+      return
+    }
+    setUploading(true)
+    setUploadError(null)
+    try {
+      await uploadAadhaar({ athleteSessionToken: sessionToken, registrationId: result.registration.id, file: retryFile })
+      setUploadPending(false)
+      setRetryFile(null)
+      toast.success('Aadhaar uploaded', 'You can continue to payment.')
+    } catch (err) {
+      setUploadError(err instanceof ApiError ? err.message : 'The upload failed. Please try again.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   const handlePaymentSuccess = (confirmation: Confirmation) => {
@@ -221,6 +300,8 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
   // ---- post-registration view ----------------------------------------------
   if (result) {
     const registration = result.registration
+    const paymentWithOrder = result.payment.configured ? result.payment : null
+
     return (
       <div className="space-y-5">
         <Card>
@@ -228,11 +309,9 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
             <CardTitle>Registration saved</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Alert tone="success" title="Your entry has been recorded">
-              Keep your Athlete ID and Registration ID safely. The Registration ID doubles as your bib number.
+            <Alert tone="success" title="Your details have been recorded">
+              Keep your Athlete ID safe. Your bib number is issued automatically once your payment is confirmed.
             </Alert>
-
-            {postWarning && <Alert tone="warning" title="Payment needs attention">{postWarning}</Alert>}
 
             <dl className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
@@ -240,18 +319,22 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
                 <dd className="mt-1 font-mono text-lg font-semibold text-slate-900">{registration.athlete_id}</dd>
               </div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Registration ID / Bib number
-                </dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Registration reference</dt>
                 <dd className="mt-1 font-mono text-lg font-semibold text-slate-900">{registration.registration_code}</dd>
               </div>
+              {registration.bib_number && (
+                <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-orange-600">Bib number</dt>
+                  <dd className="mt-1 font-mono text-lg font-semibold text-orange-800">{registration.bib_number}</dd>
+                </div>
+              )}
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
                 <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Championship</dt>
-                <dd className="mt-1 text-sm font-medium text-slate-900">{championship.name}</dd>
+                <dd className="mt-1 text-sm font-semibold text-slate-900">{championship.name}</dd>
               </div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
                 <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Fee</dt>
-                <dd className="mt-1 text-sm font-medium text-slate-900">
+                <dd className="mt-1 text-lg font-semibold text-slate-900">
                   {formatMoney(registration.fee_paise, registration.currency)}
                 </dd>
               </div>
@@ -259,78 +342,88 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
 
             {registration.is_new_profile && (
               <p className="text-sm text-slate-600">
-                A new athlete profile was created. Use your Athlete ID to retrieve your details next time.
+                Your Athlete ID was created now — use it to retrieve your details next time.
               </p>
             )}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Payment</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {result.payment.configured ? (
-              <PaymentPanel
-                championshipName={championship.name}
-                organizerName={config?.site?.organizer_name}
-                registrationCode={registration.registration_code}
-                mobileE164={toE164(personal.mobile_country_code, personal.mobile_number)}
-                amountPaise={result.payment.amount_paise}
-                currency={result.payment.currency}
-                order={{
-                  razorpay_order_id: result.payment.razorpay_order_id,
-                  razorpay_key_id: result.payment.razorpay_key_id,
-                  amount_paise: result.payment.amount_paise,
-                  currency: result.payment.currency,
-                }}
-                prefill={{
-                  name: personal.full_name,
-                  email: personal.email || undefined,
-                  contact: toE164(personal.mobile_country_code, personal.mobile_number),
-                }}
-                onSuccess={handlePaymentSuccess}
+        {uploadPending && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Aadhaar front upload required</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Alert tone="warning" title="Upload required before payment">
+                {uploadError ?? 'Please upload the front side of your Aadhaar card to continue to payment.'}
+              </Alert>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className={fileInputClass}
+                onChange={(event) => setRetryFile(event.target.files?.[0] ?? null)}
               />
-            ) : config?.payments_configured ? (
-              <>
-                <Alert tone="warning" className="mb-4">
-                  {result.message ??
-                    'Online payment is available, but no order was created yet. Start a payment attempt below.'}
-                </Alert>
+              {retryFile && <p className="text-xs text-slate-500">Selected: {retryFile.name}</p>}
+              <Button variant="accent" onClick={() => void retryUpload()} loading={uploading} disabled={uploading}>
+                Upload Aadhaar
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {!uploadPending && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Payment</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {paymentWithOrder ? (
                 <PaymentPanel
                   championshipName={championship.name}
                   organizerName={config?.site?.organizer_name}
                   registrationCode={registration.registration_code}
-                  mobileE164={toE164(personal.mobile_country_code, personal.mobile_number)}
-                  amountPaise={registration.fee_paise}
-                  currency={registration.currency}
-                  prefill={{
-                    name: personal.full_name,
-                    email: personal.email || undefined,
-                    contact: toE164(personal.mobile_country_code, personal.mobile_number),
+                  mobileE164={mobileE164}
+                  amountPaise={paymentWithOrder.amount_paise}
+                  currency={paymentWithOrder.currency}
+                  order={{
+                    razorpay_order_id: paymentWithOrder.razorpay_order_id,
+                    razorpay_key_id: paymentWithOrder.razorpay_key_id,
+                    amount_paise: paymentWithOrder.amount_paise,
+                    currency: paymentWithOrder.currency,
                   }}
                   onSuccess={handlePaymentSuccess}
                 />
-              </>
-            ) : (
-              <Alert tone="warning" title="Online payment is not configured yet">
-                {result.message ??
-                  'Your registration is saved, but this deployment has no online payment set up. Please contact the organiser to complete your payment.'}
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
+              ) : config?.payments_configured ? (
+                <PaymentPanel
+                  championshipName={championship.name}
+                  organizerName={config?.site?.organizer_name}
+                  registrationCode={registration.registration_code}
+                  mobileE164={mobileE164}
+                  amountPaise={registration.fee_paise}
+                  currency={registration.currency}
+                  onSuccess={handlePaymentSuccess}
+                />
+              ) : (
+                <Alert tone="warning" title="Online payment is not configured yet">
+                  {result.message ??
+                    'Your registration is saved, but this deployment has no online payment set up. Please contact the organiser to complete your payment.'}
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-        {formConfig.allow_photo_upload && athleteSessionToken && (
+        {championship.form_config?.allow_photo_upload && sessionToken && !uploadPending && (
           <Card>
             <CardHeader>
-              <CardTitle>Optional: upload a photo or document</CardTitle>
+              <CardTitle>Optional: upload a photo</CardTitle>
             </CardHeader>
             <CardContent>
               <DocumentUpload
-                athleteSessionToken={athleteSessionToken}
+                athleteSessionToken={sessionToken}
                 registrationId={registration.id}
-                label="Athlete photo / certificate"
+                label="Athlete photo"
+                hint="JPG, PNG or WEBP up to 5 MB."
               />
             </CardContent>
           </Card>
@@ -349,15 +442,19 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
   }
 
   // ---- form view ------------------------------------------------------------
+  const representingLabel = level === 'state' ? 'District (you represent)' : 'State (you represent)'
+  const representingHint =
+    level === 'state'
+      ? 'The district this entry represents.'
+      : 'The state this entry represents.'
+
   return (
     <div className="space-y-6">
-      <StepIndicator currentIndex={stepIndex} />
-
       {formError && <Alert tone="danger" title="We could not complete that">{formError}</Alert>}
       {alreadyRegistered && (
         <Alert tone="warning" title="You are already registered">
-          This athlete is already registered for {championship.name}. You can check the status using your Registration
-          ID and mobile number, or retrieve your details with your Athlete ID.
+          This athlete is already registered for {championship.name}. Check the status with your reference and mobile
+          number, or retrieve your details with your Athlete ID.
           <div className="mt-3 flex flex-wrap gap-2">
             <Link to="/status">
               <Button size="sm" variant="outline">
@@ -373,61 +470,215 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
         </Alert>
       )}
 
-      <div className="animate-fade-in-up" key={stepIndex}>
-        {stepIndex === 0 && (
-          <PersonalStep
-            values={personal}
-            errors={errors}
-            formConfig={formConfig}
-            onChange={(patch) => setPersonal((current) => ({ ...current, ...patch }))}
-          />
-        )}
-        {stepIndex === 1 && (
-          <ParticipationStep
-            values={participation}
-            errors={errors}
-            championship={championship}
-            gender={personal.gender}
-            dateOfBirth={personal.date_of_birth}
-            onChange={(patch) => setParticipation((current) => ({ ...current, ...patch }))}
-          />
-        )}
-        {stepIndex === 2 && (
-          <ReviewStep
-            values={review}
-            errors={errors}
-            onChange={(patch) => setReview((current) => ({ ...current, ...patch }))}
-            championship={championship}
-            category={category}
-            events={selectedEvents}
-            personal={personal}
-            participation={participation}
-          />
-        )}
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Registration form</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <Field label="Full name" htmlFor={nameId} required error={errors.full_name}>
+            <Input
+              id={nameId}
+              name="full_name"
+              autoComplete="name"
+              value={values.full_name}
+              invalid={Boolean(errors.full_name)}
+              onChange={(event) => setValues((current) => ({ ...current, full_name: event.target.value }))}
+              placeholder="As it should appear on results and the bib"
+            />
+          </Field>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5">
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => {
-            setErrors({})
-            setStepIndex((index) => Math.max(0, index - 1))
-          }}
-          disabled={stepIndex === 0 || submitting}
-        >
-          Back
-        </Button>
-        {stepIndex < REGISTRATION_STEPS.length - 1 ? (
-          <Button type="button" variant="accent" onClick={goNext}>
-            Continue
-          </Button>
-        ) : (
-          <Button type="button" variant="accent" onClick={handleSubmit} loading={submitting}>
-            Submit registration
-          </Button>
-        )}
-      </div>
+          <Field
+            label="Date of birth"
+            htmlFor={dobId}
+            required
+            error={errors.date_of_birth}
+            hint="Used to place the athlete in the correct age category."
+          >
+            <Input
+              id={dobId}
+              name="date_of_birth"
+              type="date"
+              max={new Date().toISOString().slice(0, 10)}
+              value={values.date_of_birth}
+              invalid={Boolean(errors.date_of_birth)}
+              onChange={(event) => setValues((current) => ({ ...current, date_of_birth: event.target.value }))}
+            />
+          </Field>
+
+          {values.date_of_birth && (
+            <div
+              className={cn(
+                'rounded-lg border px-4 py-3 text-sm',
+                eligibleCategory ? 'border-slate-200 bg-slate-50' : 'border-amber-300 bg-amber-50',
+              )}
+            >
+              <p className="text-slate-600">
+                Age on {formatDate(cutoff)}:{' '}
+                <span className="font-semibold text-slate-900">
+                  {age !== null && Number.isFinite(age) ? `${age} years` : '—'}
+                </span>
+              </p>
+              {values.gender && eligibleCategory && (
+                <p className="mt-1 text-slate-700">
+                  Your age category: <span className="font-semibold">{eligibleCategory.name}</span> (
+                  {eligibleCategory.min_age}–{eligibleCategory.max_age} years)
+                </p>
+              )}
+              {values.gender && !eligibleCategory && (
+                <p className="mt-1 font-medium text-amber-800">
+                  No age category in this championship matches your date of birth and gender. Please check the date of
+                  birth.
+                </p>
+              )}
+              {!values.gender && <p className="mt-1 text-slate-500">Select your gender to see your age category.</p>}
+            </div>
+          )}
+
+          <Field label={representingLabel} htmlFor={reprId} required error={errors.representing} hint={representingHint}>
+            <Input
+              id={reprId}
+              name="representing"
+              list={level === 'national' ? 'state-options' : undefined}
+              value={values.representing}
+              invalid={Boolean(errors.representing)}
+              onChange={(event) => setValues((current) => ({ ...current, representing: event.target.value }))}
+              placeholder={level === 'state' ? 'e.g. Coimbatore' : 'e.g. Tamil Nadu'}
+            />
+          </Field>
+
+          <Field label="Gender" htmlFor={genderId} required error={errors.gender}>
+            <div id={genderId} role="radiogroup" aria-label="Gender" className="flex flex-wrap gap-6 pt-1">
+              {[
+                { value: 'male', label: 'Men' },
+                { value: 'female', label: 'Women' },
+              ].map((option) => (
+                <label key={option.value} className="flex items-center gap-2 text-sm font-medium text-slate-800">
+                  <input
+                    type="radio"
+                    name="gender"
+                    className="h-4 w-4 border-slate-300 text-orange-600 focus:ring-orange-500"
+                    value={option.value}
+                    checked={values.gender === option.value}
+                    onChange={() => setValues((current) => ({ ...current, gender: option.value }))}
+                  />
+                  {option.label}
+                </label>
+              ))}
+            </div>
+          </Field>
+
+          <div>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="text-sm font-medium text-slate-800">
+                Events <span className="text-red-600">*</span>
+              </span>
+              <span className="text-xs text-slate-500">
+                {values.event_ids.length} selected{maxEvents !== null ? ` · maximum ${maxEvents}` : ''}
+              </span>
+            </div>
+            <div className="mt-2">
+              <EventMultiSelect
+                events={championship.championship_events ?? []}
+                selectedIds={values.event_ids}
+                onToggle={toggleEvent}
+                gender={values.gender}
+                categoryId={eligibleCategory?.id ?? ''}
+                invalid={Boolean(errors.event_ids)}
+              />
+            </div>
+            {errors.event_ids && (
+              <p className="mt-1 text-xs font-medium text-red-600" role="alert">
+                {errors.event_ids}
+              </p>
+            )}
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label="Country code" htmlFor={countryId} required error={errors.mobile_country_code}>
+              <Select
+                id={countryId}
+                name="mobile_country_code"
+                value={values.mobile_country_code}
+                invalid={Boolean(errors.mobile_country_code)}
+                onChange={(event) => setValues((current) => ({ ...current, mobile_country_code: event.target.value }))}
+              >
+                {COUNTRY_CODES.map((option) => (
+                  <option key={option.code} value={option.code}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Mobile number" htmlFor={mobileId} required error={errors.mobile_number}>
+              <Input
+                id={mobileId}
+                name="mobile_number"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel"
+                value={values.mobile_number}
+                invalid={Boolean(errors.mobile_number)}
+                onChange={(event) =>
+                  setValues((current) => ({ ...current, mobile_number: event.target.value.replace(/[^\d]/g, '') }))
+                }
+                placeholder="9876543210"
+              />
+            </Field>
+          </div>
+
+          <Field label="Aadhaar card — front side" htmlFor={aadhaarId} required error={errors.aadhaar}>
+            <input
+              id={aadhaarId}
+              name="aadhaar"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className={fileInputClass}
+              onChange={(event) => pickAadhaar(event.target.files?.[0] ?? null)}
+            />
+          </Field>
+          {aadhaarFile && <p className="text-xs text-slate-500">Selected: {aadhaarFile.name}</p>}
+          <Alert tone="info" className="text-xs">
+            Make sure that your Aadhar Card&apos;s Date of Birth is exactly the same as above mentioned. The card is only
+            checked to confirm your date of birth and is not stored.
+          </Alert>
+
+          <FeeSummary championship={championship} category={eligibleCategory} events={selectedEvents} />
+
+          {championship.terms_text && (
+            <div className="space-y-2">
+              <Checkbox
+                label="I accept the terms and conditions"
+                checked={values.accept_terms}
+                onChange={(event) =>
+                  setValues((current) => ({ ...current, accept_terms: event.target.checked }))
+                }
+              />
+              {errors.accept_terms && (
+                <p className="text-xs font-medium text-red-600" role="alert">
+                  {errors.accept_terms}
+                </p>
+              )}
+              <div className="max-h-32 overflow-y-auto whitespace-pre-line rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                {championship.terms_text}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <Button variant="accent" onClick={() => void handleSubmit()} loading={submitting} disabled={submitting}>
+              Save &amp; continue to payment
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {level === 'national' && (
+        <datalist id="state-options">
+          {INDIAN_STATES.map((state) => (
+            <option key={state} value={state} />
+          ))}
+        </datalist>
+      )}
     </div>
   )
 }

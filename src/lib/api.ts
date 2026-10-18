@@ -125,6 +125,37 @@ export const retrieveProfile = (athleteSessionToken: string) =>
 
 export const register = (body: Record<string, unknown>) => invoke<RegisterResponse>('register', body)
 
+/**
+ * Uploads the front of the Aadhaar card. The image is validated by the server
+ * and then DISCARDED — only a "received" timestamp is kept, so the card is
+ * never stored anywhere. Returns the server's acknowledgement.
+ */
+export async function uploadAadhaar(input: { athleteSessionToken: string; registrationId: string; file: File }) {
+  const form = new FormData()
+  form.append('file', input.file)
+  form.append('athleteSessionToken', input.athleteSessionToken)
+  form.append('registrationId', input.registrationId)
+  form.append('purpose', 'aadhaar')
+
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-document`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY as string}`,
+    },
+    body: form,
+  })
+
+  const payload = (await response.json().catch(() => null)) as
+    | { ok?: boolean; stored?: boolean; aadhaar_verified?: boolean; error?: { message?: string } }
+    | null
+  if (!response.ok || !payload?.ok) {
+    throw new ApiError('UPLOAD_FAILED', payload?.error?.message ?? 'The upload failed. Please try again.', response.status)
+  }
+  return { stored: payload.stored === true, aadhaar_verified: payload.aadhaar_verified === true }
+}
+
 export const verifyPayment = (body: {
   razorpayOrderId: string
   razorpayPaymentId: string
@@ -142,6 +173,7 @@ export const lookupRegistrationStatus = (body: { registrationCode: string; mobil
   invoke<{
     registration: {
       registration_code: string
+      bib_number?: string | null
       athlete_name_masked: string
       status: string
       payment_status: string
@@ -167,11 +199,11 @@ export async function uploadDocument(input: {
   athleteSessionToken: string
   registrationId?: string
   file: File
-}): Promise<{ path: string; signed_url: string | null }> {
-  const client = requireSupabase()
+}): Promise<{ path: string }> {
   const form = new FormData()
   form.append('file', input.file)
   form.append('athleteSessionToken', input.athleteSessionToken)
+  form.append('purpose', 'photo')
   if (input.registrationId) form.append('registrationId', input.registrationId)
 
   const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-document`
@@ -185,13 +217,12 @@ export async function uploadDocument(input: {
   })
 
   const payload = (await response.json().catch(() => null)) as
-    | { path: string; signed_url: string | null; error?: { message?: string } }
+    | { ok?: boolean; path?: string; error?: { message?: string } }
     | null
-  if (!response.ok || !payload) {
+  if (!response.ok || !payload?.ok) {
     throw new ApiError('UPLOAD_FAILED', payload?.error?.message ?? 'The upload failed. Please try again.', response.status)
   }
-  void client
-  return { path: payload.path, signed_url: payload.signed_url }
+  return { path: payload.path ?? '' }
 }
 
 // ---------------------------------------------------------------------------

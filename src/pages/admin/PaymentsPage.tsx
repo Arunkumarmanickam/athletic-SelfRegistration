@@ -268,6 +268,7 @@ export function PaymentsPage() {
                   <Th>Date</Th>
                   <Th>Athlete</Th>
                   <Th>Registration</Th>
+                  <Th>Bib</Th>
                   <Th>Championship</Th>
                   <Th>Amount</Th>
                   <Th>Status</Th>
@@ -292,6 +293,7 @@ export function PaymentsPage() {
                       </span>
                     </Td>
                     <Td className="font-mono text-xs">{payment.registrations?.registration_code ?? '—'}</Td>
+                    <Td className="font-mono text-xs">{payment.registrations?.bib_number ?? '—'}</Td>
                     <Td>{payment.registrations?.championships?.name ?? '—'}</Td>
                     <Td className="tabular-nums">{formatMoney(payment.amount_paise, payment.currency)}</Td>
                     <Td>
@@ -328,7 +330,8 @@ export function PaymentsPage() {
             <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
               {(
                 [
-                  ['Registration', detail.payment.registrations?.registration_code ?? '—'],
+                  ['Registration reference', detail.payment.registrations?.registration_code ?? '—'],
+                  ['Bib number', detail.payment.registrations?.bib_number ?? '—'],
                   ['Athlete', detail.payment.registrations?.athlete_profiles?.full_name ?? '—'],
                   ['Athlete ID', detail.payment.registrations?.athlete_profiles?.athlete_id ?? '—'],
                   ['Championship', detail.payment.registrations?.championships?.name ?? '—'],

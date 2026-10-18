@@ -32,7 +32,7 @@ Deno.serve(
     const { data: registrations, error } = await supabase
       .from('registrations')
       .select(
-        'id, registration_code, status, payment_status, fee_paise, currency, registered_at, confirmed_at, championship_id, championships (id, name, slug, starts_on, ends_on, location), championship_categories (name), registration_events (event_name)',
+        'id, registration_code, bib_number, status, payment_status, fee_paise, currency, registered_at, confirmed_at, championship_id, championships (id, name, slug, starts_on, ends_on, location, level), championship_categories (name), registration_events (event_name)',
       )
       .eq('athlete_profile_id', context.profile.id)
       .order('registered_at', { ascending: false })

@@ -41,6 +41,8 @@ interface ChampionshipFormState {
   currency: string
   base_fee_rupees: string
   terms_text: string
+  level: 'state' | 'national'
+  max_events_per_athlete: string
 }
 
 interface FormConfigState {
@@ -68,6 +70,8 @@ const EMPTY_FORM: ChampionshipFormState = {
   currency: 'INR',
   base_fee_rupees: '0',
   terms_text: '',
+  level: 'state',
+  max_events_per_athlete: '',
 }
 
 function formConfigState(config: FormConfig | undefined): FormConfigState {
@@ -99,6 +103,8 @@ function formState(championship: AdminChampionship | null): ChampionshipFormStat
     currency: championship.currency,
     base_fee_rupees: paiseToRupees(championship.base_fee_paise),
     terms_text: championship.terms_text ?? '',
+    level: championship.level === 'national' ? 'national' : 'state',
+    max_events_per_athlete: championship.max_events_per_athlete !== undefined && championship.max_events_per_athlete !== null ? String(championship.max_events_per_athlete) : '',
   }
 }
 
@@ -312,6 +318,8 @@ function ChampionshipEditor({
           : {}),
       },
       terms_text: form.terms_text,
+      level: form.level,
+      max_events_per_athlete: form.max_events_per_athlete.trim() === '' ? null : Number(form.max_events_per_athlete.trim()),
     }
 
     setSaving(true)
@@ -430,6 +438,20 @@ function ChampionshipEditor({
               <CardTitle>Fees &amp; numbering</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
+              <Field label="Level" htmlFor="c-level" hint="State asks for district; National asks for state.">
+                <Select id="c-level" value={form.level} onChange={(e) => setField({ level: e.target.value as 'state' | 'national' })}>
+                  <option value="state">State</option>
+                  <option value="national">National</option>
+                </Select>
+              </Field>
+              <Field label="Max events per athlete" htmlFor="c-max-events" hint="Leave blank for no limit.">
+                <Input
+                  id="c-max-events"
+                  inputMode="numeric"
+                  value={form.max_events_per_athlete}
+                  onChange={(e) => setField({ max_events_per_athlete: e.target.value.replace(/[^\d]/g, '') })}
+                />
+              </Field>
               <Field label="Currency" htmlFor="c-currency" hint="Three-letter code, e.g. INR">
                 <Input id="c-currency" value={form.currency} onChange={(e) => setField({ currency: e.target.value })} maxLength={3} />
               </Field>
@@ -442,13 +464,11 @@ function ChampionshipEditor({
                 />
               </Field>
               <div className="rounded-lg bg-slate-50 px-3 py-3 text-sm sm:col-span-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Bib number format</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Bib number</p>
                 <p className="mt-1 font-mono text-lg font-semibold text-slate-900">M/W + age category + 2 digits</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Bib numbers are generated automatically from the athlete's sex and the age category they are placed
-                  in, so there is nothing to configure. A 45-year-old man gets M4501, a 45-year-old woman gets W4501,
-                  and the 101st woman in the 35+ bracket gets W35101. Every combination counts independently, and the
-                  bib is also the Registration ID.
+                  Bib numbers are generated automatically from the athlete's sex and age category only after payment is verified.
+                  The pre-payment reference stays unique for lookups.
                 </p>
               </div>
             </CardContent>

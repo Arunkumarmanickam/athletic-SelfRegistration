@@ -60,15 +60,7 @@ export const INDIAN_STATES = [
 ]
 
 export const GENDER_OPTIONS: { value: Gender; label: string }[] = [
-  { value: 'male', label: 'Male' },
-  { value: 'female', label: 'Female' },
+  { value: 'male', label: 'Men' },
+  { value: 'female', label: 'Women' },
   { value: 'other', label: 'Other' },
 ]
-
-export const REGISTRATION_STEPS = [
-  { id: 'personal', title: 'Personal details', description: 'Who is registering' },
-  { id: 'participation', title: 'Category & events', description: 'What they will compete in' },
-  { id: 'review', title: 'Review & pay', description: 'Confirm and pay the fee' },
-] as const
-
-export type RegistrationStepId = (typeof REGISTRATION_STEPS)[number]['id']

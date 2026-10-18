@@ -17,7 +17,7 @@ Deno.serve(
         .from('championships')
         .select(
           // PostgREST rejects newline characters inside `select` (PGRST100), so this must stay on one line.
-          'id, slug, name, description, location, starts_on, ends_on, registration_opens_at, registration_closes_at, status, currency, base_fee_paise, terms_text, form_config, championship_categories (id, name, gender, min_age, max_age, fee_paise, is_active, sort_order), championship_events (id, name, gender, category_ids, fee_paise, is_active, sort_order)',
+          'id, slug, name, description, location, starts_on, ends_on, registration_opens_at, registration_closes_at, status, currency, base_fee_paise, terms_text, form_config, level, max_events_per_athlete, championship_categories (id, name, gender, min_age, max_age, fee_paise, is_active, sort_order), championship_events (id, name, gender, category_ids, fee_paise, is_active, sort_order)',
         )
         .eq('status', 'open')
         .order('starts_on', { ascending: true }),

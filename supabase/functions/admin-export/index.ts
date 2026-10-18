@@ -82,10 +82,24 @@ const REGISTRATION_COLUMNS: ColumnDef[] = [
   { key: 'athlete_id', header: 'Athlete ID', width: 18, text: true, value: (r) => safeText(profileOf(r)?.athlete_id) },
   {
     key: 'registration_code',
-    header: 'Registration ID / Bib Number',
-    width: 26,
+    header: 'Registration Reference',
+    width: 22,
     text: true,
     value: (r) => safeText(r.registration_code),
+  },
+  {
+    key: 'bib_number',
+    header: 'Bib Number',
+    width: 20,
+    text: true,
+    value: (r) => safeText((r as any).bib_number ?? '—'),
+  },
+  {
+    key: 'bib_number',
+    header: 'Bib Number',
+    width: 20,
+    text: true,
+    value: (r) => safeText((r as any).bib_number ?? '—'),
   },
   { key: 'full_name', header: 'Athlete Name', width: 26, value: (r) => safeText(profileOf(r)?.full_name) },
   {
@@ -163,10 +177,24 @@ const PAYMENT_COLUMNS: ColumnDef[] = [
   },
   {
     key: 'registration_code',
-    header: 'Registration ID / Bib Number',
-    width: 26,
+    header: 'Registration Reference',
+    width: 22,
     text: true,
     value: (p) => safeText(p.registrations?.registration_code),
+  },
+  {
+    key: 'bib_number',
+    header: 'Bib Number',
+    width: 18,
+    text: true,
+    value: (p) => safeText((p.registrations as any)?.bib_number ?? '—'),
+  },
+  {
+    key: 'bib_number',
+    header: 'Bib Number',
+    width: 18,
+    text: true,
+    value: (p) => safeText((p.registrations as any)?.bib_number ?? '—'),
   },
   {
     key: 'full_name',

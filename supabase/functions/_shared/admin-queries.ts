@@ -31,9 +31,9 @@ export interface PaymentFilters {
 // NOTE: PostgREST rejects newline characters inside the `select` parameter
 // (PGRST100 "unexpected \n"), so these are built as single-line strings.
 export const REGISTRATION_SELECT = [
-  'id, registration_code, status, payment_status, fee_paise, currency,',
+  'id, registration_code, bib_number, status, payment_status, fee_paise, currency,',
   'registered_at, confirmed_at, category_name, notes, updated_at,',
-  'championships (id, name, slug, starts_on),',
+  'championships (id, name, slug, starts_on, level, max_events_per_athlete),',
   'championship_categories (id, name),',
   'athlete_profiles!inner(id, athlete_id, full_name, date_of_birth, gender, mobile_country_code, mobile_number, mobile_e164, email, state, district, address, representing, emergency_contact_name, emergency_contact_phone, photo_path),',
   'registration_events (event_id, event_name, fee_paise)',
@@ -42,7 +42,7 @@ export const REGISTRATION_SELECT = [
 export const PAYMENT_SELECT = [
   'id, razorpay_order_id, razorpay_payment_id, amount_paise, currency, status,',
   'method, failure_reason, signature_verified, attempt_number, created_at, verified_at, registration_id,',
-  'registrations!inner(id, registration_code, status, payment_status, championship_id,',
+  'registrations!inner(id, registration_code, bib_number, status, payment_status, championship_id,',
   'championships (id, name),',
   'athlete_profiles (athlete_id, full_name, mobile_e164))',
 ].join(' ')
@@ -127,7 +127,7 @@ export async function buildRegistrationsQuery(
       .or(`full_name.ilike.${like},athlete_id.ilike.${like},mobile_e164.ilike.${like}`)
       .limit(500)
     const ids = (profiles ?? []).map((p: { id: string }) => p.id)
-    const orParts = [`registration_code.ilike.${like}`]
+    const orParts = [`registration_code.ilike.${like}`, `bib_number.ilike.${like}`]
     if (ids.length) orParts.push(`athlete_profile_id.in.(${ids.join(',')})`)
     query = query.or(orParts.join(','))
   }
@@ -138,6 +138,7 @@ export async function buildRegistrationsQuery(
       query = query.order('full_name', { foreignTable: 'athlete_profiles', ascending })
       break
     case 'registration_code':
+    case 'bib_number':
     case 'fee_paise':
     case 'status':
     case 'payment_status':

@@ -62,7 +62,8 @@ export function SuccessPage() {
   const detailRows: [string, string][] = [
     ['Athlete', profile?.full_name ?? '—'],
     ['Athlete ID', profile?.athlete_id ?? '—'],
-    ['Registration ID / Bib number', registration.registration_code],
+    ['Registration reference', registration.registration_code],
+    ['Bib number', registration.bib_number ?? 'Issued after payment'],
     ['Championship', champion?.name ?? '—'],
     ['Category', category?.name ?? '—'],
     ['Events', events.join(', ') || '—'],

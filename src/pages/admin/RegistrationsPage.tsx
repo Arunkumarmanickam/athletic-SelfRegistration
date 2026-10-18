@@ -16,7 +16,7 @@ import type { RegistrationAdminRow, RegistrationFilters } from '@/lib/types'
 
 const PAGE_SIZE = 25
 
-type SortBy = 'registered_at' | 'athlete_name' | 'registration_code' | 'fee_paise' | 'payment_status' | 'status'
+type SortBy = 'registered_at' | 'athlete_name' | 'registration_code' | 'bib_number' | 'fee_paise' | 'payment_status' | 'status'
 
 interface FilterState {
   championshipId: string
@@ -247,7 +247,10 @@ export function RegistrationsPage() {
               <thead>
                 <tr>
                   <Th sortable sorted={sorted('registration_code')} onSort={() => toggleSort('registration_code')}>
-                    Registration ID
+                    Reference
+                  </Th>
+                  <Th sortable sorted={sorted('bib_number')} onSort={() => toggleSort('bib_number')}>
+                    Bib
                   </Th>
                   <Th sortable sorted={sorted('athlete_name')} onSort={() => toggleSort('athlete_name')}>
                     Athlete
@@ -277,6 +280,7 @@ export function RegistrationsPage() {
                     onClick={() => navigate(`/admin/registrations/${row.id}`)}
                   >
                     <Td className="font-mono text-xs font-semibold text-slate-900">{row.registration_code}</Td>
+                    <Td className="font-mono text-xs text-slate-900">{row.bib_number ?? '—'}</Td>
                     <Td>
                       <span className="font-medium text-slate-900">{row.athlete_profiles?.full_name}</span>
                       <span className="block font-mono text-xs text-slate-500">

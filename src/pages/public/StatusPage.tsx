@@ -158,6 +158,7 @@ export function StatusPage() {
               <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
                 {[
                   ['Athlete', registration.athlete_name_masked],
+                  ['Bib number', registration.bib_number ?? 'Issued after payment'],
                   ['Championship', registration.championship?.name ?? '—'],
                   ['Category', registration.category?.name ?? '—'],
                   ['Events', registration.events.join(', ') || '—'],

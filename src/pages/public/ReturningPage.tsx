@@ -23,7 +23,8 @@ function RegistrationsList({ registrations }: { registrations: AthleteRegistrati
               <p className="font-medium text-slate-900">{registration.championships?.name ?? 'Championship'}</p>
               <p className="text-xs text-slate-500">
                 {registration.championship_categories?.name ? `${registration.championship_categories.name} · ` : ''}
-                {registration.registration_code}
+                Reference {registration.registration_code}
+                {registration.bib_number ? ` · Bib ${registration.bib_number}` : ''}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">

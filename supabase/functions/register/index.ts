@@ -1,5 +1,7 @@
-// Validates a registration, creates or refreshes it (bib number assigned by
-// the database), then creates a Razorpay order for the server-calculated fee.
+// Validates a registration, creates or refreshes it, and returns a payment
+// instruction. No Razorpay order is created here: the order is only created
+// after the mandatory Aadhaar upload (see payment-retry), so checkout can
+// never bypass it.
 //
 // The browser never decides the fee or the amount: both come from Postgres.
 import { handler } from '../_shared/handler.ts'
@@ -17,7 +19,7 @@ import {
 } from '../_shared/helpers.ts'
 import { normalizeMobile } from '../_shared/athlete-lookup.ts'
 import { issueAthleteSession } from '../_shared/athlete-session.ts'
-import { createRazorpayOrder, razorpayConfigured, razorpayKeyId } from '../_shared/razorpay.ts'
+import { razorpayConfigured } from '../_shared/razorpay.ts'
 
 interface PersonalInput {
   full_name: string
@@ -162,15 +164,17 @@ Deno.serve(
     const registrationPayload = {
       id: registrationId,
       registration_code: registrationCode,
+      bib_number: (result.bib_number as string | null) ?? null,
       athlete_id: result.athlete_id,
       fee_paise: feePaise,
       currency,
       is_new_profile: result.is_new_profile === true,
     }
 
+    // Honest behaviour: no order is created before the mandatory Aadhaar
+    // upload is recorded. payment-retry creates the order afterwards and
+    // refuses until aadhaar_verified_at is set.
     if (!razorpayConfigured()) {
-      // Honest behaviour: the registration is stored, but online payment has
-      // not been configured yet, so we do not pretend a payment can be taken.
       return json(
         req,
         {
@@ -186,61 +190,10 @@ Deno.serve(
       )
     }
 
-    const { count } = await supabase
-      .from('payments')
-      .select('id', { count: 'exact', head: true })
-      .eq('registration_id', registrationId)
-    const attemptNumber = (count ?? 0) + 1
-
-    let orderId: string
-    try {
-      const order = await createRazorpayOrder({
-        amountPaise: feePaise,
-        currency,
-        receipt: registrationCode,
-        notes: { registration_id: registrationId, championship_id: championshipId },
-      })
-      orderId = order.id
-    } catch (orderError) {
-      console.error('razorpay order failed', orderError)
-      return json(
-        req,
-        {
-          error: {
-            code: 'ORDER_FAILED',
-            message: 'Your registration was saved, but the payment order could not be created. Please retry payment.',
-          },
-          registration: registrationPayload,
-          athlete_session_token: session?.token ?? null,
-        },
-        502,
-      )
-    }
-
-    const { error: paymentInsertError } = await supabase.from('payments').insert({
-      registration_id: registrationId,
-      razorpay_order_id: orderId,
-      amount_paise: feePaise,
-      currency,
-      status: 'created',
-      attempt_number: attemptNumber,
-    })
-
-    if (paymentInsertError) {
-      console.error('payment row insert failed', paymentInsertError)
-      return errorJson(req, 'SERVER_ERROR', 'Could not start the payment. Please try again.', 500)
-    }
-
     return json(req, {
       ok: true,
       registration: registrationPayload,
-      payment: {
-        configured: true,
-        razorpay_order_id: orderId,
-        razorpay_key_id: razorpayKeyId(),
-        amount_paise: feePaise,
-        currency,
-      },
+      payment: { configured: false, aadhaar_required: true },
       athlete_session_token: session?.token ?? null,
       athlete_session_expires_at: session?.expiresAt ?? null,
     })

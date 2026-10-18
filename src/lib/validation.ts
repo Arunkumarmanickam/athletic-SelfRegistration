@@ -24,25 +24,38 @@ export interface ParticipationStepValues {
   emergency_contact_phone: string
 }
 
-export interface ReviewStepValues {
+// ---------------------------------------------------------------------------
+// Single-page registration form
+// ---------------------------------------------------------------------------
+
+export interface RegistrationFormValues {
+  full_name: string
+  date_of_birth: string
+  gender: string
+  /** District for a state-level championship, state for a national one. */
+  representing: string
+  event_ids: string[]
+  mobile_country_code: string
+  mobile_number: string
   accept_terms: boolean
-  confirm_details: boolean
 }
 
-export const personalStepSchema = z.object({
+export const registrationFormSchema = z.object({
   full_name: z.string().trim().min(2, 'Please enter the full name').max(120, 'Name is too long'),
   date_of_birth: z
     .string()
     .min(1, 'Please enter the date of birth')
     .refine((value) => {
-      const date = new Date(`${value}T00:00:00`)
+      const date = new Date(`${value}T00:00:00Z`)
       if (Number.isNaN(date.getTime())) return false
       const age = (Date.now() - date.getTime()) / (365.25 * 24 * 3600 * 1000)
-      return age >= 3 && age <= 100
+      return age >= 3 && age <= 110
     }, 'Please check the date of birth'),
   gender: z
     .string()
-    .refine((value) => ['male', 'female', 'other'].includes(value), 'Please select a gender'),
+    .refine((value) => ['male', 'female'].includes(value), 'Please select Men or Women'),
+  representing: z.string().trim().min(1, 'Please enter your district / state').max(120, 'Too long'),
+  event_ids: z.array(z.string()).min(1, 'Please select at least one event'),
   mobile_country_code: z.string().min(2, 'Please select a country code'),
   mobile_number: z
     .string()
@@ -50,29 +63,7 @@ export const personalStepSchema = z.object({
     .min(6, 'Please enter a valid mobile number')
     .max(15, 'Please enter a valid mobile number')
     .regex(/^\d+$/, 'Mobile number should contain digits only'),
-  email: z
-    .string()
-    .trim()
-    .refine(
-      (value) => value === '' || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value),
-      'Enter a valid email address',
-    ),
-  state: z.string().trim().min(1, 'Please select a state'),
-  district: z.string().trim().max(120),
-  address: z.string().trim().max(400),
-  representing: z.string().trim().max(160),
-})
-
-export const participationStepSchema = z.object({
-  category_id: z.string().min(1, 'Please choose an age category'),
-  event_ids: z.array(z.string()).min(1, 'Please select at least one event'),
-  emergency_contact_name: z.string().trim().max(120),
-  emergency_contact_phone: z.string().trim().max(30),
-})
-
-export const reviewStepSchema = z.object({
-  accept_terms: z.boolean().refine((value) => value === true, 'Please accept the terms and conditions to continue'),
-  confirm_details: z.boolean().refine((value) => value === true, 'Please confirm that the details are correct'),
+  accept_terms: z.boolean(),
 })
 
 export const returningLookupSchema = z.object({

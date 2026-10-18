@@ -9,7 +9,7 @@ export interface DocumentUploadProps {
   registrationId?: string
   label?: string
   hint?: string
-  onUploaded?: (path: string, signedUrl: string | null) => void
+  onUploaded?: (path: string) => void
 }
 
 const MAX_BYTES = 5 * 1024 * 1024
@@ -47,7 +47,7 @@ export function DocumentUpload({
     try {
       const result = await uploadDocument({ athleteSessionToken, registrationId, file })
       setDone(file.name)
-      onUploaded?.(result.path, result.signed_url)
+      onUploaded?.(result.path)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'The upload failed. Please try again.')
     } finally {

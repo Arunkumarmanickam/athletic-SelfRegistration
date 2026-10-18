@@ -69,6 +69,8 @@ interface ChampionshipValues {
   base_fee_paise?: number
   form_config?: Record<string, unknown>
   terms_text?: string | null
+  level?: string
+  max_events_per_athlete?: number | null
 }
 
 function buildChampionshipValues(
@@ -152,6 +154,20 @@ function buildChampionshipValues(
     if (terms.length > 20000) return { values, error: 'Terms text is too long.' }
     values.terms_text = terms || null
   }
+  if ('level' in raw) {
+    const level = str(raw.level).toLowerCase()
+    if (level !== 'state' && level !== 'national') return { values, error: 'Level must be State or National.' }
+    values.level = level
+  }
+  if ('max_events_per_athlete' in raw) {
+    const max = toInt(raw.max_events_per_athlete)
+    if (raw.max_events_per_athlete === null || str(raw.max_events_per_athlete) === '') {
+      values.max_events_per_athlete = null
+    } else {
+      if (max === null || max < 1 || max > 50) return { values, error: 'Max events per athlete must be between 1 and 50 (or leave blank).' }
+      values.max_events_per_athlete = max
+    }
+  }
 
   return { values }
 }
@@ -171,7 +187,7 @@ Deno.serve(
       const { data: championships, error } = await supabase
         .from('championships')
         .select(
-          'id, slug, name, description, location, starts_on, ends_on, registration_opens_at, registration_closes_at, status, currency, base_fee_paise, form_config, terms_text, created_at, updated_at, championship_categories (id, name, gender, min_age, max_age, fee_paise, is_active, sort_order), championship_events (id, name, gender, category_ids, fee_paise, is_active, sort_order)',
+          'id, slug, name, description, location, starts_on, ends_on, registration_opens_at, registration_closes_at, status, currency, base_fee_paise, form_config, terms_text, level, max_events_per_athlete, created_at, updated_at, championship_categories (id, name, gender, min_age, max_age, fee_paise, is_active, sort_order), championship_events (id, name, gender, category_ids, fee_paise, is_active, sort_order)',
         )
         .order('created_at', { ascending: false })
       if (error) {
@@ -282,6 +298,8 @@ Deno.serve(
           base_fee_paise: values.base_fee_paise ?? 0,
           form_config: values.form_config ?? {},
           terms_text: values.terms_text ?? null,
+          level: values.level ?? 'state',
+          max_events_per_athlete: values.max_events_per_athlete ?? null,
         })
         .select('id, name, slug')
         .maybeSingle()

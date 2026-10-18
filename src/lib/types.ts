@@ -56,6 +56,8 @@ export interface Championship {
   base_fee_paise: number
   terms_text: string | null
   form_config: FormConfig
+  level?: 'state' | 'national'
+  max_events_per_athlete?: number | null
   championship_categories: ChampionshipCategory[]
   championship_events: ChampionshipEvent[]
 }
@@ -91,7 +93,7 @@ export interface AthleteProfile {
   mobile_number: string
   mobile_e164: string
   email: string | null
-  state: string
+  state: string | null
   district: string | null
   address: string | null
   representing: string | null
@@ -109,6 +111,7 @@ export interface RegistrationEventRow {
 export interface ConfirmationRegistration {
   id: string
   registration_code: string
+  bib_number?: string | null
   status: RegistrationStatus
   payment_status: PaymentStatus
   fee_paise: number
@@ -146,6 +149,7 @@ export interface Confirmation {
 export interface AthleteRegistrationSummary {
   id: string
   registration_code: string
+  bib_number?: string | null
   status: RegistrationStatus
   payment_status: PaymentStatus
   fee_paise: number
@@ -153,7 +157,7 @@ export interface AthleteRegistrationSummary {
   registered_at: string
   confirmed_at: string | null
   championship_id: string
-  championships: { id: string; name: string; slug: string; starts_on: string | null; location: string | null } | null
+  championships: { id: string; name: string; slug: string; starts_on: string | null; location: string | null; level?: string } | null
   championship_categories: { name: string } | null
   registration_events: RegistrationEventRow[] | null
 }
@@ -163,13 +167,14 @@ export interface RegisterResponse {
   registration: {
     id: string
     registration_code: string
+    bib_number?: string | null
     athlete_id: string
     fee_paise: number
     currency: string
     is_new_profile: boolean
   }
   payment:
-    | { configured: false }
+    | { configured: false; aadhaar_required?: boolean }
     | {
         configured: true
         razorpay_order_id: string
@@ -177,6 +182,7 @@ export interface RegisterResponse {
         amount_paise: number
         currency: string
       }
+    | { configured: false; aadhaar_required: true }
   athlete_session_token: string | null
   athlete_session_expires_at: string | null
   message?: string
@@ -185,6 +191,7 @@ export interface RegisterResponse {
 export interface RegistrationAdminRow {
   id: string
   registration_code: string
+  bib_number?: string | null
   status: RegistrationStatus
   payment_status: PaymentStatus
   fee_paise: number
@@ -194,7 +201,7 @@ export interface RegistrationAdminRow {
   category_name: string | null
   notes: string | null
   updated_at: string
-  championships: { id: string; name: string; slug: string; starts_on: string | null } | null
+  championships: { id: string; name: string; slug: string; starts_on: string | null; level?: string; max_events_per_athlete?: number | null } | null
   championship_categories: { id: string; name: string } | null
   athlete_profiles: AthleteProfile
   registration_events: RegistrationEventRow[] | null
@@ -220,6 +227,7 @@ export interface PaymentRow {
   registrations?: {
     id: string
     registration_code: string
+    bib_number?: string | null
     status: RegistrationStatus
     payment_status: PaymentStatus
     championship_id: string
