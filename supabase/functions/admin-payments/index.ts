@@ -40,11 +40,7 @@ Deno.serve(
       const { data: payment } = await supabase
         .from('payments')
         .select(
-          `id, registration_id, razorpay_order_id, razorpay_payment_id, amount_paise, currency, status,
-           method, failure_reason, signature_verified, attempt_number, created_at, updated_at, verified_at,
-           registrations (id, registration_code, status, payment_status, fee_paise, currency, registered_at,
-             championships (id, name),
-             athlete_profiles (athlete_id, full_name, mobile_e164, email))`,
+          'id, registration_id, razorpay_order_id, razorpay_payment_id, amount_paise, currency, status, method, failure_reason, signature_verified, attempt_number, created_at, updated_at, verified_at, registrations (id, registration_code, status, payment_status, fee_paise, currency, registered_at, championships (id, name), athlete_profiles (athlete_id, full_name, mobile_e164, email))',
         )
         .eq('id', paymentId)
         .maybeSingle()

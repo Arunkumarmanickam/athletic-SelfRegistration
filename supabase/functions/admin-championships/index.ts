@@ -193,11 +193,7 @@ Deno.serve(
       const { data: championships, error } = await supabase
         .from('championships')
         .select(
-          `id, slug, name, description, location, starts_on, ends_on, registration_opens_at,
-           registration_closes_at, status, currency, base_fee_paise, bib_prefix, bib_start_number,
-           bib_sequence_length, form_config, terms_text, created_at, updated_at,
-           championship_categories (id, name, gender, min_age, max_age, fee_paise, is_active, sort_order),
-           championship_events (id, name, gender, category_ids, fee_paise, is_active, sort_order)`,
+          'id, slug, name, description, location, starts_on, ends_on, registration_opens_at, registration_closes_at, status, currency, base_fee_paise, bib_prefix, bib_start_number, bib_sequence_length, form_config, terms_text, created_at, updated_at, championship_categories (id, name, gender, min_age, max_age, fee_paise, is_active, sort_order), championship_events (id, name, gender, category_ids, fee_paise, is_active, sort_order)',
         )
         .order('created_at', { ascending: false })
       if (error) {

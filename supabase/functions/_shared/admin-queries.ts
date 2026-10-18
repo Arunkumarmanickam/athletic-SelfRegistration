@@ -28,18 +28,24 @@ export interface PaymentFilters {
   sortDir?: 'asc' | 'desc'
 }
 
-export const REGISTRATION_SELECT = `id, registration_code, status, payment_status, fee_paise, currency,
-  registered_at, confirmed_at, category_name, notes, updated_at,
-  championships (id, name, slug, starts_on),
-  championship_categories (id, name),
-  athlete_profiles!inner (id, athlete_id, full_name, date_of_birth, gender, mobile_country_code, mobile_number, mobile_e164, email, state, district, address, representing, emergency_contact_name, emergency_contact_phone, photo_path),
-  registration_events (event_id, event_name, fee_paise)`
+// NOTE: PostgREST rejects newline characters inside the `select` parameter
+// (PGRST100 "unexpected \n"), so these are built as single-line strings.
+export const REGISTRATION_SELECT = [
+  'id, registration_code, status, payment_status, fee_paise, currency,',
+  'registered_at, confirmed_at, category_name, notes, updated_at,',
+  'championships (id, name, slug, starts_on),',
+  'championship_categories (id, name),',
+  'athlete_profiles!inner(id, athlete_id, full_name, date_of_birth, gender, mobile_country_code, mobile_number, mobile_e164, email, state, district, address, representing, emergency_contact_name, emergency_contact_phone, photo_path),',
+  'registration_events (event_id, event_name, fee_paise)',
+].join(' ')
 
-export const PAYMENT_SELECT = `id, razorpay_order_id, razorpay_payment_id, amount_paise, currency, status,
-  method, failure_reason, signature_verified, attempt_number, created_at, verified_at, registration_id,
-  registrations!inner (id, registration_code, status, payment_status, championship_id,
-    championships (id, name),
-    athlete_profiles (athlete_id, full_name, mobile_e164))`
+export const PAYMENT_SELECT = [
+  'id, razorpay_order_id, razorpay_payment_id, amount_paise, currency, status,',
+  'method, failure_reason, signature_verified, attempt_number, created_at, verified_at, registration_id,',
+  'registrations!inner(id, registration_code, status, payment_status, championship_id,',
+  'championships (id, name),',
+  'athlete_profiles (athlete_id, full_name, mobile_e164))',
+].join(' ')
 
 const UUID_ZERO = '00000000-0000-0000-0000-000000000000'
 
@@ -144,7 +150,9 @@ export async function buildRegistrationsQuery(
   // Stable tiebreaker so pagination never repeats or skips rows.
   query = query.order('id', { ascending: true })
 
-  return query
+  // Wrapped in a plain object: awaiting the supabase builder directly would
+  // auto-execute it (it is a thenable) instead of returning the builder.
+  return { query }
 }
 
 export async function fetchRegistrations(
@@ -154,10 +162,9 @@ export async function fetchRegistrations(
   pageSize: number,
 ): Promise<{ rows: Record<string, unknown>[]; total: number; page: number; pageSize: number }> {
   const from = (page - 1) * pageSize
-  const { data, count, error } = await buildRegistrationsQuery(supabase, filters, { count: true }).range(
-    from,
-    from + pageSize - 1,
-  )
+  // buildRegistrationsQuery is async, so it must be awaited before chaining .range().
+  const { query: builder } = await buildRegistrationsQuery(supabase, filters, { count: true })
+  const { data, count, error } = await builder.range(from, from + pageSize - 1)
   if (error) throw new Error(error.message)
   return { rows: (data ?? []) as unknown as Record<string, unknown>[], total: count ?? 0, page, pageSize }
 }
@@ -211,7 +218,7 @@ export async function buildPaymentsQuery(
   query = query
     .order('created_at', { ascending: (filters.sortDir ?? 'desc') === 'asc' })
     .order('id', { ascending: true })
-  return query
+  return { query }
 }
 
 export async function fetchPayments(
@@ -221,10 +228,8 @@ export async function fetchPayments(
   pageSize: number,
 ): Promise<{ rows: Record<string, unknown>[]; total: number; page: number; pageSize: number }> {
   const from = (page - 1) * pageSize
-  const { data, count, error } = await buildPaymentsQuery(supabase, filters, { count: true }).range(
-    from,
-    from + pageSize - 1,
-  )
+  const { query: builder } = await buildPaymentsQuery(supabase, filters, { count: true })
+  const { data, count, error } = await builder.range(from, from + pageSize - 1)
   if (error) throw new Error(error.message)
   return { rows: (data ?? []) as unknown as Record<string, unknown>[], total: count ?? 0, page, pageSize }
 }

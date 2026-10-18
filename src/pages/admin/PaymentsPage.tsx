@@ -11,6 +11,7 @@ import { ApiError, adminPaymentAction, adminPaymentDetail, adminPayments } from 
 import { useChampionshipOptions } from '@/hooks/useChampionshipOptions'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { PAYMENT_EXPORT_COLUMNS } from '@/lib/export-columns'
+import { useConfig } from '@/context/ConfigContext'
 import { useToast } from '@/context/ToastContext'
 import { formatDateTime, formatMoney, paymentStatusTone, titleCase } from '@/lib/format'
 import type { AuditRow, PaymentRow } from '@/lib/types'
@@ -27,6 +28,7 @@ interface PaymentDetail {
 
 export function PaymentsPage() {
   const toast = useToast()
+  const { config } = useConfig()
   const { options: championships } = useChampionshipOptions()
 
   const [searchInput, setSearchInput] = useState('')
@@ -170,6 +172,13 @@ export function PaymentsPage() {
         description="Every Razorpay order attempt, with the registration it belongs to."
         actions={<ExportBar kind="payments" filters={filters} columns={PAYMENT_EXPORT_COLUMNS} championshipName={championshipName} />}
       />
+
+      {config?.payments_configured === false && (
+        <Alert tone="warning" title="Payment method not initialized" className="mb-5">
+          Payment method still not initialized yet. Add your Razorpay keys as Supabase
+          function secrets to start recording payments.
+        </Alert>
+      )}
 
       <Card className="mb-5">
         <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
