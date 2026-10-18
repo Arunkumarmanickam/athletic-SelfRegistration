@@ -4,7 +4,7 @@
 import { handler } from '../_shared/handler.ts'
 import { json, errorJson } from '../_shared/responses.ts'
 import { requireAdmin, writeAudit } from '../_shared/admin-auth.ts'
-import { isEmail, randomPassword, str } from '../_shared/helpers.ts'
+import { isEmail, str } from '../_shared/helpers.ts'
 
 const CREATABLE_ROLES = ['admin', 'viewer']
 
@@ -39,8 +39,17 @@ Deno.serve(
       const email = str(body.email).toLowerCase()
       const fullName = str(body.fullName)
       const role = str(body.role) || 'admin'
+      // The creating owner/admin chooses the password, so it never has to be
+      // displayed once and then lost.
+      const password = str(body.password)
 
       if (!isEmail(email)) return errorJson(req, 'INVALID_EMAIL', 'Please enter a valid email address.', 400)
+      if (!password || password.length < 12 || password.length > 128) {
+        return errorJson(req, 'INVALID_PASSWORD', 'Please choose a password of 12 to 128 characters.', 400)
+      }
+      if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+        return errorJson(req, 'INVALID_PASSWORD', 'The password must contain both letters and numbers.', 400)
+      }
       if (!CREATABLE_ROLES.includes(role) && !(role === 'owner' && admin.role === 'owner')) {
         return errorJson(
           req,
@@ -59,7 +68,6 @@ Deno.serve(
         .maybeSingle()
       if (existing) return errorJson(req, 'ALREADY_EXISTS', 'An administrator with this email already exists.', 409)
 
-      const password = randomPassword(16)
       const { data: created, error: createError } = await supabase.auth.admin.createUser({
         email,
         password,
@@ -88,9 +96,8 @@ Deno.serve(
       return json(req, {
         ok: true,
         email,
-        temp_password: password,
         message:
-          'Administrator created. Share the email and this one-time password securely — it is shown only now. The account holder should change it after signing in.',
+          'Administrator created. Share the email and the password you chose with them through a secure channel — it is not shown again by this dashboard.',
       })
     }
 

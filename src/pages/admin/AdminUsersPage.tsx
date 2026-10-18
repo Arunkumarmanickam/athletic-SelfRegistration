@@ -12,6 +12,9 @@ import { useToast } from '@/context/ToastContext'
 import { formatDateTime, titleCase } from '@/lib/format'
 import type { AdminRole, AdminUserRow } from '@/lib/types'
 
+/** Minimum password length for administrator accounts (mirrors the server). */
+const MIN_PASSWORD_LENGTH = 12
+
 function roleTone(role: AdminRole): 'accent' | 'info' | 'neutral' {
   if (role === 'owner') return 'accent'
   if (role === 'admin') return 'info'
@@ -39,10 +42,15 @@ export function AdminUsersPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [createOpen, setCreateOpen] = useState(false)
-  const [form, setForm] = useState({ email: '', fullName: '', role: 'admin' as AdminRole })
+  const [form, setForm] = useState({
+    email: '',
+    fullName: '',
+    role: 'admin' as AdminRole,
+    password: '',
+    confirmPassword: '',
+  })
   const [creating, setCreating] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
-  const [tempCredential, setTempCredential] = useState<{ email: string; password: string } | null>(null)
 
   const [pending, setPending] = useState<PendingChange | null>(null)
   const [confirming, setConfirming] = useState(false)
@@ -71,22 +79,36 @@ export function AdminUsersPage() {
       setFormError('Please enter the administrator’s email address.')
       return
     }
+    // The same rules the server applies, so the mistake is caught before the
+    // request rather than after.
+    if (form.password.length < MIN_PASSWORD_LENGTH) {
+      setFormError(`The password must be at least ${MIN_PASSWORD_LENGTH} characters long.`)
+      return
+    }
+    if (!/[A-Za-z]/.test(form.password) || !/[0-9]/.test(form.password)) {
+      setFormError('The password must contain both letters and numbers.')
+      return
+    }
+    if (form.password !== form.confirmPassword) {
+      setFormError('The two passwords do not match.')
+      return
+    }
     setCreating(true)
     try {
-      const result = await adminUsers({
+      const email = form.email.trim()
+      await adminUsers({
         action: 'create',
-        email: form.email.trim(),
+        email,
         fullName: form.fullName.trim(),
         role: form.role,
+        password: form.password,
       })
       setCreateOpen(false)
-      const createdEmail = result.email ?? form.email.trim()
-      setForm({ email: '', fullName: '', role: 'admin' })
-      if (result.temp_password) {
-        setTempCredential({ email: createdEmail, password: result.temp_password })
-      } else {
-        toast.success('Administrator created', 'The account was created.')
-      }
+      setForm({ email: '', fullName: '', role: 'admin', password: '', confirmPassword: '' })
+      toast.success(
+        'Administrator created',
+        `${email} can now sign in with the password you chose. Share it with them securely.`,
+      )
       await load()
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'Could not create the administrator.')
@@ -202,7 +224,7 @@ export function AdminUsersPage() {
       <Dialog
         open={createOpen}
         title="Add administrator"
-        description="The account is created immediately with a one-time password you must share securely."
+        description="Set an initial password for the account and share it with them securely. They can sign in with it straight away."
         onClose={() => {
           setCreateOpen(false)
           setFormError(null)
@@ -247,36 +269,30 @@ export function AdminUsersPage() {
               {currentAdmin?.role === 'owner' && <option value="owner">Owner — full access including owners</option>}
             </Select>
           </Field>
+          <Field
+            label="Password"
+            htmlFor="user-password"
+            required
+            hint={`At least ${MIN_PASSWORD_LENGTH} characters, with letters and numbers.`}
+          >
+            <Input
+              id="user-password"
+              type="password"
+              autoComplete="new-password"
+              value={form.password}
+              onChange={(event) => setForm({ ...form, password: event.target.value })}
+            />
+          </Field>
+          <Field label="Confirm password" htmlFor="user-password-confirm" required>
+            <Input
+              id="user-password-confirm"
+              type="password"
+              autoComplete="new-password"
+              value={form.confirmPassword}
+              onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })}
+            />
+          </Field>
         </div>
-      </Dialog>
-
-      {/* One-time credential */}
-      <Dialog
-        open={tempCredential !== null}
-        title="Administrator created"
-        description="This password is shown only once. Share it with the account holder through a secure channel."
-        onClose={() => setTempCredential(null)}
-        footer={
-          <Button variant="primary" onClick={() => setTempCredential(null)}>
-            I have saved it
-          </Button>
-        }
-      >
-        {tempCredential && (
-          <div className="space-y-3">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Email</p>
-              <p className="font-mono text-sm text-slate-900">{tempCredential.email}</p>
-            </div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-amber-700">One-time password</p>
-              <p className="select-all font-mono text-base font-semibold text-amber-900">{tempCredential.password}</p>
-            </div>
-            <p className="text-xs text-slate-500">
-              The account holder should sign in and change this password. It cannot be retrieved again.
-            </p>
-          </div>
-        )}
       </Dialog>
 
       {/* Manage */}
