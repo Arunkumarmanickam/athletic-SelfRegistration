@@ -9,7 +9,14 @@ import { PageHeader } from '@/components/admin/PageHeader'
 import { ApiError, adminChampionships } from '@/lib/api'
 import { useToast } from '@/context/ToastContext'
 import { formatDate, formatDateTime, formatMoney, championshipStatusTone, titleCase } from '@/lib/format'
-import type { AdminChampionship, ChampionshipCategory, ChampionshipEvent, FormConfig } from '@/lib/types'
+import type {
+  AdminChampionship,
+  ChampionshipCategory,
+  ChampionshipEvent,
+  DefaultCategory,
+  DefaultEvent,
+  FormConfig,
+} from '@/lib/types'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -106,6 +113,65 @@ function formState(championship: AdminChampionship | null): ChampionshipFormStat
     level: championship.level === 'national' ? 'national' : 'state',
     max_events_per_athlete: championship.max_events_per_athlete !== undefined && championship.max_events_per_athlete !== null ? String(championship.max_events_per_athlete) : '',
   }
+}
+
+// ---------------------------------------------------------------------------
+// Pre-create drafts of the standard categories / events
+//
+// While creating a championship the organiser sees the standard defaults
+// pre-selected and may uncheck any of them, or add extra ones. The selection is
+// submitted with the championship; nothing here touches the defaults.
+// ---------------------------------------------------------------------------
+
+interface DraftCategory {
+  key: string
+  name: string
+  gender: string
+  min_age: string
+  max_age: string
+  fee_rupees: string
+  is_active: boolean
+  included: boolean
+  isDefault: boolean
+}
+
+interface DraftEvent {
+  key: string
+  name: string
+  gender: string
+  fee_rupees: string
+  is_active: boolean
+  included: boolean
+  isDefault: boolean
+}
+
+let draftKeyCounter = 0
+const nextDraftKey = (): string => `draft-${Date.now()}-${(draftKeyCounter += 1)}`
+
+function draftCategoriesFromDefaults(categories: DefaultCategory[]): DraftCategory[] {
+  return categories.map((category) => ({
+    key: `default-category-${category.id}`,
+    name: category.name,
+    gender: category.gender,
+    min_age: String(category.min_age),
+    max_age: String(category.max_age),
+    fee_rupees: paiseToRupees(category.fee_paise),
+    is_active: category.is_active,
+    included: true,
+    isDefault: true,
+  }))
+}
+
+function draftEventsFromDefaults(events: DefaultEvent[]): DraftEvent[] {
+  return events.map((event) => ({
+    key: `default-event-${event.id}`,
+    name: event.name,
+    gender: event.gender,
+    fee_rupees: paiseToRupees(event.fee_paise),
+    is_active: event.is_active,
+    included: true,
+    isDefault: true,
+  }))
 }
 
 // ---------------------------------------------------------------------------
@@ -269,6 +335,36 @@ function ChampionshipEditor({
   const [formError, setFormError] = useState<string | null>(null)
   const [confirmArchive, setConfirmArchive] = useState(false)
 
+  // A brand-new championship is pre-filled from the standard defaults so the
+  // organiser only has to trim or extend the list.
+  const [draftCategories, setDraftCategories] = useState<DraftCategory[]>([])
+  const [draftEvents, setDraftEvents] = useState<DraftEvent[]>([])
+  const [defaultsLoading, setDefaultsLoading] = useState(championship === null)
+  const [defaultsError, setDefaultsError] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
+
+  useEffect(() => {
+    if (championship) return
+    let cancelled = false
+    void (async () => {
+      setDefaultsLoading(true)
+      try {
+        const result = await adminChampionships({ action: 'defaults' })
+        if (cancelled) return
+        setDraftCategories(draftCategoriesFromDefaults(result.categories ?? []))
+        setDraftEvents(draftEventsFromDefaults(result.events ?? []))
+        setDefaultsError(null)
+      } catch (err) {
+        if (!cancelled) setDefaultsError(err instanceof Error ? err.message : 'Could not load the standard defaults.')
+      } finally {
+        if (!cancelled) setDefaultsLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [championship])
+
   const refreshCurrent = useCallback(
     async (id: string) => {
       try {
@@ -290,6 +386,14 @@ function ChampionshipEditor({
     setFormError(null)
     if (form.name.trim().length < 2) {
       setFormError('Please enter a championship name (at least 2 characters).')
+      return
+    }
+    if (!current && draftCategories.some((category) => category.included && category.name.trim().length < 1)) {
+      setFormError('Every selected age category needs a name.')
+      return
+    }
+    if (!current && draftEvents.some((event) => event.included && event.name.trim().length < 1)) {
+      setFormError('Every selected event needs a name.')
       return
     }
     const payload: Record<string, unknown> = {
@@ -322,6 +426,30 @@ function ChampionshipEditor({
       max_events_per_athlete: form.max_events_per_athlete.trim() === '' ? null : Number(form.max_events_per_athlete.trim()),
     }
 
+    // A new championship carries the (possibly trimmed) standard list with it.
+    if (!current) {
+      payload.categories = draftCategories
+        .filter((category) => category.included)
+        .map((category, index) => ({
+          name: category.name.trim(),
+          gender: category.gender,
+          min_age: Number(category.min_age || 0),
+          max_age: Number(category.max_age || 0),
+          fee_paise: rupeesToPaise(category.fee_rupees),
+          is_active: category.is_active,
+          sort_order: index + 1,
+        }))
+      payload.events = draftEvents
+        .filter((event) => event.included)
+        .map((event, index) => ({
+          name: event.name.trim(),
+          gender: event.gender,
+          fee_paise: rupeesToPaise(event.fee_rupees),
+          is_active: event.is_active,
+          sort_order: index + 1,
+        }))
+    }
+
     setSaving(true)
     try {
       if (current) {
@@ -330,8 +458,11 @@ function ChampionshipEditor({
         await refreshCurrent(current.id)
       } else {
         const result = await adminChampionships({ action: 'create', ...payload, slug: form.slug.trim() || undefined })
-        const newId = (result as unknown as { championship?: { id?: string } }).championship?.id
-        toast.success('Championship created', 'Add categories and events, then set the status to Open.')
+        toast.success(
+          'Championship created',
+          `${result.categoriesAdded ?? 0} age categories and ${result.eventsAdded ?? 0} events added. Set the status to Open when you are ready.`,
+        )
+        const newId = result.championship?.id
         if (newId) {
           const found = await refreshCurrent(newId)
           if (found) setForm(formState(found))
@@ -342,6 +473,26 @@ function ChampionshipEditor({
       setFormError(err instanceof ApiError ? err.message : 'Could not save the championship.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleImportDefaults = async () => {
+    if (!current) return
+    setImporting(true)
+    try {
+      const result = await adminChampionships({ action: 'import_defaults', championshipId: current.id })
+      const addedCategories = result.categoriesAdded ?? 0
+      const addedEvents = result.eventsAdded ?? 0
+      if (addedCategories === 0 && addedEvents === 0) {
+        toast.success('Nothing to add', 'Every standard age category and event is already present.')
+      } else {
+        toast.success('Standard defaults applied', `${addedCategories} age categories and ${addedEvents} events added.`)
+      }
+      await refreshCurrent(current.id)
+    } catch (err) {
+      toast.error('Could not apply the defaults', err instanceof ApiError ? err.message : 'Please try again.')
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -526,6 +677,23 @@ function ChampionshipEditor({
               />
             </CardContent>
           </Card>
+
+          {!current && (
+            <>
+              <DraftCategoriesEditor
+                categories={draftCategories}
+                onChange={setDraftCategories}
+                loading={defaultsLoading}
+                error={defaultsError}
+              />
+              <DraftEventsEditor
+                events={draftEvents}
+                onChange={setDraftEvents}
+                loading={defaultsLoading}
+                error={defaultsError}
+              />
+            </>
+          )}
         </div>
 
         <div className="space-y-5">
@@ -540,6 +708,11 @@ function ChampionshipEditor({
               <Button variant="outline" className="w-full" onClick={onClose}>
                 {current ? 'Done' : 'Cancel'}
               </Button>
+              {current && (
+                <Button variant="ghost" className="w-full" loading={importing} onClick={() => void handleImportDefaults()}>
+                  Re-add standard defaults
+                </Button>
+              )}
               {current && current.status !== 'archived' && (
                 <Button variant="ghost" className="w-full" onClick={() => setConfirmArchive(true)}>
                   Archive championship
@@ -555,7 +728,8 @@ function ChampionshipEditor({
             </>
           ) : (
             <Alert tone="info">
-              Save the championship first. Categories and events are managed after it exists.
+              Age categories and events start from the standard defaults (shown on the left). Uncheck what this championship
+              does not need, add anything extra, then create it. They can be fine-tuned afterwards.
             </Alert>
           )}
         </div>
@@ -937,6 +1111,291 @@ function EventsEditor({ championship, onChanged }: { championship: AdminChampion
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => void confirmDelete()}
       />
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Pre-create selection of the standard categories / events
+// ---------------------------------------------------------------------------
+
+function DraftCategoriesEditor({
+  categories,
+  onChange,
+  loading,
+  error,
+}: {
+  categories: DraftCategory[]
+  onChange: (next: DraftCategory[]) => void
+  loading: boolean
+  error: string | null
+}) {
+  const [draft, setDraft] = useState(EMPTY_CATEGORY)
+
+  const selectedCount = categories.filter((category) => category.included).length
+  const canAdd = draft.name.trim().length > 0 && draft.min_age !== '' && draft.max_age !== ''
+
+  const toggle = (key: string, included: boolean) =>
+    onChange(categories.map((category) => (category.key === key ? { ...category, included } : category)))
+
+  const add = () => {
+    if (!canAdd) return
+    onChange([
+      ...categories,
+      {
+        key: nextDraftKey(),
+        name: draft.name.trim(),
+        gender: draft.gender,
+        min_age: draft.min_age,
+        max_age: draft.max_age,
+        fee_rupees: draft.fee_rupees || '0',
+        is_active: draft.is_active,
+        included: true,
+        isDefault: false,
+      },
+    ])
+    setDraft(EMPTY_CATEGORY)
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Age categories for this championship</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-slate-600">
+          The standard categories are pre-selected. Uncheck any this championship should not offer, or add an extra one.
+          Everything can be changed again after saving.
+        </p>
+        <p className="text-xs font-medium text-slate-500">{selectedCount} selected</p>
+
+        {error && <Alert tone="warning">{error}</Alert>}
+
+        {loading ? (
+          <div className="flex justify-center py-6">
+            <Spinner label="Loading standard categories" />
+          </div>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {categories.map((category) => (
+              <li key={category.key} className="flex items-start justify-between gap-3 py-2">
+                <Checkbox
+                  className="min-w-0 flex-1"
+                  checked={category.included}
+                  onChange={(event) => toggle(category.key, event.target.checked)}
+                  label={
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium text-slate-800">
+                        {category.name}
+                        {!category.isDefault && (
+                          <span className="ml-2 text-xs font-normal text-emerald-700">(added)</span>
+                        )}
+                      </span>
+                      <span className="block text-xs text-slate-500">
+                        {titleCase(category.gender)} · {category.min_age}–{category.max_age} yrs ·{' '}
+                        {formatMoney(rupeesToPaise(category.fee_rupees), 'INR')}
+                      </span>
+                    </span>
+                  }
+                />
+                {!category.isDefault && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onChange(categories.filter((item) => item.key !== category.key))}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="rounded-lg border border-slate-200 p-3">
+          <p className="mb-2 text-sm font-semibold text-slate-800">Add a category</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Name" htmlFor="draft-cat-name" className="sm:col-span-2">
+              <Input
+                id="draft-cat-name"
+                value={draft.name}
+                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                placeholder="Under 20 Boys"
+              />
+            </Field>
+            <Field label="Gender" htmlFor="draft-cat-gender">
+              <Select
+                id="draft-cat-gender"
+                value={draft.gender}
+                onChange={(event) => setDraft({ ...draft, gender: event.target.value })}
+              >
+                <option value="any">Any</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </Select>
+            </Field>
+            <Field label="Fee (₹)" htmlFor="draft-cat-fee">
+              <Input
+                id="draft-cat-fee"
+                inputMode="decimal"
+                value={draft.fee_rupees}
+                onChange={(event) => setDraft({ ...draft, fee_rupees: event.target.value.replace(/[^\d.]/g, '') })}
+              />
+            </Field>
+            <Field label="Min age" htmlFor="draft-cat-min">
+              <Input
+                id="draft-cat-min"
+                inputMode="numeric"
+                value={draft.min_age}
+                onChange={(event) => setDraft({ ...draft, min_age: event.target.value.replace(/\D/g, '') })}
+              />
+            </Field>
+            <Field label="Max age" htmlFor="draft-cat-max">
+              <Input
+                id="draft-cat-max"
+                inputMode="numeric"
+                value={draft.max_age}
+                onChange={(event) => setDraft({ ...draft, max_age: event.target.value.replace(/\D/g, '') })}
+              />
+            </Field>
+          </div>
+          <div className="mt-3">
+            <Button variant="accent" size="sm" disabled={!canAdd} onClick={add}>
+              Add category
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function DraftEventsEditor({
+  events,
+  onChange,
+  loading,
+  error,
+}: {
+  events: DraftEvent[]
+  onChange: (next: DraftEvent[]) => void
+  loading: boolean
+  error: string | null
+}) {
+  const [draft, setDraft] = useState(EMPTY_EVENT)
+
+  const selectedCount = events.filter((event) => event.included).length
+  const canAdd = draft.name.trim().length > 0
+
+  const toggle = (key: string, included: boolean) =>
+    onChange(events.map((event) => (event.key === key ? { ...event, included } : event)))
+
+  const add = () => {
+    if (!canAdd) return
+    onChange([
+      ...events,
+      {
+        key: nextDraftKey(),
+        name: draft.name.trim(),
+        gender: draft.gender,
+        fee_rupees: draft.fee_rupees || '0',
+        is_active: draft.is_active,
+        included: true,
+        isDefault: false,
+      },
+    ])
+    setDraft(EMPTY_EVENT)
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Events for this championship</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-slate-600">
+          The standard events are pre-selected. Uncheck any this championship should not run, or add an extra one. Gender
+          restrictions and per-category limits can be set after saving.
+        </p>
+        <p className="text-xs font-medium text-slate-500">{selectedCount} selected</p>
+
+        {error && <Alert tone="warning">{error}</Alert>}
+
+        {loading ? (
+          <div className="flex justify-center py-6">
+            <Spinner label="Loading standard events" />
+          </div>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {events.map((item) => (
+              <li key={item.key} className="flex items-start justify-between gap-3 py-2">
+                <Checkbox
+                  className="min-w-0 flex-1"
+                  checked={item.included}
+                  onChange={(event) => toggle(item.key, event.target.checked)}
+                  label={
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium text-slate-800">
+                        {item.name}
+                        {!item.isDefault && <span className="ml-2 text-xs font-normal text-emerald-700">(added)</span>}
+                      </span>
+                      <span className="block text-xs text-slate-500">
+                        {titleCase(item.gender)} · {formatMoney(rupeesToPaise(item.fee_rupees), 'INR')}
+                      </span>
+                    </span>
+                  }
+                />
+                {!item.isDefault && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onChange(events.filter((entry) => entry.key !== item.key))}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="rounded-lg border border-slate-200 p-3">
+          <p className="mb-2 text-sm font-semibold text-slate-800">Add an event</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Name" htmlFor="draft-evt-name" className="sm:col-span-2">
+              <Input
+                id="draft-evt-name"
+                value={draft.name}
+                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                placeholder="Pole Vault"
+              />
+            </Field>
+            <Field label="Gender" htmlFor="draft-evt-gender">
+              <Select
+                id="draft-evt-gender"
+                value={draft.gender}
+                onChange={(event) => setDraft({ ...draft, gender: event.target.value })}
+              >
+                <option value="any">Any</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </Select>
+            </Field>
+            <Field label="Fee (₹)" htmlFor="draft-evt-fee">
+              <Input
+                id="draft-evt-fee"
+                inputMode="decimal"
+                value={draft.fee_rupees}
+                onChange={(event) => setDraft({ ...draft, fee_rupees: event.target.value.replace(/[^\d.]/g, '') })}
+              />
+            </Field>
+          </div>
+          <div className="mt-3">
+            <Button variant="accent" size="sm" disabled={!canAdd} onClick={add}>
+              Add event
+            </Button>
+          </div>
+        </div>
+      </CardContent>
     </Card>
   )
 }

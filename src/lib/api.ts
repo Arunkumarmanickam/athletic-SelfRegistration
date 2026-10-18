@@ -13,6 +13,8 @@ import type {
   AthleteRegistrationSummary,
   AdminUserRow,
   AdminChampionship,
+  DefaultCategory,
+  DefaultEvent,
 } from './types'
 
 /** Error thrown for any non-2xx Edge Function response. */
@@ -290,7 +292,16 @@ export const adminUsers = (body: Record<string, unknown> = { action: 'list' }) =
   }>('admin-users', body)
 
 export const adminChampionships = (body: Record<string, unknown> = { action: 'list' }) =>
-  invoke<{ rows: AdminChampionship[] }>('admin-championships', body)
+  invoke<{
+    rows: AdminChampionship[]
+    /** `action: 'defaults'` — the standard categories/events new championships start from. */
+    categories?: DefaultCategory[]
+    events?: DefaultEvent[]
+    ok?: boolean
+    championship?: { id: string; name: string; slug: string }
+    categoriesAdded?: number
+    eventsAdded?: number
+  }>('admin-championships', body)
 
 export const adminSettings = (body: Record<string, unknown>) =>
   invoke<{ settings: Record<string, unknown> } | { ok: boolean; settings: Record<string, unknown> }>(

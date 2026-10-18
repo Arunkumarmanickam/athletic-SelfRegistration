@@ -1,6 +1,7 @@
 // Admin API for championships, their categories, events, numbering rules and
 // the registration form configuration. Nothing about a championship is
 // hard-coded in the application: the organiser configures it here.
+import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { handler } from '../_shared/handler.ts'
 import { json, errorJson } from '../_shared/responses.ts'
 import { requireAdmin, writeAudit } from '../_shared/admin-auth.ts'
@@ -53,6 +54,164 @@ function toInt(value: unknown): number | null {
     return Math.trunc(Number(value))
   }
   return null
+}
+
+// ---------------------------------------------------------------------------
+// Standard defaults
+//
+// Categories and events are maintained once as a standard set. Every new
+// championship is seeded from it; the organiser can uncheck or add entries
+// while creating the championship, and can edit the championship's own rows
+// afterwards without ever touching the defaults.
+// ---------------------------------------------------------------------------
+
+const MAX_CATEGORIES = 60
+const MAX_EVENTS = 120
+const DEFAULT_CATEGORY_COLUMNS = 'id, name, gender, min_age, max_age, fee_paise, is_active, sort_order'
+const DEFAULT_EVENT_COLUMNS = 'id, name, gender, fee_paise, is_active, sort_order'
+
+interface CategoryRow {
+  name: string
+  gender: string
+  min_age: number
+  max_age: number
+  fee_paise: number
+  is_active: boolean
+  sort_order: number
+}
+
+interface EventRow {
+  name: string
+  gender: string
+  fee_paise: number
+  is_active: boolean
+  sort_order: number
+}
+
+/** Validates the age-category list that arrives with a championship create. */
+function parseCategoryRows(raw: unknown): { rows: CategoryRow[]; error?: string } {
+  if (!Array.isArray(raw)) return { rows: [] }
+  if (raw.length > MAX_CATEGORIES) {
+    return { rows: [], error: `Too many age categories (maximum ${MAX_CATEGORIES}).` }
+  }
+  const rows: CategoryRow[] = []
+  const seen = new Set<string>()
+  for (const item of raw) {
+    const source = (item ?? {}) as Record<string, unknown>
+    const name = str(source.name).slice(0, 120)
+    if (name.length < 1) return { rows, error: 'Every age category needs a name.' }
+    if (seen.has(name.toLowerCase())) continue
+    const gender = str(source.gender) || 'any'
+    if (!GENDERS.includes(gender)) return { rows, error: `Invalid gender for the category "${name}".` }
+    const minAge = toInt(source.min_age)
+    const maxAge = toInt(source.max_age)
+    if (minAge === null || maxAge === null || minAge < 0 || maxAge < minAge) {
+      return { rows, error: `Please give "${name}" a valid age range (max must be >= min).` }
+    }
+    const fee = toInt(source.fee_paise)
+    if (fee === null || fee < 0) return { rows, error: `The fee for "${name}" must be zero or more.` }
+    seen.add(name.toLowerCase())
+    rows.push({
+      name,
+      gender,
+      min_age: minAge,
+      max_age: maxAge,
+      fee_paise: fee,
+      is_active: source.is_active === false ? false : true,
+      sort_order: toInt(source.sort_order) ?? rows.length + 1,
+    })
+  }
+  return { rows }
+}
+
+/** Validates the event list that arrives with a championship create. */
+function parseEventRows(raw: unknown): { rows: EventRow[]; error?: string } {
+  if (!Array.isArray(raw)) return { rows: [] }
+  if (raw.length > MAX_EVENTS) return { rows: [], error: `Too many events (maximum ${MAX_EVENTS}).` }
+  const rows: EventRow[] = []
+  const seen = new Set<string>()
+  for (const item of raw) {
+    const source = (item ?? {}) as Record<string, unknown>
+    const name = str(source.name).slice(0, 120)
+    if (name.length < 1) return { rows, error: 'Every event needs a name.' }
+    if (seen.has(name.toLowerCase())) continue
+    const gender = str(source.gender) || 'any'
+    if (!GENDERS.includes(gender)) return { rows, error: `Invalid gender for the event "${name}".` }
+    const fee = toInt(source.fee_paise)
+    if (fee === null || fee < 0) return { rows, error: `The fee for "${name}" must be zero or more.` }
+    seen.add(name.toLowerCase())
+    rows.push({
+      name,
+      gender,
+      fee_paise: fee,
+      is_active: source.is_active === false ? false : true,
+      sort_order: toInt(source.sort_order) ?? rows.length + 1,
+    })
+  }
+  return { rows }
+}
+
+async function loadDefaults(
+  supabase: SupabaseClient,
+): Promise<{ categories: Array<Record<string, unknown>>; events: Array<Record<string, unknown>> }> {
+  const [categories, events] = await Promise.all([
+    supabase.from('default_categories').select(DEFAULT_CATEGORY_COLUMNS).order('sort_order', { ascending: true }),
+    supabase.from('default_events').select(DEFAULT_EVENT_COLUMNS).order('sort_order', { ascending: true }),
+  ])
+  return {
+    categories: (categories.data ?? []) as unknown as Array<Record<string, unknown>>,
+    events: (events.data ?? []) as unknown as Array<Record<string, unknown>>,
+  }
+}
+
+function defaultCategoryRows(
+  championshipId: string,
+  defaults: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  return defaults
+    .filter((category) => category.is_active !== false)
+    .map((category) => ({
+      championship_id: championshipId,
+      name: category.name,
+      gender: category.gender ?? 'any',
+      min_age: category.min_age,
+      max_age: category.max_age,
+      fee_paise: category.fee_paise ?? 0,
+      is_active: true,
+      sort_order: category.sort_order ?? 0,
+    }))
+}
+
+function defaultEventRows(
+  championshipId: string,
+  defaults: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  return defaults
+    .filter((event) => event.is_active !== false)
+    .map((event) => ({
+      championship_id: championshipId,
+      name: event.name,
+      gender: event.gender ?? 'any',
+      category_ids: null,
+      fee_paise: event.fee_paise ?? 0,
+      is_active: true,
+      sort_order: event.sort_order ?? 0,
+    }))
+}
+
+async function insertCollections(
+  supabase: SupabaseClient,
+  categories: Array<Record<string, unknown>>,
+  events: Array<Record<string, unknown>>,
+): Promise<void> {
+  if (categories.length > 0) {
+    const { error } = await supabase.from('championship_categories').insert(categories)
+    if (error) console.error('category seed failed', error)
+  }
+  if (events.length > 0) {
+    const { error } = await supabase.from('championship_events').insert(events)
+    if (error) console.error('event seed failed', error)
+  }
 }
 
 interface ChampionshipValues {
@@ -273,6 +432,14 @@ Deno.serve(
       return json(req, { ok: true, settings: refreshed })
     }
 
+    // ---- standard defaults ---------------------------------------------------
+    // Read-only list of the standard categories/events, used by the create form
+    // to pre-fill (and let the organiser trim) a new championship.
+    if (action === 'defaults') {
+      const defaults = await loadDefaults(supabase)
+      return json(req, { categories: defaults.categories, events: defaults.events })
+    }
+
     if (readOnly) {
       return errorJson(req, 'FORBIDDEN', 'Viewer accounts have read-only access.', 403)
     }
@@ -281,6 +448,19 @@ Deno.serve(
     if (action === 'create') {
       const { values, error } = buildChampionshipValues(body, { partial: false })
       if (error) return errorJson(req, 'INVALID_FIELDS', error, 400)
+
+      // The form sends the defaults the organiser kept (plus any additions).
+      // When the lists are omitted entirely we fall back to every active
+      // default, so an API caller also gets a usable championship.
+      const hasCategoryList = Array.isArray(body.categories)
+      const hasEventList = Array.isArray(body.events)
+
+      const parsedCategories = parseCategoryRows(body.categories)
+      if (parsedCategories.error) return errorJson(req, 'INVALID_FIELDS', parsedCategories.error, 400)
+      const parsedEvents = parseEventRows(body.events)
+      if (parsedEvents.error) return errorJson(req, 'INVALID_FIELDS', parsedEvents.error, 400)
+
+      const defaults = await loadDefaults(supabase)
 
       const { data: created, error: insertError } = await supabase
         .from('championships')
@@ -312,10 +492,55 @@ Deno.serve(
         return errorJson(req, 'SERVER_ERROR', 'Could not create the championship.', 500)
       }
 
+      let categoriesAdded = 0
+      let eventsAdded = 0
+      if (created) {
+        const categoryRows = hasCategoryList
+          ? parsedCategories.rows.map((row) => ({ ...row, championship_id: created.id }))
+          : defaultCategoryRows(created.id, defaults.categories)
+        const eventRows = hasEventList
+          ? parsedEvents.rows.map((row) => ({ ...row, championship_id: created.id, category_ids: null }))
+          : defaultEventRows(created.id, defaults.events)
+        await insertCollections(supabase, categoryRows, eventRows)
+        categoriesAdded = categoryRows.length
+        eventsAdded = eventRows.length
+      }
+
       await writeAudit(supabase, admin, 'championship.created', 'championship', created?.id ?? null, {
         name: values.name,
+        categories: categoriesAdded,
+        events: eventsAdded,
       })
-      return json(req, { ok: true, championship: created })
+      return json(req, { ok: true, championship: created, categoriesAdded, eventsAdded })
+    }
+
+    // ---- re-apply standard defaults ------------------------------------------
+    if (action === 'import_defaults') {
+      const championshipId = str(body.championshipId)
+      if (!championshipId) return errorJson(req, 'MISSING_FIELDS', 'Championship id is required.', 400)
+
+      const [existingCategories, existingEvents, defaults] = await Promise.all([
+        supabase.from('championship_categories').select('name').eq('championship_id', championshipId),
+        supabase.from('championship_events').select('name').eq('championship_id', championshipId),
+        loadDefaults(supabase),
+      ])
+
+      const knownCategories = new Set((existingCategories.data ?? []).map((row) => String(row.name).toLowerCase()))
+      const knownEvents = new Set((existingEvents.data ?? []).map((row) => String(row.name).toLowerCase()))
+
+      const categoryRows = defaultCategoryRows(championshipId, defaults.categories).filter(
+        (row) => !knownCategories.has(String(row.name).toLowerCase()),
+      )
+      const eventRows = defaultEventRows(championshipId, defaults.events).filter(
+        (row) => !knownEvents.has(String(row.name).toLowerCase()),
+      )
+
+      await insertCollections(supabase, categoryRows, eventRows)
+      await writeAudit(supabase, admin, 'championship.defaults_applied', 'championship', championshipId, {
+        categories: categoryRows.length,
+        events: eventRows.length,
+      })
+      return json(req, { ok: true, categoriesAdded: categoryRows.length, eventsAdded: eventRows.length })
     }
 
     // ---- update --------------------------------------------------------------

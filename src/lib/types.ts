@@ -29,6 +29,14 @@ export interface ChampionshipEvent {
   sort_order: number
 }
 
+/**
+ * The standard set every new championship starts from. Categories and events
+ * carry the same fields as a championship's own rows (events have no category
+ * restriction until the organiser adds one after creating the championship).
+ */
+export type DefaultCategory = ChampionshipCategory
+export type DefaultEvent = Omit<ChampionshipEvent, 'category_ids'>
+
 export interface FormConfig {
   require_email?: boolean
   require_address?: boolean
