@@ -55,6 +55,12 @@ export function EventMultiSelect({
 
   const selectedLabel = `${selectedIds.length} selected`
 
+  // Sticky chips follow the catalogue order so they never jump around.
+  const selectedEvents = useMemo(
+    () => events.filter((event) => selectedIds.includes(event.id)),
+    [events, selectedIds],
+  )
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -74,14 +80,41 @@ export function EventMultiSelect({
         aria-label="Available events"
         aria-invalid={invalid || undefined}
         className={cn(
-          'max-h-80 overflow-y-auto rounded-lg border p-1',
+          'max-h-80 overflow-y-auto rounded-lg border',
           invalid ? 'border-red-400' : 'border-slate-200',
         )}
       >
+        {selectedEvents.length > 0 && (
+          <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-3 py-2 backdrop-blur">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Your selection</span>
+              <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-bold text-orange-700">
+                {selectedEvents.length}
+              </span>
+            </div>
+            <ul className="mt-1.5 flex flex-wrap gap-1.5">
+              {selectedEvents.map((event) => (
+                <li key={event.id}>
+                  <button
+                    type="button"
+                    onClick={() => onToggle(event.id)}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-medium text-orange-800 ring-1 ring-inset ring-orange-200 transition-colors hover:bg-orange-100"
+                  >
+                    {event.name}
+                    <span aria-hidden="true" className="text-sm leading-none text-orange-500">
+                      &times;
+                    </span>
+                    <span className="sr-only">Remove {event.name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {visible.length === 0 && (
           <p className="px-3 py-6 text-center text-sm text-slate-500">No events match your search.</p>
         )}
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-slate-100 p-1">
           {visible.map(({ event, eligible, reason }) => {
             const checked = selectedIds.includes(event.id)
             return (
