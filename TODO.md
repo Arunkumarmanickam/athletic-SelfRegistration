@@ -66,11 +66,12 @@ supabase secrets set RESEND_API_KEY=re_xxxxxxxx \
 
 ## 🔴 4. Before production (security checklist)
 
-- [ ] **`ALLOWED_ORIGINS`** — currently `http://localhost:5173` only. Add the
-      real domain:
-      `supabase secrets set ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com`
-      (CORS will block everything else.)
-- [ ] Set `VITE_SITE_URL` to the real domain in Vercel.
+- [x] **`ALLOWED_ORIGINS`** — set to
+      `https://www.cdmaa.in,https://cdmaa.in,http://localhost:5173`
+      (CORS blocks every other origin). Re-run this whenever the domain
+      changes:
+      `supabase secrets set ALLOWED_ORIGINS=https://www.cdmaa.in,https://cdmaa.in,http://localhost:5173`
+- [ ] Set `VITE_SITE_URL` to the real domain in Vercel (`https://www.cdmaa.in`).
 - [ ] Re-run the **test checklist** in `README.md`.
 - [ ] Review the privacy / terms / retention copy with your organisation.
 - [ ] Razorpay live keys (item 1) — if accepting real money.
@@ -81,9 +82,16 @@ supabase secrets set RESEND_API_KEY=re_xxxxxxxx \
 ## 🟢 5. Deploy
 
 - [x] Push to GitHub — `https://github.com/Arunkumarmanickam/athletic-SelfRegistration`
-- [ ] Import into Vercel, build `npm run build`, output `dist`
-- [ ] Add `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SITE_URL` in Vercel
-- [ ] Add the Vercel domain to `ALLOWED_ORIGINS` and redeploy functions
+- [x] Import into Vercel, build `npm run build`, output `dist`
+- [x] Domain connected — `https://www.cdmaa.in` (apex `cdmaa.in` redirects to www)
+- [ ] Add `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SITE_URL` in
+      Vercel → **Settings → Environment Variables**, scoped to **Production**,
+      then redeploy. The values are baked into the bundle at build time, so a
+      deployment built before the variables existed keeps reporting
+      "The backend is not configured yet" no matter how often the page is
+      reloaded. Setting a variable is not enough — a **new build** is required.
+- [x] Add the Vercel domain to `ALLOWED_ORIGINS` and redeploy functions
+      (secrets take effect immediately, no function redeploy needed)
 
 ---
 
