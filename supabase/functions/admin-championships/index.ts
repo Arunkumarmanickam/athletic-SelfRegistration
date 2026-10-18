@@ -357,11 +357,19 @@ function buildChampionshipValues(
     values.state_name = null
   }
   if ('max_events_per_athlete' in raw) {
-    const max = toInt(raw.max_events_per_athlete)
-    if (raw.max_events_per_athlete === null || str(raw.max_events_per_athlete) === '') {
+    const rawMax = raw.max_events_per_athlete
+    // `str()` only reads strings, so it cannot be used to detect "blank" here:
+    // the admin form sends a number, which must be treated as a real value
+    // rather than as an empty string.
+    const blank =
+      rawMax === null || rawMax === undefined || (typeof rawMax === 'string' && rawMax.trim() === '')
+    if (blank) {
       values.max_events_per_athlete = null
     } else {
-      if (max === null || max < 1 || max > 50) return { values, error: 'Max events per athlete must be between 1 and 50 (or leave blank).' }
+      const max = toInt(rawMax)
+      if (max === null || max < 1 || max > 50) {
+        return { values, error: 'Max events per athlete must be between 1 and 50 (or leave blank).' }
+      }
       values.max_events_per_athlete = max
     }
   }
