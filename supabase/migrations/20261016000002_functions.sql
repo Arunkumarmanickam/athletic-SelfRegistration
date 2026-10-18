@@ -40,7 +40,7 @@ language sql
 immutable
 as $$
   select encode(digest(p_value, 'sha256'), 'hex');
-end $$;
+$$;
 
 -- ---------------------------------------------------------------------------
 -- Athlete ID:  <PREFIX>-<YEAR>-<zero padded sequence>
@@ -143,7 +143,7 @@ language sql
 immutable
 as $$
   select date_part('year', age(p_on, p_dob))::int;
-end $$;
+$$;
 
 -- ---------------------------------------------------------------------------
 -- create_registration — the single authoritative entry point for creating or

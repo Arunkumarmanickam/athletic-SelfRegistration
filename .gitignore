@@ -16,3 +16,8 @@ Thumbs.db
 *.log
 .idea/
 .vscode/
+
+# Supabase CLI local artifacts
+supabase/.temp/
+supabase/.branches/
+

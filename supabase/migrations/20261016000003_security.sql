@@ -67,6 +67,6 @@ values (
   'athlete-documents',
   false,
   5242880, -- 5 MB
-  '["image/jpeg","image/png","image/webp","application/pdf"]'
+  '{"image/jpeg","image/png","image/webp","application/pdf"}'
 )
 on conflict (id) do nothing;
