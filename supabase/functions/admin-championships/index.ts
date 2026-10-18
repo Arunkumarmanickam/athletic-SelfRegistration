@@ -67,9 +67,6 @@ interface ChampionshipValues {
   status?: string
   currency?: string
   base_fee_paise?: number
-  bib_prefix?: string
-  bib_start_number?: number
-  bib_sequence_length?: number
   form_config?: Record<string, unknown>
   terms_text?: string | null
 }
@@ -146,27 +143,8 @@ function buildChampionshipValues(
     values.base_fee_paise = fee
   }
 
-  if ('bib_prefix' in raw) {
-    const prefix = str(raw.bib_prefix).toUpperCase()
-    if (!/^[A-Z0-9]{0,8}$/.test(prefix)) {
-      return { values, error: 'Bib prefix may contain up to 8 letters or numbers.' }
-    }
-    values.bib_prefix = prefix
-  }
-
-  if ('bib_start_number' in raw) {
-    const start = toInt(raw.bib_start_number)
-    if (start === null || start < 0) return { values, error: 'Bib start number must be zero or more.' }
-    values.bib_start_number = start
-  }
-
-  if ('bib_sequence_length' in raw) {
-    const len = toInt(raw.bib_sequence_length)
-    if (len === null || len < 1 || len > 12) {
-      return { values, error: 'Bib sequence length must be between 1 and 12 digits.' }
-    }
-    values.bib_sequence_length = len
-  }
+  // Bib numbers are derived by the database (M|W + age category + sequence),
+  // so there are no organiser-supplied bib settings left to validate.
 
   if ('form_config' in raw) values.form_config = sanitizeFormConfig(raw.form_config)
   if ('terms_text' in raw) {
@@ -193,7 +171,7 @@ Deno.serve(
       const { data: championships, error } = await supabase
         .from('championships')
         .select(
-          'id, slug, name, description, location, starts_on, ends_on, registration_opens_at, registration_closes_at, status, currency, base_fee_paise, bib_prefix, bib_start_number, bib_sequence_length, form_config, terms_text, created_at, updated_at, championship_categories (id, name, gender, min_age, max_age, fee_paise, is_active, sort_order), championship_events (id, name, gender, category_ids, fee_paise, is_active, sort_order)',
+          'id, slug, name, description, location, starts_on, ends_on, registration_opens_at, registration_closes_at, status, currency, base_fee_paise, form_config, terms_text, created_at, updated_at, championship_categories (id, name, gender, min_age, max_age, fee_paise, is_active, sort_order), championship_events (id, name, gender, category_ids, fee_paise, is_active, sort_order)',
         )
         .order('created_at', { ascending: false })
       if (error) {
@@ -302,9 +280,6 @@ Deno.serve(
           status: values.status ?? 'draft',
           currency: values.currency ?? 'INR',
           base_fee_paise: values.base_fee_paise ?? 0,
-          bib_prefix: values.bib_prefix ?? '',
-          bib_start_number: values.bib_start_number ?? 1,
-          bib_sequence_length: values.bib_sequence_length ?? 5,
           form_config: values.form_config ?? {},
           terms_text: values.terms_text ?? null,
         })

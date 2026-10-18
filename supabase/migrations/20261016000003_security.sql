@@ -43,7 +43,7 @@ revoke all on public.rate_limits             from anon, authenticated;
 
 revoke execute on function public.create_registration(uuid, text, jsonb, uuid, uuid[], text) from public, anon, authenticated;
 revoke execute on function public.generate_athlete_id() from public, anon, authenticated;
-revoke execute on function public.generate_bib_number(uuid) from public, anon, authenticated;
+revoke execute on function public.generate_bib_number(uuid, text, integer) from public, anon, authenticated;
 revoke execute on function public.next_sequence_value(text, bigint) from public, anon, authenticated;
 revoke execute on function public.check_rate_limit(text, int, int) from public, anon, authenticated;
 revoke execute on function public.hash_secret(text) from public, anon, authenticated;
@@ -51,7 +51,7 @@ revoke execute on function public.hash_secret(text) from public, anon, authentic
 -- Only the server-side service role may call these functions.
 grant execute on function public.create_registration(uuid, text, jsonb, uuid, uuid[], text) to service_role;
 grant execute on function public.generate_athlete_id() to service_role;
-grant execute on function public.generate_bib_number(uuid) to service_role;
+grant execute on function public.generate_bib_number(uuid, text, integer) to service_role;
 grant execute on function public.next_sequence_value(text, bigint) to service_role;
 grant execute on function public.check_rate_limit(text, int, int) to service_role;
 grant execute on function public.hash_secret(text) to service_role;

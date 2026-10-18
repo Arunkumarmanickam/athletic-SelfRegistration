@@ -84,9 +84,8 @@ create table if not exists public.championships (
                             check (status in ('draft', 'open', 'closed', 'archived')),
   currency                text not null default 'INR',
   base_fee_paise          integer not null default 0 check (base_fee_paise >= 0),
-  bib_prefix              text not null default '',
-  bib_start_number        integer not null default 1 check (bib_start_number >= 0),
-  bib_sequence_length     integer not null default 5 check (bib_sequence_length between 1 and 12),
+  -- Bib numbers are derived (M|W + age category + sequence) rather than
+  -- configured per championship. See generate_bib_number().
   form_config             jsonb not null default '{}'::jsonb,
   terms_text              text,
   created_at              timestamptz not null default now(),

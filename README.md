@@ -61,7 +61,7 @@ any other website or database. It contains no results-management features.
 - Payments list with Razorpay details, refunds, failed marking and
   reconciliation.
 - Championships manager: create/update/archive championships, and manage
-  categories, events, fees, deadlines, form fields and bib-numbering rules.
+  categories, events, fees, deadlines and form fields.
 - Real **`.xlsx` exports**: filtered, all, per-championship, or chosen columns;
   a separate payment export. Exports use the full matching dataset, not just the
   visible page.
@@ -83,8 +83,11 @@ any other website or database. It contains no results-management features.
   privileges are revoked from the `anon`/`authenticated` roles.
 - **Payments:** Razorpay. Orders are created server-side; signatures are verified
   server-side; webhooks are verified and processed idempotently.
-- **IDs:** Athlete IDs come from a global sequence. Bib/Registration IDs come
-  from a per-championship sequence guarded by a row lock and a unique
+- **IDs:** Athlete IDs come from a global sequence. Bib/Registration IDs are
+  derived from the athlete's sex and age category — `M`/`W`, then the lower
+  bound of their age bracket, then a sequence (`M4501`, `W4501`, and `W35101`
+  for the 101st woman in the 35+ bracket). The sequence is scoped per
+  championship, sex and category and guarded by a row lock and a unique
   constraint, so two simultaneous registrations can never receive the same bib.
 - **Exports:** generated server-side with SheetJS and streamed as `.xlsx`.
 
@@ -384,7 +387,7 @@ Use this before going live. Tick each item in a staging environment first.
       deactivate).
 - [ ] The last active owner cannot be demoted or disabled.
 - [ ] Championships: create, edit, archive, add/edit/delete categories and
-      events, set fees and deadlines, and change the bib format.
+      events, and set fees and deadlines.
 - [ ] Settings: organisation details and Athlete ID format save correctly.
 - [ ] Audit trail shows the actions above.
 
@@ -448,9 +451,14 @@ Use this before going live. Tick each item in a staging environment first.
   and is never re-issued.
 - **Money in paise.** All amounts are stored as integers (paise) to avoid
   floating-point rounding errors in fees and totals.
-- **Bib numbers are locked.** Each championship has its own counter. A row lock
-  plus a unique constraint means two athletes registering at the same instant
-  cannot get the same number, and the number is never reused.
+- **Bib numbers are derived, not configured.** The organiser does not pick a
+  format. The bib encodes the athlete's sex (`M`/`W`) and the lower bound of
+  their age bracket, followed by a sequence — `M4501`, `W4501`, and `W35101`
+  for the 101st woman in the 35+ bracket. Each championship, sex and age
+  category keeps its own counter, so a man and a woman of the same age each
+  start from 01. A row lock plus a unique constraint means two athletes
+  registering at the same instant cannot get the same number, and the number is
+  never reused.
 - **Refresh, don't duplicate.** If an athlete starts a registration but does not
   pay, coming back updates that same unpaid registration (keeping the bib)
   instead of creating a confusing second entry. A paid registration blocks

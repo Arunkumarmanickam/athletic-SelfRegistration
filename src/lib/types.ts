@@ -61,9 +61,6 @@ export interface Championship {
 }
 
 export interface AdminChampionship extends Omit<Championship, 'championship_categories' | 'championship_events'> {
-  bib_prefix: string
-  bib_start_number: number
-  bib_sequence_length: number
   created_at: string
   updated_at: string
   championship_categories: ChampionshipCategory[]

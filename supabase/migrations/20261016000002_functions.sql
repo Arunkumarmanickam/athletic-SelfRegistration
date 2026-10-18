@@ -4,7 +4,8 @@
 -- Everything that must be race-safe or authoritative lives here:
 --   * next_sequence_value      — atomic counters for athlete IDs and bibs
 --   * generate_athlete_id      — permanent athlete identity (ATH-2026-000001)
---   * generate_bib_number      — per-championship registration code / bib
+--   * generate_bib_number      — bib / registration code, derived from the
+--                                athlete's sex and age category (M4501)
 --   * check_rate_limit         — fixed-window limiter for public endpoints
 --   * hash_token / hash_otp    — SHA-256 helpers (plaintext is never stored)
 --   * create_registration      — validates, computes fees, assigns IDs, and
@@ -69,32 +70,47 @@ end $$;
 
 -- ---------------------------------------------------------------------------
 -- Bib number (= championship Registration ID).
--- Format: <championship.bib_prefix><zero padded sequence>   e.g. M60103
--- Sequence is per championship, so concurrent championships never collide.
+--
+-- Deliberately NOT configurable by the organiser: the bib is derived from the
+-- athlete's sex and the age category they were validated into.
+--
+--   Format: <M|W><age category lower bound><zero padded sequence>
+--
+--   * M for men, W for women
+--   * the number is the lower bound of the athlete's age bracket (30, 35, 40
+--     ... 100 for the default 30+ ladder)
+--   * the sequence is scoped to championship + sex + age category, so a man
+--     and a woman of the same age each start from 01
+--
+-- Examples:
+--   first 45-year-old man          -> M4501
+--   first 45-year-old woman        -> W4501
+--   101st woman in the 35+ bracket -> W35101
 -- ---------------------------------------------------------------------------
-create or replace function public.generate_bib_number(p_championship_id uuid)
+create or replace function public.generate_bib_number(
+  p_championship_id uuid,
+  p_gender          text,
+  p_age_category    integer
+)
 returns text
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  v_prefix text;
-  v_len    int;
-  v_start  bigint;
-  v_seq    bigint;
+  v_gender   text := lower(coalesce(p_gender, ''));
+  v_prefix   text := case when v_gender in ('female', 'f', 'w', 'women') then 'W' else 'M' end;
+  v_category int  := coalesce(p_age_category, 0);
+  v_seq      bigint;
 begin
-  select bib_prefix, bib_sequence_length, bib_start_number
-    into v_prefix, v_len, v_start
-  from public.championships
-  where id = p_championship_id;
+  v_seq := public.next_sequence_value(
+    'bib:' || p_championship_id::text || ':' || v_prefix || ':' || v_category::text,
+    1
+  );
 
-  if not found then
-    raise exception 'Championship not found';
-  end if;
-
-  v_seq := public.next_sequence_value('bib:' || p_championship_id::text, v_start);
-  return v_prefix || lpad(v_seq::text, greatest(v_len, 1), '0');
+  -- lpad only ever pads, it never truncates, so the counter grows past 99 on
+  -- its own and the format keeps working without further configuration.
+  return v_prefix || v_category::text || lpad(v_seq::text, 2, '0');
 end $$;
 
 -- ---------------------------------------------------------------------------
@@ -404,7 +420,7 @@ begin
     loop
       v_attempts := v_attempts + 1;
       begin
-        v_code := public.generate_bib_number(p_championship_id);
+        v_code := public.generate_bib_number(p_championship_id, v_profile.gender, v_cat.min_age);
         insert into public.registrations (
           registration_code, athlete_profile_id, championship_id,
           category_id, category_name, fee_paise, currency,

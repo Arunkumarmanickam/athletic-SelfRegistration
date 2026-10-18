@@ -40,9 +40,6 @@ interface ChampionshipFormState {
   status: string
   currency: string
   base_fee_rupees: string
-  bib_prefix: string
-  bib_start_number: string
-  bib_sequence_length: string
   terms_text: string
 }
 
@@ -70,9 +67,6 @@ const EMPTY_FORM: ChampionshipFormState = {
   status: 'draft',
   currency: 'INR',
   base_fee_rupees: '0',
-  bib_prefix: '',
-  bib_start_number: '1',
-  bib_sequence_length: '5',
   terms_text: '',
 }
 
@@ -104,9 +98,6 @@ function formState(championship: AdminChampionship | null): ChampionshipFormStat
     status: championship.status,
     currency: championship.currency,
     base_fee_rupees: paiseToRupees(championship.base_fee_paise),
-    bib_prefix: championship.bib_prefix,
-    bib_start_number: String(championship.bib_start_number),
-    bib_sequence_length: String(championship.bib_sequence_length),
     terms_text: championship.terms_text ?? '',
   }
 }
@@ -232,7 +223,8 @@ export function ChampionshipsPage() {
                       <span className="block text-xs text-emerald-700">{championship.registrations_paid} paid</span>
                     </Td>
                     <Td className="font-mono text-xs text-slate-600">
-                      {`${championship.bib_prefix}${'#'.repeat(championship.bib_sequence_length)}`}
+                      M/W + age category
+                      <span className="block text-[11px] text-slate-400">e.g. M4501, W35101</span>
                     </Td>
                     <Td>
                       <Button variant="ghost" size="sm" onClick={() => setEditing(championship)}>
@@ -306,9 +298,6 @@ function ChampionshipEditor({
       status: form.status,
       currency: form.currency.trim().toUpperCase() || 'INR',
       base_fee_paise: rupeesToPaise(form.base_fee_rupees),
-      bib_prefix: form.bib_prefix.trim().toUpperCase(),
-      bib_start_number: Number(form.bib_start_number || '0'),
-      bib_sequence_length: Number(form.bib_sequence_length || '5'),
       form_config: {
         require_email: config.require_email,
         require_address: config.require_address,
@@ -452,36 +441,14 @@ function ChampionshipEditor({
                   onChange={(e) => setField({ base_fee_rupees: e.target.value.replace(/[^\d.]/g, '') })}
                 />
               </Field>
-              <Field label="Bib prefix" htmlFor="c-bib-prefix" hint="Up to 8 letters/numbers. Leave blank for none.">
-                <Input id="c-bib-prefix" value={form.bib_prefix} onChange={(e) => setField({ bib_prefix: e.target.value.toUpperCase() })} maxLength={8} />
-              </Field>
-              <Field label="Bib start number" htmlFor="c-bib-start">
-                <Input
-                  id="c-bib-start"
-                  inputMode="numeric"
-                  value={form.bib_start_number}
-                  onChange={(e) => setField({ bib_start_number: e.target.value.replace(/\D/g, '') })}
-                />
-              </Field>
-              <Field label="Sequence length" htmlFor="c-bib-len" hint="Digits in the numeric part (1–12).">
-                <Input
-                  id="c-bib-len"
-                  inputMode="numeric"
-                  value={form.bib_sequence_length}
-                  onChange={(e) => setField({ bib_sequence_length: e.target.value.replace(/\D/g, '') })}
-                />
-              </Field>
               <div className="rounded-lg bg-slate-50 px-3 py-3 text-sm sm:col-span-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Bib number preview</p>
-                <p className="mt-1 font-mono text-lg font-semibold text-slate-900">
-                  {`${form.bib_prefix}${String(form.bib_start_number || '0').padStart(
-                    Math.min(12, Math.max(1, Number(form.bib_sequence_length || '5'))),
-                    '0',
-                  )}`}
-                </p>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Bib number format</p>
+                <p className="mt-1 font-mono text-lg font-semibold text-slate-900">M/W + age category + 2 digits</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  The next athlete gets this number; it is reserved atomically per championship and is also the
-                  Registration ID.
+                  Bib numbers are generated automatically from the athlete's sex and the age category they are placed
+                  in, so there is nothing to configure. A 45-year-old man gets M4501, a 45-year-old woman gets W4501,
+                  and the 101st woman in the 35+ bracket gets W35101. Every combination counts independently, and the
+                  bib is also the Registration ID.
                 </p>
               </div>
             </CardContent>
