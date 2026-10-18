@@ -108,26 +108,13 @@ async function invokeBlob(
 
 export const publicConfig = () => invoke<PublicConfig>('public-config')
 
-export const requestOtp = (body: {
+export const verifyAthlete = (body: {
   athleteId?: string
   mobileE164?: string
-  dateOfBirth?: string
-  purpose?: 'profile_lookup' | 'profile_match'
-}) =>
-  invoke<{ ok: boolean; message: string; expires_in_seconds: number; dev_otp?: string }>(
-    'request-otp',
-    body as Record<string, unknown>,
-  )
-
-export const verifyOtp = (body: {
-  athleteId?: string
-  mobileE164?: string
-  dateOfBirth?: string
-  otp: string
-  purpose?: 'profile_lookup' | 'profile_match'
+  dateOfBirth: string
 }) =>
   invoke<{ ok: boolean; athlete_session_token: string; expires_at: string }>(
-    'verify-otp',
+    'verify-athlete',
     body as Record<string, unknown>,
   )
 

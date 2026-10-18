@@ -45,7 +45,6 @@ Deno.serve(
       site: settings.site ?? {},
       athlete_id_format: settings.athlete_id_format ?? null,
       payments_configured: Boolean(Deno.env.get('RAZORPAY_KEY_ID') && Deno.env.get('RAZORPAY_KEY_SECRET')),
-      sms_configured: (Deno.env.get('SMS_PROVIDER') ?? 'none').toLowerCase() !== 'none',
       championships: openChampionships,
     })
   }),

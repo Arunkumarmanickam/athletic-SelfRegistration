@@ -8,7 +8,6 @@ import { ParticipationStep } from './ParticipationStep'
 import { ReviewStep } from './ReviewStep'
 import { PaymentPanel } from './PaymentPanel'
 import { DocumentUpload } from './DocumentUpload'
-import { OtpVerifyPanel } from './OtpVerifyPanel'
 import { ApiError, register } from '@/lib/api'
 import { useToast } from '@/context/ToastContext'
 import { useConfig } from '@/context/ConfigContext'
@@ -75,7 +74,6 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
   const [athleteSessionToken, setAthleteSessionToken] = useState<string | null>(null)
   const [postWarning, setPostWarning] = useState<string | null>(null)
   const [alreadyRegistered, setAlreadyRegistered] = useState(false)
-  const [verification, setVerification] = useState<{ mobileE164: string; dateOfBirth: string } | null>(null)
 
   // ---- draft persistence ----------------------------------------------------
   useEffect(() => {
@@ -130,20 +128,12 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
         const response = await register(payload)
         setResult(response)
         if (response.athlete_session_token) setAthleteSessionToken(response.athlete_session_token)
-        setVerification(null)
         clearDraft()
         if (!response.payment.configured) {
           toast.info('Registration saved', response.message ?? 'Complete payment to confirm your entry.')
         }
       } catch (err) {
         if (err instanceof ApiError) {
-          if (err.code === 'VERIFICATION_REQUIRED') {
-            setVerification({
-              mobileE164: toE164(personal.mobile_country_code, personal.mobile_number),
-              dateOfBirth: personal.date_of_birth,
-            })
-            return
-          }
           if (err.code === 'ORDER_FAILED') {
             const payload = err.payload as
               | { registration?: RegisterResponse['registration']; athlete_session_token?: string | null }
@@ -222,39 +212,10 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
     void submit(athleteSessionToken)
   }
 
-  const handleVerified = (token: string) => {
-    setAthleteSessionToken(token)
-    setVerification(null)
-    toast.success('Identity verified', 'Finishing your registration…')
-    void submit(token)
-  }
-
   const handlePaymentSuccess = (confirmation: Confirmation) => {
     saveConfirmation(confirmation)
     toast.success('Payment verified', 'Your registration is confirmed.')
     navigate('/registration/success')
-  }
-
-  // ---- verification gate ----------------------------------------------------
-  if (verification) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Verify to continue</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <OtpVerifyPanel
-            purpose="profile_match"
-            mobileE164={verification.mobileE164}
-            dateOfBirth={verification.dateOfBirth}
-            title="An athlete with these details may already exist"
-            description="To prevent duplicate profiles, please verify with the one-time password sent to the registered mobile number. Your existing Athlete ID will be reused."
-            onVerified={handleVerified}
-            onCancel={() => setVerification(null)}
-          />
-        </CardContent>
-      </Card>
-    )
   }
 
   // ---- post-registration view ----------------------------------------------

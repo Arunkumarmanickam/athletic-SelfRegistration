@@ -46,7 +46,7 @@ any other website or database. It contains no results-management features.
   **server-side** and never trusted from the browser.
 - A printable receipt after a verified payment.
 - **Returning athletes** can retrieve their profile with an Athlete ID (or
-  mobile number + date of birth) plus a one-time password (OTP) sent by SMS.
+  mobile number) plus their date of birth — no SMS or OTP needed.
 - Look up a registration's status with the Registration ID and registered
   mobile number.
 
@@ -278,9 +278,6 @@ Copy `.env.example` to `.env`. Summary:
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Edge Functions | Razorpay API credentials. |
 | `RAZORPAY_WEBHOOK_SECRET` | Edge Functions | Verifies webhook signatures. |
 | `BOOTSTRAP_ADMIN_SECRET` | Edge Functions | One-time secret to create the first owner. |
-| `SMS_PROVIDER` | Edge Functions | `none`, `twilio` or `msg91`. |
-| `TWILIO_*` / `MSG91_*` | Edge Functions | Credentials for the chosen SMS provider. |
-| `OTP_DEV_MODE` | Edge Functions | Dev only: returns OTP in the response for localhost. |
 | `RESEND_API_KEY`, `NOTIFICATION_FROM_EMAIL` | Edge Functions | Optional email confirmations. |
 | `ALLOWED_ORIGINS` | Edge Functions | Comma-separated origins allowed to call the API. |
 
@@ -357,13 +354,11 @@ Use this before going live. Tick each item in a staging environment first.
 - [ ] Registering when the championship is closed / past the deadline / not yet
       open shows a clear message.
 
-**Returning athlete / OTP**
+**Returning athlete verification**
 
-- [ ] Requesting an OTP with an unknown Athlete ID does not reveal whether it
-      exists (identical message).
-- [ ] With `OTP_DEV_MODE=true` **and** a localhost origin, the OTP appears in the
-      response; in production it is sent by SMS only.
-- [ ] OTP lookups are rate-limited; repeated wrong codes are locked out.
+- [ ] Verifying with an unknown Athlete ID does not reveal whether it exists
+      (identical message).
+- [ ] Verification lookups are rate-limited.
 - [ ] After verifying, only the athlete's own profile is shown (no PII leaks
       before verification).
 
@@ -409,7 +404,7 @@ Use this before going live. Tick each item in a staging environment first.
 | --- | --- |
 | "Backend not configured" | `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` missing. Fill `.env` and restart. |
 | "Administrator verification failed" on sign-in | The account is not in `admin_users`, or is disabled. Check the table and the account's role. |
-| `OTP_NOT_CONFIGURED` | `SMS_PROVIDER` is `none`. Set `twilio`/`msg91` with credentials, or use `OTP_DEV_MODE=true` for localhost. |
+| `VERIFICATION_FAILED` on retrieve | Athlete ID / mobile and date of birth do not match a profile. Check the details. |
 | `PAYMENTS_NOT_CONFIGURED` | Razorpay keys are missing as function secrets. |
 | `INVALID_SIGNATURE` on payment verify | Key secret mismatch between the app secret and Razorpay's key. |
 | Webhook does nothing | Wrong URL or `RAZORPAY_WEBHOOK_SECRET` mismatch; check the function logs. |

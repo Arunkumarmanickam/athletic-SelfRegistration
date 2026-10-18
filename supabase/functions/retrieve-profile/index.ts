@@ -1,5 +1,5 @@
 // Returns the verified athlete's saved profile and their registration history.
-// Requires a valid athlete session token (issued only after OTP verification),
+// Requires a valid athlete session token (issued only after verification),
 // so an Athlete ID alone can never expose personal details.
 import { handler } from '../_shared/handler.ts'
 import { json, errorJson } from '../_shared/responses.ts'
@@ -24,7 +24,7 @@ Deno.serve(
       return errorJson(
         req,
         'SESSION_EXPIRED',
-        'Your verification session has expired. Please verify again with a new one-time password.',
+        'Your verification session has expired. Please verify again.',
         401,
       )
     }

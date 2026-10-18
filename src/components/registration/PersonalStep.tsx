@@ -96,7 +96,7 @@ export function PersonalStep({ values, errors, formConfig, onChange }: PersonalS
         htmlFor={mobileId}
         required
         error={errors.mobile_number}
-        hint="Your one-time passwords are sent to this number."
+        hint="Use this number with your date of birth to retrieve your details later."
       >
         <Input
           id={mobileId}

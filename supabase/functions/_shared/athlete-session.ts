@@ -29,7 +29,7 @@ export interface AthleteSessionContext {
 }
 
 /**
- * Resolves a raw athlete session token (issued after OTP verification) into
+ * Resolves a raw athlete session token (issued after identity verification) into
  * the athlete's profile. Returns null when the token is unknown, revoked or
  * expired. Tokens are stored only as SHA-256 hashes.
  */

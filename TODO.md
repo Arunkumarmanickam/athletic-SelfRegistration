@@ -1,8 +1,10 @@
 # TODO — Athlete Registration Portal
 
 Everything below is **deliberately not configured yet**. The app behaves
-honestly in the meantime: it reports `payments_configured: false` and
-`sms_configured: false` instead of pretending they work.
+honestly in the meantime: it reports `payments_configured: false` instead of
+pretending it works. (OTP/SMS has been removed from the product entirely —
+returning athletes verify with their Athlete ID + date of birth, no SMS
+involved.)
 
 ---
 
@@ -51,30 +53,6 @@ supabase secrets set \
 
 ---
 
-## 🟡 2. SMS / OTP delivery (skipped for now)
-
-**Status:** `SMS_PROVIDER=none` → the returning-athlete OTP flow returns
-`OTP_NOT_CONFIGURED` (503) — honestly, rather than silently failing.
-
-### Development shortcut (localhost only)
-Already enabled for now: `OTP_DEV_MODE=true` returns the OTP in the API
-response, but **only** for requests originating from `http://localhost:*`.
-
-### For production
-```bash
-# Twilio
-supabase secrets set SMS_PROVIDER=twilio \
-  TWILIO_ACCOUNT_SID=ACxxxx TWILIO_AUTH_TOKEN=xxxx TWILIO_FROM_NUMBER=+91xxxxxxx
-
-# or MSG91
-supabase secrets set SMS_PROVIDER=msg91 \
-  MSG91_AUTH_KEY=xxxx MSG91_SENDER_ID=xxxx MSG91_DLT_TEMPLATE_ID=xxxx
-```
-
-Then **set `OTP_DEV_MODE=false`** (see item 4).
-
----
-
 ## 🟡 3. Email confirmations (optional)
 
 Resend-based receipts are off (`RESEND_API_KEY` unset).
@@ -88,8 +66,6 @@ supabase secrets set RESEND_API_KEY=re_xxxxxxxx \
 
 ## 🔴 4. Before production (security checklist)
 
-- [ ] **`OTP_DEV_MODE=false`** — currently `true` for local testing.
-      Leaving it on in production would leak OTP codes.
 - [ ] **`ALLOWED_ORIGINS`** — currently `http://localhost:5173` only. Add the
       real domain:
       `supabase secrets set ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com`

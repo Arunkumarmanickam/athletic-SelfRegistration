@@ -46,7 +46,7 @@ export function PrivacyPage() {
 
       <h2>What we never store</h2>
       <ul>
-        <li>We never store one-time passwords or passwords in plain text — only salted hashes.</li>
+        <li>We never store passwords or verification details in plain text — only salted hashes.</li>
         <li>We never store your card or bank details. Card data is handled entirely by Razorpay; we only receive a payment reference and status.</li>
       </ul>
 

@@ -145,7 +145,7 @@ Deno.serve(
     if (result?.ok !== true) {
       const err = (result?.error ?? {}) as { code?: string; message?: string }
       const code = err.code ?? 'REGISTRATION_FAILED'
-      const status = code === 'VERIFICATION_REQUIRED' || code === 'ALREADY_REGISTERED' ? 409 : 400
+      const status = code === 'ALREADY_REGISTERED' ? 409 : 400
       return errorJson(req, code, err.message ?? 'We could not save your registration.', status)
     }
 
@@ -156,7 +156,7 @@ Deno.serve(
     const profileId = result.profile_id as string
 
     // A fresh session lets the athlete edit details / upload documents / retry
-    // payment without repeating OTP verification.
+    // payment without re-verifying.
     const session = await issueAthleteSession(profileId, 15)
 
     const registrationPayload = {

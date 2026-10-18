@@ -76,7 +76,7 @@ export function HomePage() {
             </h1>
             <p className="mt-4 max-w-xl text-base text-slate-600">
               A single, secure portal for athletes. Get a permanent Athlete ID, a championship bib number, and pay your
-              entry fee online. Returning athletes can retrieve their details with a one-time password.
+              entry fee online. Returning athletes can retrieve their details anytime.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link to="/register">
@@ -168,8 +168,8 @@ export function HomePage() {
           <div>
             <h3 className="text-base font-semibold text-slate-900">Secure identity checks</h3>
             <p className="mt-2 text-sm text-slate-600">
-              Retrieving your details requires a one-time password sent to your registered mobile number. We never reveal
-              personal details to unverified visitors.
+              Retrieving your details requires your Athlete ID (or registered mobile number) and date of birth. We
+              never reveal personal details to unverified visitors.
             </p>
           </div>
           <div>

@@ -79,13 +79,6 @@ export const returningLookupSchema = z.object({
   athlete_id: z.string().trim().min(4, 'Please enter your Athlete ID'),
 })
 
-export const otpSchema = z.object({
-  otp: z
-    .string()
-    .trim()
-    .regex(/^\d{4,8}$/, 'Please enter the code sent to your mobile number'),
-})
-
 export const statusLookupSchema = z.object({
   registration_code: z.string().trim().min(3, 'Please enter your registration ID / bib number'),
   mobile_e164: z.string().trim().min(8, 'Enter the registered mobile number with country code'),

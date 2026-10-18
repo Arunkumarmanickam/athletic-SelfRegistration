@@ -4,21 +4,11 @@ import { Alert, Badge, Card, CardContent, CardHeader, CardTitle, Spinner } from 
 import { Button } from '@/components/ui/button'
 import { Field, Input, useFieldId } from '@/components/ui/input'
 import { Select } from '@/components/ui/form-controls'
-import { OtpVerifyPanel } from '@/components/registration/OtpVerifyPanel'
 import { DocumentUpload } from '@/components/registration/DocumentUpload'
-import { ApiError, retrieveProfile } from '@/lib/api'
+import { ApiError, retrieveProfile, verifyAthlete } from '@/lib/api'
 import { COUNTRY_CODES } from '@/lib/constants'
 import { formatDate, formatMoney, genderLabel, registrationStatusTone, paymentStatusTone, titleCase, toE164 } from '@/lib/format'
 import type { AthleteProfile, AthleteRegistrationSummary } from '@/lib/types'
-
-type Phase = 'identify' | 'verify' | 'profile'
-
-interface Identity {
-  athleteId?: string
-  mobileE164?: string
-  dateOfBirth?: string
-  label: string
-}
 
 function RegistrationsList({ registrations }: { registrations: AthleteRegistrationSummary[] }) {
   if (registrations.length === 0) {
@@ -66,13 +56,12 @@ function RegistrationsList({ registrations }: { registrations: AthleteRegistrati
 }
 
 export function ReturningPage() {
-  const [phase, setPhase] = useState<Phase>('identify')
   const [method, setMethod] = useState<'athlete_id' | 'mobile'>('athlete_id')
   const [athleteId, setAthleteId] = useState('')
   const [countryCode, setCountryCode] = useState('+91')
   const [mobileNumber, setMobileNumber] = useState('')
   const [dateOfBirth, setDateOfBirth] = useState('')
-  const [identity, setIdentity] = useState<Identity | null>(null)
+  const [verifying, setVerifying] = useState(false)
   const [identityError, setIdentityError] = useState<string | null>(null)
 
   const [sessionToken, setSessionToken] = useState<string | null>(null)
@@ -86,7 +75,7 @@ export function ReturningPage() {
   const dobField = useFieldId('returning_dob')
 
   useEffect(() => {
-    if (phase !== 'profile' || !sessionToken) return
+    if (!sessionToken) return
     let cancelled = false
     setLoadingProfile(true)
     setProfileError(null)
@@ -108,57 +97,73 @@ export function ReturningPage() {
     return () => {
       cancelled = true
     }
-  }, [phase, sessionToken])
+  }, [sessionToken])
 
-  const handleContinue = () => {
+  const handleVerify = async (event: React.FormEvent) => {
+    event.preventDefault()
     setIdentityError(null)
+
+    if (!dateOfBirth) {
+      setIdentityError('Please enter the date of birth used at registration.')
+      return
+    }
+
+    const payload: { athleteId?: string; mobileE164?: string; dateOfBirth: string } = { dateOfBirth }
     if (method === 'athlete_id') {
       const value = athleteId.trim()
       if (value.length < 4) {
         setIdentityError('Please enter your Athlete ID (for example ATH-2026-000001).')
         return
       }
-      setIdentity({ athleteId: value.toUpperCase(), label: `Athlete ID ${value.toUpperCase()}` })
-      setPhase('verify')
-      return
+      payload.athleteId = value.toUpperCase()
+    } else {
+      const e164 = toE164(countryCode, mobileNumber)
+      if (e164.length < 8) {
+        setIdentityError('Please enter the mobile number you registered with.')
+        return
+      }
+      payload.mobileE164 = e164
     }
-    const e164 = toE164(countryCode, mobileNumber)
-    if (e164.length < 8) {
-      setIdentityError('Please enter the mobile number you registered with.')
-      return
+
+    setVerifying(true)
+    try {
+      const result = await verifyAthlete(payload)
+      setSessionToken(result.athlete_session_token)
+    } catch (err) {
+      setIdentityError(err instanceof ApiError ? err.message : 'We could not verify your details. Please try again.')
+    } finally {
+      setVerifying(false)
     }
-    if (!dateOfBirth) {
-      setIdentityError('Please enter the date of birth used at registration.')
-      return
-    }
-    setIdentity({ mobileE164: e164, dateOfBirth, label: 'your registered mobile number and date of birth' })
-    setPhase('verify')
   }
 
   const reset = () => {
-    setPhase('identify')
-    setIdentity(null)
     setSessionToken(null)
     setProfile(null)
     setRegistrations([])
     setProfileError(null)
+    setAthleteId('')
+    setDateOfBirth('')
+    setMobileNumber('')
   }
+
+  const loaded = Boolean(sessionToken) && !loadingProfile
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
       <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Retrieve your details</h1>
       <p className="mt-2 text-sm text-slate-600">
-        Already registered with us before? Verify your identity to view your saved Athlete profile, your Athlete ID, and
-        your registration history. You can then register for another championship without re-entering everything.
+        Already registered with us before? Verify with your Athlete ID (or registered mobile number) and date of birth
+        to view your saved Athlete profile, your Athlete ID, and your registration history. You can then register for
+        another championship without re-entering everything.
       </p>
 
-      {phase === 'identify' && (
+      {!loaded && (
         <Card className="mt-6">
           <CardHeader>
-            <CardTitle>How would you like to verify?</CardTitle>
+            <CardTitle>Verify it's you</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
-            {identityError && <Alert tone="danger">{identityError}</Alert>}
+            {identityError && <Alert tone="danger" title="Verification unsuccessful">{identityError}</Alert>}
 
             <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Verification method">
               <label className={`cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium ${method === 'athlete_id' ? 'border-orange-400 bg-orange-50 text-orange-800' : 'border-slate-300 text-slate-700'}`}>
@@ -183,166 +188,156 @@ export function ReturningPage() {
               </label>
             </div>
 
-            {method === 'athlete_id' ? (
-              <Field label="Athlete ID" htmlFor={idField} required hint="Example: ATH-2026-000001">
+            <form onSubmit={handleVerify} className="space-y-5" noValidate>
+              {method === 'athlete_id' ? (
+                <Field label="Athlete ID" htmlFor={idField} required hint="Example: ATH-2026-000001">
+                  <Input
+                    id={idField}
+                    value={athleteId}
+                    onChange={(event) => setAthleteId(event.target.value)}
+                    autoComplete="off"
+                    placeholder="ATH-2026-000001"
+                  />
+                </Field>
+              ) : (
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <Field label="Mobile country code" htmlFor={`${mobileField}-cc`} required>
+                    <Select
+                      id={`${mobileField}-cc`}
+                      value={countryCode}
+                      onChange={(event) => setCountryCode(event.target.value)}
+                    >
+                      {COUNTRY_CODES.map((country) => (
+                        <option key={country.code} value={country.code}>
+                          {country.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Mobile number" htmlFor={mobileField} required>
+                    <Input
+                      id={mobileField}
+                      type="tel"
+                      inputMode="numeric"
+                      value={mobileNumber}
+                      onChange={(event) => setMobileNumber(event.target.value.replace(/[^\d]/g, ''))}
+                    />
+                  </Field>
+                </div>
+              )}
+
+              <Field label="Date of birth" htmlFor={dobField} required hint="The date of birth used at registration.">
                 <Input
-                  id={idField}
-                  value={athleteId}
-                  onChange={(event) => setAthleteId(event.target.value)}
-                  autoComplete="off"
-                  placeholder="ATH-2026-000001"
+                  id={dobField}
+                  type="date"
+                  max={new Date().toISOString().slice(0, 10)}
+                  value={dateOfBirth}
+                  onChange={(event) => setDateOfBirth(event.target.value)}
                 />
               </Field>
-            ) : (
-              <div className="grid gap-5 sm:grid-cols-2">
-                <Field label="Mobile country code" htmlFor={`${mobileField}-cc`} required>
-                  <Select
-                    id={`${mobileField}-cc`}
-                    value={countryCode}
-                    onChange={(event) => setCountryCode(event.target.value)}
-                  >
-                    {COUNTRY_CODES.map((country) => (
-                      <option key={country.code} value={country.code}>
-                        {country.label}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Mobile number" htmlFor={mobileField} required>
-                  <Input
-                    id={mobileField}
-                    type="tel"
-                    inputMode="numeric"
-                    value={mobileNumber}
-                    onChange={(event) => setMobileNumber(event.target.value.replace(/[^\d]/g, ''))}
-                  />
-                </Field>
-                <Field label="Date of birth" htmlFor={dobField} required className="sm:col-span-2">
-                  <Input
-                    id={dobField}
-                    type="date"
-                    max={new Date().toISOString().slice(0, 10)}
-                    value={dateOfBirth}
-                    onChange={(event) => setDateOfBirth(event.target.value)}
-                  />
-                </Field>
-              </div>
-            )}
 
-            <Button variant="accent" onClick={handleContinue}>
-              Continue
-            </Button>
+              <Button type="submit" variant="accent" loading={verifying}>
+                Verify and continue
+              </Button>
+            </form>
 
             <p className="text-xs text-slate-500">
-              For your privacy, this step never confirms whether an Athlete ID exists. A one-time password is sent only
-              if the details match a registered athlete, and the message is the same either way.
+              For your privacy, this step never confirms whether an Athlete ID exists. The message is the same whether
+              or not the details match a registered athlete, and no personal details are shown before verification.
             </p>
           </CardContent>
         </Card>
       )}
 
-      {phase === 'verify' && identity && (
-        <Card className="mt-6">
-          <CardContent className="pt-5">
-            <OtpVerifyPanel
-              purpose="profile_lookup"
-              athleteId={identity.athleteId}
-              mobileE164={identity.mobileE164}
-              dateOfBirth={identity.dateOfBirth}
-              title="Verify it's you"
-              description={`For security we will send a one-time password to the mobile number registered with ${identity.label}.`}
-              onVerified={(token) => {
-                setSessionToken(token)
-                setPhase('profile')
-              }}
-              onCancel={reset}
-            />
-          </CardContent>
-        </Card>
+      {loadingProfile && (
+        <div className="mt-6 flex justify-center py-12">
+          <Spinner label="Loading your details" />
+        </div>
       )}
 
-      {phase === 'profile' && (
-        <div className="mt-6 space-y-5">
-          {loadingProfile && (
-            <div className="flex justify-center py-12">
-              <Spinner label="Loading your details" />
+      {profileError && (
+        <div className="mt-6">
+          <Alert tone="danger" title="Could not load your details">
+            {profileError}
+            <div className="mt-3">
+              <Button variant="outline" onClick={reset}>
+                Try again
+              </Button>
             </div>
-          )}
+          </Alert>
+        </div>
+      )}
 
-          {profileError && <Alert tone="danger" title="Could not load your details">{profileError}</Alert>}
-
-          {profile && (
-            <>
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between gap-3">
-                    <CardTitle>Your Athlete profile</CardTitle>
-                    <Badge tone="info">{profile.athlete_id}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-                    {[
-                      ['Full name', profile.full_name],
-                      ['Date of birth', formatDate(profile.date_of_birth)],
-                      ['Gender', genderLabel(profile.gender)],
-                      ['Mobile', profile.mobile_e164],
-                      ['Email', profile.email || '—'],
-                      ['State', profile.state],
-                      ['District', profile.district || '—'],
-                      ['Address', profile.address || '—'],
-                      ['Representing', profile.representing || '—'],
-                      [
-                        'Emergency contact',
-                        profile.emergency_contact_name
-                          ? `${profile.emergency_contact_name}${profile.emergency_contact_phone ? ` · ${profile.emergency_contact_phone}` : ''}`
-                          : '—',
-                      ],
-                    ].map(([label, value]) => (
-                      <div key={label}>
-                        <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</dt>
-                        <dd className="text-slate-800">{value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                  <p className="mt-4 text-xs text-slate-500">
-                    To correct any of these details, please contact the organiser. Changes are recorded in an audit
-                    trail.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Your registrations</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <RegistrationsList registrations={registrations} />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Upload a document</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <DocumentUpload athleteSessionToken={sessionToken ?? ''} />
-                </CardContent>
-              </Card>
-
-              <div className="flex flex-wrap gap-3">
-                <Link to="/register">
-                  <Button variant="accent">Register for a championship</Button>
-                </Link>
-                <Link to="/status">
-                  <Button variant="outline">Check a registration status</Button>
-                </Link>
-                <Button variant="ghost" onClick={reset}>
-                  Verify another athlete
-                </Button>
+      {profile && (
+        <div className="mt-6 space-y-5">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle>Your Athlete profile</CardTitle>
+                <Badge tone="info">{profile.athlete_id}</Badge>
               </div>
-            </>
-          )}
+            </CardHeader>
+            <CardContent>
+              <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+                {[
+                  ['Full name', profile.full_name],
+                  ['Date of birth', formatDate(profile.date_of_birth)],
+                  ['Gender', genderLabel(profile.gender)],
+                  ['Mobile', profile.mobile_e164],
+                  ['Email', profile.email || '—'],
+                  ['State', profile.state],
+                  ['District', profile.district || '—'],
+                  ['Address', profile.address || '—'],
+                  ['Representing', profile.representing || '—'],
+                  [
+                    'Emergency contact',
+                    profile.emergency_contact_name
+                      ? `${profile.emergency_contact_name}${profile.emergency_contact_phone ? ` · ${profile.emergency_contact_phone}` : ''}`
+                      : '—',
+                  ],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</dt>
+                    <dd className="text-slate-800">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="mt-4 text-xs text-slate-500">
+                To correct any of these details, please contact the organiser. Changes are recorded in an audit
+                trail.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Your registrations</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RegistrationsList registrations={registrations} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Upload a document</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DocumentUpload athleteSessionToken={sessionToken ?? ''} />
+            </CardContent>
+          </Card>
+
+          <div className="flex flex-wrap gap-3">
+            <Link to="/register">
+              <Button variant="accent">Register for a championship</Button>
+            </Link>
+            <Link to="/status">
+              <Button variant="outline">Check a registration status</Button>
+            </Link>
+            <Button variant="ghost" onClick={reset}>
+              Verify another athlete
+            </Button>
+          </div>
         </div>
       )}
     </div>

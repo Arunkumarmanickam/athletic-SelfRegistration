@@ -78,7 +78,6 @@ export interface PublicConfig {
   }
   athlete_id_format: { prefix?: string; sequence_length?: number } | null
   payments_configured: boolean
-  sms_configured: boolean
   championships: Championship[]
 }
 
