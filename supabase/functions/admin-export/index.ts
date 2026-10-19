@@ -39,10 +39,15 @@ interface ColumnDef {
   value: (row: Row, ctx: BuildContext) => string | number
 }
 
-/** Prevents CSV/Excel formula injection for user-supplied text. */
+/**
+ * Prevents CSV/Excel formula injection for user-supplied text. E.164 phone
+ * numbers start with "+", which is harmless in an XLSX string cell, so they
+ * pass through untouched instead of gaining a stray leading apostrophe.
+ */
 function safeText(value: unknown): string {
   if (value === null || value === undefined) return ''
   const text = String(value)
+  if (/^\+\d{6,15}$/.test(text)) return text
   return /^[=+\-@\t\r]/.test(text) ? `'${text}` : text
 }
 
@@ -56,7 +61,7 @@ function formatDateTime(value: unknown): string {
   )}:${pad(date.getUTCMinutes())}`
 }
 
-const GENDER_LABELS: Record<string, string> = { male: 'Male', female: 'Female', other: 'Other' }
+const GENDER_LABELS: Record<string, string> = { male: 'Men', female: 'Women', other: 'Other' }
 const GENDER_SHORT: Record<string, string> = { male: 'M', female: 'W', other: 'O' }
 
 function profileOf(row: Row): Row | null {
@@ -220,9 +225,9 @@ function selectColumns(registry: ColumnDef[], requested: string[]): ColumnDef[] 
 }
 
 // ---------------------------------------------------------------------------
-// "athletes" kind: the bib-preparation sheet, laid out exactly like the
-// organiser's athlete-bulk-import template:
-//   S.No | Name | Gender | Age Category | DOB | Representing |
+// "athletes" kind: the bib-preparation sheet, laid out like the organiser's
+// athlete-bulk-import template with a Mobile column added:
+//   S.No | Name | Gender | Age Category | DOB | Mobile | Representing |
 //   Event1..Event4 | T-shirt size | Bib No
 // Event columns extend beyond four only if someone selected more events, so
 // no data is ever dropped. T-shirt size is not collected by the form yet, so
@@ -237,6 +242,7 @@ function buildAthletesSheet(records: Row[]) {
     'Gender',
     'Age Category',
     'DOB',
+    'Mobile',
     'Representing',
     ...Array.from({ length: maxEvents }, (_, index) => `Event${index + 1}`),
     'T-shirt size',
@@ -252,6 +258,7 @@ function buildAthletesSheet(records: Row[]) {
       GENDER_SHORT[String(profile?.gender ?? '')] ?? safeText(profile?.gender),
       safeText(categoryOf(row)?.name ?? row.category_name),
       safeText(profile?.date_of_birth),
+      safeText(profile?.mobile_e164),
       safeText(profile?.representing || profile?.district || profile?.state),
       ...Array.from({ length: maxEvents }, (_, eventIndex) => events[eventIndex] ?? ''),
       '',
@@ -265,14 +272,15 @@ function buildAthletesSheet(records: Row[]) {
     8, // Gender
     14, // Age Category
     13, // DOB
+    18, // Mobile
     28, // Representing
     ...Array.from({ length: maxEvents }, () => 24), // Event1..N
     14, // T-shirt size
     12, // Bib No
   ]
-  // DOB and Bib No written as text so dates keep their shape and bibs keep
-  // any leading characters.
-  const textColumns = [4, 6 + maxEvents + 1]
+  // DOB, Mobile and Bib No written as text so dates keep their shape, phone
+  // numbers keep their leading +/zero and bibs keep any leading characters.
+  const textColumns = [4, 5, 8 + maxEvents]
   return sheetFromRows(headers, rows, widths, textColumns, null, 'Athletes')
 }
 

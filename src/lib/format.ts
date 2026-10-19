@@ -47,13 +47,13 @@ export function formatAge(dob: string | null | undefined, on?: string): string {
 export function genderLabel(gender: string | null | undefined): string {
   switch (gender) {
     case 'male':
-      return 'Male'
+      return 'Men'
     case 'female':
-      return 'Female'
+      return 'Women'
     case 'other':
       return 'Other'
     case 'any':
-      return 'All'
+      return 'Any'
     default:
       return '—'
   }

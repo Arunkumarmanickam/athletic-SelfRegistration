@@ -299,8 +299,8 @@ export function AthleteDetailPage() {
               </Field>
               <Field label="Gender" htmlFor="a-gender" required>
                 <Select id="a-gender" value={edit.gender} onChange={(event) => setField({ gender: event.target.value })}>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
+                  <option value="male">Men</option>
+                  <option value="female">Women</option>
                   <option value="other">Other</option>
                 </Select>
               </Field>

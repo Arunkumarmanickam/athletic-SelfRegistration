@@ -11,7 +11,7 @@ import { adminRegistrations } from '@/lib/api'
 import { useChampionshipOptions } from '@/hooks/useChampionshipOptions'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { REGISTRATION_EXPORT_COLUMNS } from '@/lib/export-columns'
-import { formatDateTime, formatMoney, paymentStatusTone, registrationStatusTone, titleCase } from '@/lib/format'
+import { formatDateTime, formatMoney, genderLabel, paymentStatusTone, registrationStatusTone, titleCase } from '@/lib/format'
 import type { RegistrationAdminRow, RegistrationFilters } from '@/lib/types'
 
 const PAGE_SIZE = 25
@@ -175,8 +175,8 @@ export function RegistrationsPage() {
           <Field label="Gender" htmlFor="reg-gender">
             <Select id="reg-gender" value={filters.gender} onChange={(event) => update({ gender: event.target.value })}>
               <option value="">Any gender</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
+              <option value="male">Men</option>
+              <option value="female">Women</option>
               <option value="other">Other</option>
             </Select>
           </Field>
@@ -287,7 +287,7 @@ export function RegistrationsPage() {
                         {row.athlete_profiles?.athlete_id}
                       </span>
                       <span className="block text-xs text-slate-500">
-                        {titleCase(row.athlete_profiles?.gender)} · {row.athlete_profiles?.state}
+                        {genderLabel(row.athlete_profiles?.gender)} · {row.athlete_profiles?.state}
                       </span>
                     </Td>
                     <Td>{row.championships?.name ?? '—'}</Td>

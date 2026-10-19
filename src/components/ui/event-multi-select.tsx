@@ -155,7 +155,7 @@ export function EventMultiSelect({
                     <span className="block font-medium text-slate-800">{event.name}</span>
                     <span className="block text-xs text-slate-500">
                       {event.fee_paise > 0 ? formatMoney(event.fee_paise) : 'No additional fee'}
-                      {event.gender !== 'any' && ` · ${event.gender === 'male' ? 'Boys/Men' : 'Girls/Women'}`}
+                      {event.gender !== 'any' && ` · ${event.gender === 'male' ? 'Men' : 'Women'}`}
                       {note && ` · ${note}`}
                     </span>
                   </span>

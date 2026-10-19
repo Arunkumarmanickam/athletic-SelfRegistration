@@ -10,7 +10,7 @@ import { PageHeader } from '@/components/admin/PageHeader'
 import { ApiError, adminChampionships } from '@/lib/api'
 import { COUNTRIES, INDIAN_STATES } from '@/lib/geo'
 import { useToast } from '@/context/ToastContext'
-import { formatDate, formatDateTime, formatMoney, championshipStatusTone, titleCase } from '@/lib/format'
+import { formatDate, formatDateTime, formatMoney, championshipStatusTone, genderLabel, titleCase } from '@/lib/format'
 import type {
   AdminChampionship,
   ChampionshipCategory,
@@ -885,7 +885,7 @@ function CategoriesEditor({ championship, onChanged }: { championship: AdminCham
                     {!category.is_active && <span className="ml-2 text-xs text-slate-400">(inactive)</span>}
                   </p>
                   <p className="text-xs text-slate-500">
-                    {titleCase(category.gender)} · {category.min_age}–{category.max_age} yrs ·{' '}
+                    {genderLabel(category.gender)} · {category.min_age}–{category.max_age} yrs ·{' '}
                     {formatMoney(category.fee_paise, championship.currency)}
                   </p>
                 </div>
@@ -912,8 +912,8 @@ function CategoriesEditor({ championship, onChanged }: { championship: AdminCham
               <Field label="Gender" htmlFor="cat-gender">
                 <Select id="cat-gender" value={draft.gender} onChange={(e) => setDraft({ ...draft, gender: e.target.value })}>
                   <option value="any">Any</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
+                  <option value="male">Men</option>
+                  <option value="female">Women</option>
                 </Select>
               </Field>
               <Field label="Fee (₹)" htmlFor="cat-fee">
@@ -1073,7 +1073,7 @@ function EventsEditor({ championship, onChanged }: { championship: AdminChampion
                     {!event.is_active && <span className="ml-2 text-xs text-slate-400">(inactive)</span>}
                   </p>
                   <p className="text-xs text-slate-500">
-                    {titleCase(event.gender)} · {formatMoney(event.fee_paise, championship.currency)}
+                    {genderLabel(event.gender)} · {formatMoney(event.fee_paise, championship.currency)}
                     {event.category_ids && event.category_ids.length > 0
                       ? ` · ${event.category_ids.map((id) => categoryNames.get(id) ?? '?').join(', ')}`
                       : ' · all categories'}
@@ -1102,8 +1102,8 @@ function EventsEditor({ championship, onChanged }: { championship: AdminChampion
               <Field label="Gender" htmlFor="evt-gender">
                 <Select id="evt-gender" value={draft.gender} onChange={(e) => setDraft({ ...draft, gender: e.target.value })}>
                   <option value="any">Any</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
+                  <option value="male">Men</option>
+                  <option value="female">Women</option>
                 </Select>
               </Field>
               <Field label="Fee (₹)" htmlFor="evt-fee">
@@ -1242,7 +1242,7 @@ function DraftCategoriesEditor({
                         )}
                       </span>
                       <span className="block text-xs text-slate-500">
-                        {titleCase(category.gender)} · {category.min_age}–{category.max_age} yrs ·{' '}
+                        {genderLabel(category.gender)} · {category.min_age}–{category.max_age} yrs ·{' '}
                         {formatMoney(rupeesToPaise(category.fee_rupees), 'INR')}
                       </span>
                     </span>
@@ -1280,8 +1280,8 @@ function DraftCategoriesEditor({
                 onChange={(event) => setDraft({ ...draft, gender: event.target.value })}
               >
                 <option value="any">Any</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
+                <option value="male">Men</option>
+                <option value="female">Women</option>
               </Select>
             </Field>
             <Field label="Fee (₹)" htmlFor="draft-cat-fee">
@@ -1389,7 +1389,7 @@ function DraftEventsEditor({
                         {!item.isDefault && <span className="ml-2 text-xs font-normal text-emerald-700">(added)</span>}
                       </span>
                       <span className="block text-xs text-slate-500">
-                        {titleCase(item.gender)} · {formatMoney(rupeesToPaise(item.fee_rupees), 'INR')}
+                        {genderLabel(item.gender)} · {formatMoney(rupeesToPaise(item.fee_rupees), 'INR')}
                       </span>
                     </span>
                   }
@@ -1426,8 +1426,8 @@ function DraftEventsEditor({
                 onChange={(event) => setDraft({ ...draft, gender: event.target.value })}
               >
                 <option value="any">Any</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
+                <option value="male">Men</option>
+                <option value="female">Women</option>
               </Select>
             </Field>
             <Field label="Fee (₹)" htmlFor="draft-evt-fee">

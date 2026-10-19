@@ -11,7 +11,7 @@ import { useChampionshipOptions } from '@/hooks/useChampionshipOptions'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { downloadBlob } from '@/lib/download'
 import { useToast } from '@/context/ToastContext'
-import { formatDate, formatDateTime, paymentStatusTone, titleCase } from '@/lib/format'
+import { formatDate, formatDateTime, genderLabel, paymentStatusTone, titleCase } from '@/lib/format'
 import type { RegistrationAdminRow } from '@/lib/types'
 
 const PAGE_SIZE = 25
@@ -162,8 +162,8 @@ export function AthletesPage() {
           <Field label="Gender" htmlFor="athlete-gender">
             <Select id="athlete-gender" value={gender} onChange={(event) => setGender(event.target.value)}>
               <option value="">Any gender</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
+              <option value="male">Men</option>
+              <option value="female">Women</option>
               <option value="other">Other</option>
             </Select>
           </Field>
@@ -249,7 +249,7 @@ export function AthletesPage() {
                         <p className="font-mono text-xs text-slate-500">{profile?.athlete_id}</p>
                       </Td>
                       <Td>{formatDate(profile?.date_of_birth)}</Td>
-                      <Td>{titleCase(profile?.gender ?? '')}</Td>
+                      <Td>{genderLabel(profile?.gender)}</Td>
                       <Td>{row.championship_categories?.name ?? row.category_name ?? '—'}</Td>
                       <Td className="max-w-56">
                         <span className="block truncate text-slate-700">
