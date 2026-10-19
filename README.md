@@ -55,10 +55,14 @@ athlete-registration-portal/
 - **Receipt**: a verified payment lands on `/registration/success`, which renders
   an invoice-style receipt (`src/components/registration/ReceiptInvoice.tsx`):
   organiser header, billed-to block, bib number, itemised events, totals, amount
-  in words and the payment record. It is designed to print as **one A4 page**;
-  "Print / Save as PDF" gives the athlete a clean bill with no site chrome. The
-  data lives only in `sessionStorage` for the current tab — no file is
-  auto-downloaded and nothing extra is stored server-side.
+  in words and the payment record. A real **PDF is generated in the browser**
+  (`src/lib/receiptPdf.ts`, jsPDF, loaded lazily) and **downloaded automatically
+  once per registration** — tracked per browser tab in `sessionStorage`, so a
+  refresh never downloads twice and the athlete keeps a copy without touching
+  the print dialog. The PDF is one A4 page, 14 mm side margins, with the
+  organiser name from `public-config` (the download waits briefly for config so
+  the letterhead is not blank). The on-screen invoice stays printable and there
+  is a manual "Download PDF" button. Nothing is stored server-side.
 - **Identity**: `athlete_profiles` are permanent (Athlete ID `ATH-2026-######`).
   Duplicate protection keys on mobile + date of birth. An athlete session
   token (15 days) lets an athlete re-enter and edit before paying. There is
