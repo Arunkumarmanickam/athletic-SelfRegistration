@@ -63,7 +63,7 @@ export function SuccessPage() {
     ['Athlete', profile?.full_name ?? '—'],
     ['Athlete ID', profile?.athlete_id ?? '—'],
     ['Registration reference', registration.registration_code],
-    ['Bib number', registration.bib_number ?? 'Issued after payment'],
+    ['Bib number', registration.bib_number ?? '—'],
     ['Championship', champion?.name ?? '—'],
     ['Category', category?.name ?? '—'],
     ['Events', events.join(', ') || '—'],

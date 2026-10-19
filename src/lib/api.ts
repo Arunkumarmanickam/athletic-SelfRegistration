@@ -323,4 +323,13 @@ export const adminExportPayments = (filters: Record<string, unknown>, columns?: 
     ...(columns && columns.length > 0 ? { columns } : {}),
   })
 
+/**
+ * Bib-preparation sheet in the organiser's template layout
+ * (S.No, Name, Gender, Age Category, DOB, Representing, Event1..N,
+ * T-shirt size, Bib No). Pass `championshipId` for one championship or no
+ * filter for every registered athlete.
+ */
+export const adminExportAthletes = (filters: Record<string, unknown> = {}) =>
+  invokeBlob('admin-export', { kind: 'athletes', ...filters })
+
 export { invoke }

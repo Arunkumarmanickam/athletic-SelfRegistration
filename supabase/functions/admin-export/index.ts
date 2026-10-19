@@ -57,6 +57,7 @@ function formatDateTime(value: unknown): string {
 }
 
 const GENDER_LABELS: Record<string, string> = { male: 'Male', female: 'Female', other: 'Other' }
+const GENDER_SHORT: Record<string, string> = { male: 'M', female: 'W', other: 'O' }
 
 function profileOf(row: Row): Row | null {
   return (row.athlete_profiles as Row | null) ?? null
@@ -86,13 +87,6 @@ const REGISTRATION_COLUMNS: ColumnDef[] = [
     width: 22,
     text: true,
     value: (r) => safeText(r.registration_code),
-  },
-  {
-    key: 'bib_number',
-    header: 'Bib Number',
-    width: 20,
-    text: true,
-    value: (r) => safeText((r as any).bib_number ?? '—'),
   },
   {
     key: 'bib_number',
@@ -190,13 +184,6 @@ const PAYMENT_COLUMNS: ColumnDef[] = [
     value: (p) => safeText((p.registrations as any)?.bib_number ?? '—'),
   },
   {
-    key: 'bib_number',
-    header: 'Bib Number',
-    width: 18,
-    text: true,
-    value: (p) => safeText((p.registrations as any)?.bib_number ?? '—'),
-  },
-  {
     key: 'full_name',
     header: 'Athlete Name',
     width: 26,
@@ -230,6 +217,63 @@ function selectColumns(registry: ColumnDef[], requested: string[]): ColumnDef[] 
   if (requested.length === 0) return registry
   const wanted = new Set(requested)
   return registry.filter((column) => wanted.has(column.key))
+}
+
+// ---------------------------------------------------------------------------
+// "athletes" kind: the bib-preparation sheet, laid out exactly like the
+// organiser's athlete-bulk-import template:
+//   S.No | Name | Gender | Age Category | DOB | Representing |
+//   Event1..Event4 | T-shirt size | Bib No
+// Event columns extend beyond four only if someone selected more events, so
+// no data is ever dropped. T-shirt size is not collected by the form yet, so
+// the column is present but empty — the organiser fills it by hand.
+// ---------------------------------------------------------------------------
+function buildAthletesSheet(records: Row[]) {
+  const eventsOf = (row: Row) => ((row.registration_events as { event_name: string }[] | null) ?? [])
+  const maxEvents = Math.max(4, ...records.map((row) => eventsOf(row).length))
+  const headers = [
+    'S.No',
+    'Name',
+    'Gender',
+    'Age Category',
+    'DOB',
+    'Representing',
+    ...Array.from({ length: maxEvents }, (_, index) => `Event${index + 1}`),
+    'T-shirt size',
+    'Bib No',
+  ]
+
+  const rows = records.map((row, index) => {
+    const profile = profileOf(row)
+    const events = eventsOf(row).map((event) => safeText(event.event_name))
+    return [
+      index + 1,
+      safeText(profile?.full_name),
+      GENDER_SHORT[String(profile?.gender ?? '')] ?? safeText(profile?.gender),
+      safeText(categoryOf(row)?.name ?? row.category_name),
+      safeText(profile?.date_of_birth),
+      safeText(profile?.representing || profile?.district || profile?.state),
+      ...Array.from({ length: maxEvents }, (_, eventIndex) => events[eventIndex] ?? ''),
+      '',
+      safeText((row as Row & { bib_number?: string }).bib_number),
+    ]
+  })
+
+  const widths = [
+    6, // S.No
+    26, // Name
+    8, // Gender
+    14, // Age Category
+    13, // DOB
+    28, // Representing
+    ...Array.from({ length: maxEvents }, () => 24), // Event1..N
+    14, // T-shirt size
+    12, // Bib No
+  ]
+  // DOB and Bib No written as text so dates keep their shape and bibs keep
+  // any leading characters.
+  const textColumns = [4, 6 + maxEvents + 1]
+  return sheetFromRows(headers, rows, widths, textColumns, null, 'Athletes')
 }
 
 // deno-lint-ignore no-explicit-any
@@ -350,8 +394,27 @@ Deno.serve(
       XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
       rowCount = records.length
       exportedColumns = columns.map((column) => column.key)
+    } else if (kind === 'athletes') {
+      // The bib-preparation sheet. Same filters as registrations; rows are
+      // ordered by bib number (then registration date) because that is the
+      // order bibs are printed and handed out in.
+      const filters = sanitizeFilters(body as Record<string, unknown>)
+      filterSummary = filters as unknown as Record<string, unknown>
+
+      const records = await fetchAllRegistrations(supabase, filters, 1000, MAX_ROWS)
+      records.sort((a, b) => {
+        const bibA = String((a as Row & { bib_number?: string }).bib_number ?? '')
+        const bibB = String((b as Row & { bib_number?: string }).bib_number ?? '')
+        if (bibA !== bibB) return bibA.localeCompare(bibB)
+        return new Date(String(a.registered_at)).getTime() - new Date(String(b.registered_at)).getTime()
+      })
+
+      const { worksheet, sheetName } = buildAthletesSheet(records)
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
+      rowCount = records.length
+      exportedColumns = ['s_no', 'name', 'gender', 'age_category', 'dob', 'representing', 'events', 'tshirt_size', 'bib_number']
     } else {
-      return errorJson(req, 'INVALID_KIND', 'Export type must be "registrations" or "payments".', 400)
+      return errorJson(req, 'INVALID_KIND', 'Export type must be "registrations", "payments" or "athletes".', 400)
     }
 
     // A small metadata sheet keeps exports self-documenting.

@@ -1,36 +1,57 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Alert, Card, EmptyState, Spinner } from '@/components/ui/display'
+import { Alert, Badge, Card, EmptyState, Spinner } from '@/components/ui/display'
 import { Button } from '@/components/ui/button'
 import { Field, Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/form-controls'
 import { Pagination, Table, TableWrap, Td, Th } from '@/components/ui/table'
 import { PageHeader } from '@/components/admin/PageHeader'
-import { adminAthletes } from '@/lib/api'
+import { ApiError, adminExportAthletes, adminRegistrations } from '@/lib/api'
+import { useChampionshipOptions } from '@/hooks/useChampionshipOptions'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
-import { formatDate, genderLabel } from '@/lib/format'
-import type { AthleteProfile } from '@/lib/types'
+import { downloadBlob } from '@/lib/download'
+import { useToast } from '@/context/ToastContext'
+import { formatDate, formatDateTime, paymentStatusTone, titleCase } from '@/lib/format'
+import type { RegistrationAdminRow } from '@/lib/types'
 
 const PAGE_SIZE = 25
+const ALL = 'all'
 
-type AthleteRow = AthleteProfile & { registration_count: number }
-
+/**
+ * Registered athletes, championship by championship.
+ *
+ * Each championship gets its own tab-like chip; "All championships" shows
+ * every registered athlete across every championship the administrator has
+ * created. The export downloads the organiser's bib-preparation template
+ * (S.No, Name, Gender, Age Category, DOB, Representing, Event1..N,
+ * T-shirt size, Bib No) for the current selection.
+ */
 export function AthletesPage() {
   const navigate = useNavigate()
+  const toast = useToast()
+  const { options: championships, loading: championshipsLoading } = useChampionshipOptions()
+
+  const [championshipId, setChampionshipId] = useState<string>(ALL)
   const [searchInput, setSearchInput] = useState('')
   const search = useDebouncedValue(searchInput)
-  const [state, setState] = useState('')
   const [gender, setGender] = useState('')
+  const [paymentStatus, setPaymentStatus] = useState('')
   const [page, setPage] = useState(1)
+  const [exporting, setExporting] = useState(false)
 
-  const [rows, setRows] = useState<AthleteRow[]>([])
+  const [rows, setRows] = useState<RegistrationAdminRow[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const query = useMemo(
-    () => ({ search: search.trim() || undefined, state: state.trim() || undefined, gender: gender || undefined }),
-    [search, state, gender],
+    () => ({
+      championshipId: championshipId === ALL ? undefined : championshipId,
+      search: search.trim() || undefined,
+      gender: gender || undefined,
+      paymentStatus: paymentStatus || undefined,
+    }),
+    [championshipId, search, gender, paymentStatus],
   )
 
   useEffect(() => {
@@ -40,7 +61,7 @@ export function AthletesPage() {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    adminAthletes({ ...query, page, pageSize: PAGE_SIZE })
+    adminRegistrations({ ...query, page, pageSize: PAGE_SIZE })
       .then((result) => {
         if (cancelled) return
         setRows(result.rows)
@@ -59,28 +80,83 @@ export function AthletesPage() {
     }
   }, [query, page])
 
-  const activeFilters = search.trim() !== '' || state.trim() !== '' || gender !== ''
+  const exportFile = async () => {
+    setExporting(true)
+    try {
+      const result = await adminExportAthletes(query)
+      downloadBlob(result.blob, result.filename)
+      toast.success(
+        'Export ready',
+        `${result.rows} athlete${result.rows === 1 ? '' : 's'} downloaded in the template format.`,
+      )
+    } catch (err) {
+      toast.error('Export failed', err instanceof ApiError ? err.message : 'Please try again.')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const activeFilters = search.trim() !== '' || gender !== '' || paymentStatus !== ''
+  const selectedChampionship = championships.find((option) => option.id === championshipId)
 
   return (
     <div>
-      <PageHeader title="Athletes" description="Permanent athlete profiles, independent of any championship." />
+      <PageHeader
+        title="Registered athletes"
+        description="Athletes registered for each championship, with their bib numbers."
+        actions={
+          <Button variant="outline" size="sm" loading={exporting} disabled={exporting} onClick={() => void exportFile()}>
+            Export XLSX
+          </Button>
+        }
+      />
 
+      {/* Championship selector */}
+      {championshipsLoading ? (
+        <div className="mb-5 flex justify-center py-4">
+          <Spinner label="Loading championships" />
+        </div>
+      ) : (
+        championships.length > 0 && (
+          <div className="mb-5 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setChampionshipId(ALL)}
+              className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                championshipId === ALL
+                  ? 'border-teal-600 bg-teal-600 text-white'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              All championships
+            </button>
+            {championships.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setChampionshipId(option.id)}
+                className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                  championshipId === option.id
+                    ? 'border-teal-600 bg-teal-600 text-white'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                {option.name}
+              </button>
+            ))}
+          </div>
+        )
+      )}
+
+      {/* Filters */}
       <Card className="mb-5">
         <div className="grid gap-4 p-4 sm:grid-cols-3">
-          <Field label="Search" htmlFor="athlete-search" hint="Name, Athlete ID or mobile">
+          <Field label="Search" htmlFor="athlete-search" hint="Name, Athlete ID, mobile or bib number">
             <Input
               id="athlete-search"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               placeholder="Search…"
-            />
-          </Field>
-          <Field label="State / region" htmlFor="athlete-state">
-            <Input
-              id="athlete-state"
-              value={state}
-              onChange={(event) => setState(event.target.value)}
-              placeholder="Exact state"
             />
           </Field>
           <Field label="Gender" htmlFor="athlete-gender">
@@ -91,6 +167,16 @@ export function AthletesPage() {
               <option value="other">Other</option>
             </Select>
           </Field>
+          <Field label="Payment" htmlFor="athlete-payment">
+            <Select id="athlete-payment" value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value)}>
+              <option value="">Any payment status</option>
+              <option value="pending">Pending</option>
+              <option value="paid">Paid</option>
+              <option value="failed">Failed</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="refunded">Refunded</option>
+            </Select>
+          </Field>
         </div>
         {activeFilters && (
           <div className="border-t border-slate-100 px-4 py-2.5">
@@ -99,8 +185,8 @@ export function AthletesPage() {
               size="sm"
               onClick={() => {
                 setSearchInput('')
-                setState('')
                 setGender('')
+                setPaymentStatus('')
               }}
             >
               Clear filters
@@ -122,39 +208,63 @@ export function AthletesPage() {
           </div>
         ) : rows.length === 0 ? (
           <EmptyState
-            title="No athletes found"
-            description={activeFilters ? 'No athletes match the current filters.' : 'Athlete profiles appear here as people register.'}
+            title="No registered athletes found"
+            description={
+              activeFilters
+                ? 'No athletes match the current filters.'
+                : championshipId === ALL
+                  ? 'Athletes will appear here as they register for any championship.'
+                  : 'No athletes have registered for this championship yet.'
+            }
           />
         ) : (
           <TableWrap>
             <Table>
               <thead>
                 <tr>
-                  <Th>Athlete ID</Th>
-                  <Th>Name</Th>
-                  <Th>Date of birth</Th>
+                  <Th>Bib</Th>
+                  <Th>Athlete</Th>
+                  <Th>DOB</Th>
                   <Th>Gender</Th>
-                  <Th>Mobile</Th>
-                  <Th>State</Th>
-                  <Th className="text-right">Registrations</Th>
+                  <Th>Age category</Th>
+                  <Th>Events</Th>
+                  <Th>Representing</Th>
+                  {championshipId === ALL && <Th>Championship</Th>}
+                  <Th>Payment</Th>
+                  <Th>Registered</Th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="cursor-pointer hover:bg-slate-50"
-                    onClick={() => navigate(`/admin/athletes/${row.id}`)}
-                  >
-                    <Td className="font-mono text-xs font-semibold text-slate-900">{row.athlete_id}</Td>
-                    <Td className="font-medium text-slate-900">{row.full_name}</Td>
-                    <Td>{formatDate(row.date_of_birth)}</Td>
-                    <Td>{genderLabel(row.gender)}</Td>
-                    <Td className="font-mono text-xs">{row.mobile_e164}</Td>
-                    <Td>{row.state}</Td>
-                    <Td className="text-right tabular-nums">{row.registration_count}</Td>
-                  </tr>
-                ))}
+                {rows.map((row) => {
+                  const profile = row.athlete_profiles
+                  return (
+                    <tr
+                      key={row.id}
+                      className="cursor-pointer hover:bg-slate-50"
+                      onClick={() => navigate(`/admin/registrations/${row.id}`)}
+                    >
+                      <Td className="font-mono text-sm font-semibold text-slate-900">{row.bib_number ?? '—'}</Td>
+                      <Td>
+                        <p className="font-medium text-slate-900">{profile?.full_name ?? '—'}</p>
+                        <p className="font-mono text-xs text-slate-500">{profile?.athlete_id}</p>
+                      </Td>
+                      <Td>{formatDate(profile?.date_of_birth)}</Td>
+                      <Td>{titleCase(profile?.gender ?? '')}</Td>
+                      <Td>{row.championship_categories?.name ?? row.category_name ?? '—'}</Td>
+                      <Td className="max-w-56">
+                        <span className="block truncate text-slate-700">
+                          {(row.registration_events ?? []).map((event) => event.event_name).join(', ') || '—'}
+                        </span>
+                      </Td>
+                      <Td>{profile?.representing || profile?.district || profile?.state || '—'}</Td>
+                      {championshipId === ALL && <Td>{row.championships?.name ?? '—'}</Td>}
+                      <Td>
+                        <Badge tone={paymentStatusTone(row.payment_status)}>{titleCase(row.payment_status)}</Badge>
+                      </Td>
+                      <Td className="whitespace-nowrap text-slate-600">{formatDateTime(row.registered_at)}</Td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </Table>
           </TableWrap>
@@ -168,7 +278,11 @@ export function AthletesPage() {
       </Card>
 
       <p className="mt-4 text-xs text-slate-500">
-        Athlete IDs are permanent and are never reissued. Editing a profile does not change its Athlete ID.
+        {selectedChampionship
+          ? `Showing athletes registered for ${selectedChampionship.name}. `
+          : 'Showing athletes from every championship. '}
+        The export uses your current filters and includes every matching athlete, not just this page. Bib numbers are
+        issued automatically at registration.
       </p>
     </div>
   )

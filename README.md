@@ -1,508 +1,174 @@
-# Athlete Registration Portal
+# CDMAA Athlete Self-Registration Portal
 
-A complete, standalone portal for athletics championships. Athletes register
-themselves through a public website, pay entry fees online, and receive a
-permanent **Athlete ID** plus a championship-specific **Registration ID** (which
-is also their **Bib Number**). Administrators manage everything from a secured
-dashboard and can export real Excel workbooks.
+Live site: **https://www.cdmaa.in** (Vercel) — backend: **Supabase** project
+`urlkpbvvtossdzsjcmie` (project ref is embedded in `.env`).
 
-This project is **independent**. It does not read from, write to, or depend on
-any other website or database. It contains no results-management features.
-
----
-
-## Table of contents
-
-1. [What it does](#what-it-does)
-2. [Architecture](#architecture)
-3. [Requirements](#requirements)
-4. [Quick start (local)](#quick-start-local)
-5. [Supabase setup](#supabase-setup)
-6. [Razorpay setup](#razorpay-setup)
-7. [Creating the first administrator](#creating-the-first-administrator)
-8. [Environment variables](#environment-variables)
-9. [Running the app](#running-the-app)
-10. [Deploying to Vercel](#deploying-to-vercel)
-11. [Testing payments and webhooks](#testing-payments-and-webhooks)
-12. [Test checklist](#test-checklist)
-13. [Troubleshooting](#troubleshooting)
-14. [Security notes](#security-notes)
-15. [Design decisions in plain English](#design-decisions-in-plain-english)
-16. [Project structure](#project-structure)
+A registration portal for a masters athletics championship. Athletes register
+themselves (single-page form), get a permanent Athlete ID and an immediate bib
+number, upload an Aadhaar front image for DOB verification (image is validated
+and then **discarded** — only `aadhaar_verified_at` is stored), and pay a fee
+through Razorpay once it is configured. Administrators manage championships,
+categories, events, athletes, payments and admin accounts from `/admin`.
 
 ---
 
-## What it does
-
-**For athletes (public site)**
-
-- Browse open championships on the home page.
-- Multi-step, validated registration form (personal details → participation →
-  review) with a saved draft so a refresh does not lose progress.
-- On first registration, a **permanent Athlete ID** is issued.
-- On later registrations, the same Athlete ID is reused — it is never
-  re-issued.
-- Pay by UPI/card/net-banking through Razorpay; the fee is calculated
-  **server-side** and never trusted from the browser.
-- A printable receipt after a verified payment.
-- **Returning athletes** can retrieve their profile with an Athlete ID (or
-  mobile number) plus their date of birth — no SMS or OTP needed.
-- Look up a registration's status with the Registration ID and registered
-  mobile number.
-
-**For administrators (`/admin`)**
-
-- Secure email/password sign-in. No public admin sign-up.
-- Overview dashboard: totals, paid/pending/failed/refunded, breakdown by
-  championship, gender and state, and recent registrations.
-- Registrations table with search, filters, sorting, pagination, a detail view,
-  safe editing (with a required reason), payment history and audit trail.
-- Athletes list and profile detail with safe editing.
-- Payments list with Razorpay details, refunds, failed marking and
-  reconciliation.
-- Championships manager: create/update/archive championships, and manage
-  categories, events, fees, deadlines and form fields.
-- Real **`.xlsx` exports**: filtered, all, per-championship, or chosen columns;
-  a separate payment export. Exports use the full matching dataset, not just the
-  visible page.
-- Administrators manager with roles (owner/admin/viewer).
-- Global settings (organisation details, Athlete ID format).
-- Full audit trail of administrative actions.
-
----
-
-## Architecture
-
-- **Frontend:** React + Vite + TypeScript, Tailwind CSS, accessible
-  shadcn-style components, React Router.
-- **Backend:** Supabase (PostgreSQL + Edge Functions). All business logic —
-  eligibility, fees, ID generation, payments, exports — runs in Edge Functions
-  with the **service-role key**, which is never sent to the browser.
-- **Database access:** public/anonymous users can only call Edge Functions. Every
-  table has Row Level Security enabled with **no public policies**, and table
-  privileges are revoked from the `anon`/`authenticated` roles.
-- **Payments:** Razorpay. Orders are created server-side; signatures are verified
-  server-side; webhooks are verified and processed idempotently.
-- **IDs:** Athlete IDs come from a global sequence. Bib/Registration IDs are
-  derived from the athlete's sex and age category — `M`/`W`, then the lower
-  bound of their age bracket, then a sequence (`M4501`, `W4501`, and `W35101`
-  for the 101st woman in the 35+ bracket). The sequence is scoped per
-  championship, sex and category and guarded by a row lock and a unique
-  constraint, so two simultaneous registrations can never receive the same bib.
-- **Exports:** generated server-side with SheetJS and streamed as `.xlsx`.
-
----
-
-## Requirements
-
-- Node.js 20 or newer (Node 18+ should work; the admin script uses the built-in
-  `fetch`).
-- A Supabase project (free tier is fine to start).
-- A Razorpay account (test mode is enough to try the flow).
-- The Supabase CLI (recommended) **or** access to the Supabase dashboard SQL
-  editor and Edge Functions UI.
-- An SMS provider (Twilio or MSG91) for production OTPs. Optional in
-  development.
-
----
-
-## Quick start (local)
-
-```bash
-# 1. Install dependencies
-npm install
-
-# 2. Create your environment file
-copy .env.example .env      # Windows
-# cp .env.example .env      # macOS/Linux
-
-# 3. Fill in .env (at minimum the two VITE_ values and the service role key)
-
-# 4. Set up Supabase (see below), then run the dev server
-npm run dev
-```
-
-The app runs at <http://localhost:5173> by default; the admin area is at
-<http://localhost:5173/admin>.
-
-> If the Supabase URL/anon key are missing, the app shows a friendly
-> "Backend not configured" message instead of crashing.
-
----
-
-## Supabase setup
-
-### 1. Create a project
-
-Create a project at <https://supabase.com/dashboard>. Note the **Project URL**,
-the **anon public key** and the **service_role key** (Project Settings → API).
-
-### 2. Apply the database migrations
-
-The SQL files live in `supabase/migrations/` and must be applied **in order**:
-
-1. `20261016000001_init_schema.sql` — tables, indexes, sequences.
-2. `20261016000002_functions.sql` — helper functions (sequences, rate limits,
-   registration creation, etc.).
-3. `20261016000003_security.sql` — RLS, revoked privileges, the private storage
-   bucket.
-4. `20261016000004_admin_aggregates.sql` — dashboard aggregate helpers.
-
-**Option A — Supabase CLI (recommended)**
-
-```bash
-supabase link --project-ref YOUR_PROJECT_REF
-supabase db push
-```
-
-**Option B — Dashboard SQL editor**
-
-Open the SQL editor and run each file's contents in the order above.
-
-### 3. Deploy the Edge Functions
-
-Every folder under `supabase/functions/` (except `_shared`, which is imported by
-the others) is a function that must be deployed:
-
-```
-public-config            request-otp            verify-otp
-retrieve-profile         register               payment-retry
-verify-payment           payment-webhook        lookup-registration-status
-upload-document          admin-bootstrap        admin-me
-admin-stats              admin-registrations    admin-athletes
-admin-payments           admin-audit            admin-users
-admin-championships      admin-export
-```
-
-With the CLI:
-
-```bash
-supabase functions deploy
-```
-
-Or deploy one at a time from the dashboard (Edge Functions → Create function),
-pasting each `index.ts`. Keep the `_shared` folder alongside them — the CLI
-bundles it automatically.
-
-### 4. Set the Edge Function secrets
-
-Server-only variables are configured as **Edge Function secrets**, never in the
-frontend. With the CLI:
-
-```bash
-supabase secrets set \
-  SUPABASE_SERVICE_ROLE_KEY=... \
-  RAZORPAY_KEY_ID=... \
-  RAZORPAY_KEY_SECRET=... \
-  RAZORPAY_WEBHOOK_SECRET=... \
-  BOOTSTRAP_ADMIN_SECRET=... \
-  SMS_PROVIDER=none \
-  ALLOWED_ORIGINS=http://localhost:5173
-```
-
-`SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are provided
-to functions automatically in the Supabase environment, but setting
-`SUPABASE_SERVICE_ROLE_KEY` explicitly is harmless and makes local testing
-clearer.
-
----
-
-## Razorpay setup
-
-1. Create an account and stay in **Test mode** while developing.
-2. Settings → API Keys → generate a key pair. Put the **Key ID** and **Key
-   Secret** into the Edge Function secrets (`RAZORPAY_KEY_ID`,
-   `RAZORPAY_KEY_SECRET`). These are server-only.
-3. Settings → Webhooks → add a webhook:
-
-   - **URL:** `https://YOUR_PROJECT_REF.supabase.co/functions/v1/payment-webhook`
-   - **Secret:** a long random string; set the same value as
-     `RAZORPAY_WEBHOOK_SECRET`.
-   - **Active events:** at minimum `payment.captured` and `payment.failed`
-     (add `payment.authorized`, `refund.processed` if available).
-
-4. To go live you must complete Razorpay's merchant/account approval, switch to
-   live keys, and update the secrets. **Do not expect live payments to work
-   until approval is complete and the live keys are configured.** Until then the
-   app deliberately reports that payments are not configured.
-
----
-
-## Creating the first administrator
-
-There is **no public admin sign-up**. The very first owner is created in one of
-two ways.
-
-**Option A — the setup panel on the login page**
-
-1. Set `BOOTSTRAP_ADMIN_SECRET` as an Edge Function secret.
-2. Visit `/admin/login`, expand **First-time setup**, and enter the secret, your
-   email and a password.
-3. The owner account is created. Store the credentials, then remove the
-   bootstrap secret.
-
-**Option B — the command-line script**
-
-```bash
-npm run create-admin -- --email owner@example.org --name "Jane Doe"
-```
-
-The script reads `.env` (or the environment) for `VITE_SUPABASE_URL`,
-`VITE_SUPABASE_ANON_KEY` and `BOOTSTRAP_ADMIN_SECRET`, calls the
-`admin-bootstrap` function, and prints a one-time password if you did not supply
-one. It refuses to run once an active owner already exists.
-
-After the first owner exists, add further administrators from
-**Admin → Administrators**, choosing a role:
-
-- **owner** — full access, including managing other owners.
-- **admin** — manage registrations, payments and championships.
-- **viewer** — read-only.
-
-> The **organiser, championship details, categories, events, fees, deadlines and
-> eligibility rules are all configured by you** in Admin → Championships. The
-> app ships with none of them, deliberately.
-
----
-
-## Environment variables
-
-Copy `.env.example` to `.env`. Summary:
-
-| Variable | Where | Purpose |
-| --- | --- | --- |
-| `VITE_SUPABASE_URL` | Frontend | Supabase project URL (public). |
-| `VITE_SUPABASE_ANON_KEY` | Frontend | Supabase anon key (public). |
-| `VITE_SITE_URL` | Frontend | Public site URL, used in links/redirects. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Edge Functions | Full DB access. **Never** in the browser. |
-| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Edge Functions | Razorpay API credentials. |
-| `RAZORPAY_WEBHOOK_SECRET` | Edge Functions | Verifies webhook signatures. |
-| `BOOTSTRAP_ADMIN_SECRET` | Edge Functions | One-time secret to create the first owner. |
-| `RESEND_API_KEY`, `NOTIFICATION_FROM_EMAIL` | Edge Functions | Optional email confirmations. |
-| `ALLOWED_ORIGINS` | Edge Functions | Comma-separated origins allowed to call the API. |
-
----
-
-## Running the app
-
-```bash
-npm run dev       # development server with hot reload
-npm run build     # type-check (tsc --noEmit) + production build to dist/
-npm run preview   # serve the production build locally
-```
-
----
-
-## Deploying to Vercel
-
-1. Push this project to a Git repository (GitHub/GitLab/Bitbucket).
-2. In Vercel, **New Project → Import** the repository.
-3. Framework preset: **Vite**. Build command `npm run build`, output directory
-   `dist`. (A `vercel.json` is included so client-side routes like
-   `/registration/success` and `/admin/...` work on refresh.)
-4. Add the **frontend** environment variables in Vercel → Settings → Environment
-   Variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SITE_URL`
-   (and any others prefixed `VITE_`). Do **not** add the service-role or Razorpay
-   secret keys here — they belong only in Supabase Function secrets.
-5. Deploy.
-6. Back in Supabase, add your Vercel domain to `ALLOWED_ORIGINS` and redeploy the
-   functions, and update the Razorpay webhook URL if your project ref changed.
-
----
-
-## Testing payments and webhooks
-
-1. Configure Razorpay **test** keys and the webhook secret as function secrets,
-   then confirm Admin → Overview shows payments as configured (or check the
-   public site does not show a "payments not configured" notice).
-2. Register an athlete and choose to pay. Use Razorpay test cards
-   (<https://razorpay.com/docs/payments/payments/test-card-details/>).
-3. On success, the app calls `verify-payment`, which checks the HMAC signature
-   server-side before marking anything paid, then shows the receipt.
-4. To test webhooks locally, expose your local functions with
-   `supabase functions serve` plus a tunnel (e.g. ngrok), point a Razorpay test
-   webhook at the tunnel URL, and send a test event. Webhooks are verified and
-   processed **idempotently** — replaying the same event will not double-count.
-5. Test the awkward cases: a cancelled payment, a failed payment, a pending
-   payment, and a duplicate/late webhook. The registration should end up in a
-   consistent state (never "paid" without a verified, captured payment).
-
-> Reconciliation: an administrator can mark a registration as paid **only** when
-> a captured (verified) payment row exists for it. The app refuses otherwise, to
-> prevent accidental or fraudulent status changes.
-
----
-
-## Test checklist
-
-Use this before going live. Tick each item in a staging environment first.
-
-**Public registration**
-
-- [ ] Home page lists only `open` championships.
-- [ ] Registration form validates required fields and keeps a draft across a
-      refresh.
-- [ ] Age eligibility is enforced against the configured cutoff; ineligible
-      categories/events cannot be selected.
-- [ ] Fee shown equals the fee the server calculates (change categories/events
-      and confirm the total updates).
-- [ ] A brand-new athlete receives an Athlete ID and a bib/Registration ID.
-- [ ] Registering again for a second championship **reuses** the same Athlete ID
-      and issues a **new** bib.
-- [ ] Registering twice for the **same** championship is blocked for a
-      paid/confirmed registration.
-- [ ] Registering when the championship is closed / past the deadline / not yet
-      open shows a clear message.
-
-**Returning athlete verification**
-
-- [ ] Verifying with an unknown Athlete ID does not reveal whether it exists
-      (identical message).
-- [ ] Verification lookups are rate-limited.
-- [ ] After verifying, only the athlete's own profile is shown (no PII leaks
-      before verification).
-
-**Payments**
-
-- [ ] Successful test payment shows a receipt and marks the registration paid.
-- [ ] Cancelled/failed payments leave the registration unpaid with a retry path.
-- [ ] Replaying a webhook does not create duplicate payments.
-- [ ] A tampered signature is rejected.
-- [ ] Admin can mark a captured payment refunded; the status shows "refunded".
-- [ ] Admin cannot mark a registration paid without a captured payment.
-
-**Admin**
-
-- [ ] Sign-in works; wrong credentials fail cleanly; sign-out works.
-- [ ] A viewer account cannot see mutation buttons and gets `403` if it tries
-      the API.
-- [ ] Registrations: search, filters, sort, pagination and detail all work.
-- [ ] Editing a profile/registration requires a reason and writes an audit entry.
-- [ ] Categories/events with registrations cannot be deleted (advise
-      deactivate).
-- [ ] The last active owner cannot be demoted or disabled.
-- [ ] Championships: create, edit, archive, add/edit/delete categories and
-      events, and set fees and deadlines.
-- [ ] Settings: organisation details and Athlete ID format save correctly.
-- [ ] Audit trail shows the actions above.
-
-**Exports**
-
-- [ ] Filtered, all, per-championship and chosen-column exports download real
-      `.xlsx` files.
-- [ ] The export contains **all** matching rows, not just the visible page.
-- [ ] Payment export works independently.
-- [ ] Leading zeros are preserved (Athlete ID, bib); dates and currency are
-      consistent; formulas cannot be injected (values starting with `=`, `+`,
-      `-`, `@` are neutralised).
-
----
-
-## Troubleshooting
-
-| Symptom | Likely cause / fix |
-| --- | --- |
-| "Backend not configured" | `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` missing. Fill `.env` and restart. |
-| "Administrator verification failed" on sign-in | The account is not in `admin_users`, or is disabled. Check the table and the account's role. |
-| `VERIFICATION_FAILED` on retrieve | Athlete ID / mobile and date of birth do not match a profile. Check the details. |
-| `PAYMENTS_NOT_CONFIGURED` | Razorpay keys are missing as function secrets. |
-| `INVALID_SIGNATURE` on payment verify | Key secret mismatch between the app secret and Razorpay's key. |
-| Webhook does nothing | Wrong URL or `RAZORPAY_WEBHOOK_SECRET` mismatch; check the function logs. |
-| Exports are empty | No rows match the current filters, or you filtered to a championship with no registrations. |
-| `INVALID_COLUMNS` on export | A column key chosen in the browser is not in the server registry. Reload the page to refresh the picker. |
-| Photos/documents fail to upload | The `athlete-documents` bucket is missing — re-run the security migration. |
-| CORS error | Add your site origin to `ALLOWED_ORIGINS` and redeploy the functions. |
-| Admin login loops | Clear site data; the session may be stale. Sign in again at `/admin/login`. |
-
----
-
-## Security notes
-
-- Row Level Security is enabled on every table with **no public policies**;
-  table privileges are revoked from `anon` and `authenticated`. The browser can
-  only reach the data by calling Edge Functions.
-- The **service-role key never leaves the server**. Only `VITE_`-prefixed
-  variables are compiled into the browser bundle.
-- OTP codes and passwords are never stored in plain text; OTPs and athlete
-  session tokens are stored hashed and expire.
-- Public endpoints are rate-limited (OTP requests, lookups, bootstrap).
-- The returning-athlete flow never reveals whether an Athlete ID exists and
-  never exposes PII before verification.
-- Payment success is only ever granted after a server-side signature check or a
-  verified webhook — never on the client's word.
-- Administrative changes require a reason and are written to an audit trail.
-- Privacy, terms and data-retention pages are included for the public site.
-
----
-
-## Design decisions in plain English
-
-- **Single authoritative creation path.** A `create_registration` database
-  function builds each registration. It is the only way a registration is
-  created, so eligibility, fees and numbers are always computed from the
-  database — never from whatever the browser sent.
-- **Registration ID = Bib Number.** One identifier is easier to explain to
-  athletes and volunteers than two. The permanent **Athlete ID** stays separate
-  and is never re-issued.
-- **Money in paise.** All amounts are stored as integers (paise) to avoid
-  floating-point rounding errors in fees and totals.
-- **Bib numbers are derived, not configured.** The organiser does not pick a
-  format. The bib encodes the athlete's sex (`M`/`W`) and the lower bound of
-  their age bracket, followed by a sequence — `M4501`, `W4501`, and `W35101`
-  for the 101st woman in the 35+ bracket. Each championship, sex and age
-  category keeps its own counter, so a man and a woman of the same age each
-  start from 01. A row lock plus a unique constraint means two athletes
-  registering at the same instant cannot get the same number, and the number is
-  never reused.
-- **Refresh, don't duplicate.** If an athlete starts a registration but does not
-  pay, coming back updates that same unpaid registration (keeping the bib)
-  instead of creating a confusing second entry. A paid registration blocks
-  duplicates.
-- **Anonymous-and-safe profile checks.** To stop someone probing for athlete
-  details, a duplicate-profile check requires the mobile number **and** date of
-  birth, and the response is identical whether or not a match exists.
-- **Server-side exports.** Excel files are built in the Edge Function from the
-  full dataset, which keeps the browser light and guarantees the export matches
-  the filters.
-- **Exports are injection-safe.** Values that could be interpreted as formulas
-  are prefixed so a malicious name cannot execute in Excel, and identifiers are
-  written as text so leading zeros survive.
-- **Honest "not configured" states.** If Razorpay or SMS are not configured, the
-  API says so clearly instead of pretending, so nobody believes payments or OTPs
-  are working when they are not.
-
----
-
-## Project structure
+## 1. Tech stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 19 + TypeScript + Vite + Tailwind, React Router |
+| Hosting | Vercel (production branch `main`, node 24.x, project `cdmaaregistration`) |
+| Backend | Supabase: Postgres + Deno Edge Functions |
+| Payments | Razorpay (not configured yet — see TODO.md) |
+| Excel export | SheetJS (`xlsx`) imported inside the Edge Function from esm.sh |
+
+## 2. Repository map
 
 ```
 athlete-registration-portal/
-├─ src/                        # React frontend
+├─ src/
+│  ├─ pages/public/        Registration, status lookup, success pages
+│  ├─ pages/admin/         Admin dashboard pages (see §5)
 │  ├─ components/
-│  │  ├─ admin/                # PageHeader, StatCard, ExportBar
-│  │  ├─ layout/               # PublicLayout, AdminLayout
-│  │  ├─ registration/         # multi-step form + payment panel
-│  │  └─ ui/                   # shadcn-style primitives
-│  ├─ context/                 # Toast, Config, AdminAuth
-│  ├─ hooks/                   # useDebouncedValue, useChampionshipOptions
-│  ├─ lib/                     # api, types, format, validation, draft, export
-│  └─ pages/
-│     ├─ public/               # home, register, returning, status, receipt, policies
-│     └─ admin/                # dashboard and all admin pages
-├─ scripts/
-│  └─ create-first-admin.mjs   # one-time owner creation
+│  │  ├─ registration/     RegistrationForm (the whole single-page flow)
+│  │  ├─ admin/            ExportBar, PageHeader
+│  │  └─ ui/               Design system (Dialog, Table, SearchCombobox, …)
+│  ├─ lib/                 api.ts (all API calls), types.ts, geo.ts, format.ts
+│  └─ context/             ConfigContext, AdminAuthContext, ToastContext
 ├─ supabase/
-│  ├─ functions/               # Edge Functions (server logic)
-│  └─ migrations/              # SQL schema, functions, security, aggregates
-├─ .env.example
-├─ vercel.json
-└─ README.md
+│  ├─ functions/           Deno Edge Functions (see §4)
+│  └─ migrations/          SQL migrations, applied in filename order
+├─ TODO.md                 Open work: payments, email, security, credential rotation
+└─ README.md               This file
 ```
 
----
+## 3. How the pieces fit together
 
-## License / usage
+- **Public flow** (`/register`): `public-config` → categories/events/limits →
+  optional athlete verification (mobile + DOB, no OTP anywhere) →
+  `create_registration` RPC (one Postgres function does ALL validation:
+  window open, category, age, gender, event cap, fees, duplicate protection).
+  The RPC returns the reference code `R######` **and the bib number — bibs are
+  issued at registration time, before payment** (migration
+  `20261019000001_bib_at_registration.sql`). Payment is only needed to move
+  `payment_status` to `paid` / `status` to `confirmed`.
+- **Identity**: `athlete_profiles` are permanent (Athlete ID `ATH-2026-######`).
+  Duplicate protection keys on mobile + date of birth. An athlete session
+  token (15 days) lets an athlete re-enter and edit before paying. There is
+  no OTP/SMS anywhere by design.
+- **Geography**: `championships.nation` + `championships.state_name`.
+  State meet = `nation='India'` + a `state_name`; national meet = a nation +
+  `state_name = null`. On registration, a state meet asks for a district of
+  that state, a national meet asks for a state (of that nation). Front-end
+  lists live in `src/lib/geo.ts`; the searchable dropdown also accepts a typed
+  value not in the list so a missing district can never block an athlete.
+- **Defaults**: `default_categories` / `default_events` tables are global
+  templates. Creating a championship snapshots them; the admin can add/remove
+  per championship. The defaults themselves are changed only by migration.
+- **Bib format**: `<M|W><min_age><seq>` e.g. `M4501`, `W35101` — generated by
+  `generate_bib_number()` using race-safe per-scope counters (`id_sequences`),
+  unique per championship. `assign_bib()` is idempotent and is called by
+  `create_registration` (immediately) and by payment capture (no-op once set).
 
-Internal project scaffold. Review the privacy, terms and retention text with your
-organisation before publishing, and complete Razorpay merchant approval before
-accepting live payments.
+## 4. Edge Functions (`supabase/functions/`)
+
+| Function | Purpose |
+|---|---|
+| `public-config` | Public championship + feature config (CORS-restricted to cdmaa.in + localhost) |
+| `register` | Creates a registration via the `create_registration` RPC |
+| `verify-athlete` / `retrieve-profile` | Session-based identity (no OTP) |
+| `upload-aadhaar` | Validates the Aadhaar front image, records timestamp, discards file |
+| `verify-payment` / `payment-webhook` | Razorpay verification + webhook (needs secrets) |
+| `payment-retry` | Creates the Razorpay order after Aadhaar upload |
+| `admin-*` | `admin-me`, `admin-stats`, `admin-registrations`, `admin-athletes`, `admin-payments`, `admin-championships`, `admin-users`, `admin-audit`, `admin-export`, `admin-bootstrap` |
+
+Shared helpers live in `_shared/`: `helpers.ts` (**`str()` returns `''` for
+non-strings — never use it to test blankness of numeric fields; check
+null/undefined/empty-string explicitly**), `admin-auth.ts` (`requireAdmin`),
+`admin-queries.ts` (list/export share one query builder so exports always
+match on-screen filters), `cors.ts` (`ALLOWED_ORIGINS`), `payments.ts`
+(`markPaymentCaptured` — amount check, status transitions, `assign_bib`,
+confirmation email).
+
+**Excel export** (`admin-export`): `kind` = `registrations` | `payments` |
+`athletes`. The `athletes` kind writes the organiser's template layout (sheet
+"Athletes": S.No, Name, Gender (M/W), Age Category, DOB, Representing,
+Event1..N, T-shirt size, Bib No) — T-shirt size is currently left blank
+because the registration form does not collect it. Exports are audited
+(`export.generated`) and formula-injection safe.
+
+## 5. Admin dashboard (`/admin`)
+
+Sidebar (src/components/layout/AdminLayout.tsx → `ADMIN_LINKS`):
+Overview · **Registrations** (full filters, sorting, column-picker export) ·
+**Athletes** (championship chips: "All championships" + one per championship;
+Export XLSX in template format for the current selection) · Payments ·
+Championships (create/edit, per-championship categories/events, defaults) ·
+Settings · Audit trail · Administrators (create with an owner-chosen password;
+no one-time passwords — see `admin-users`).
+
+Roles: `owner` (everything incl. administrators), `admin` (management),
+`viewer` (read-only; `update` actions return `NOT_ALLOWED`). Payment status
+can never be set to `paid` by hand — `admin-payments.reconcile` requires a
+captured payment row first.
+
+## 6. Deploy model — READ THIS FIRST
+
+- **Frontend**: `git push origin main` → Vercel auto-builds and promotes to
+  production (`cdmaa.in` + `www.cdmaa.in`).
+- **Edge Functions**: manual — `supabase functions deploy <name> --use-api`
+- **Migrations**: manual — `supabase db push --linked --include-all`
+- `npm run dev` on localhost talks to the **same live Supabase project**.
+  There is no staging environment. Every test writes real data.
+- `npm run build` = `tsc --noEmit && vite build`. Run it before pushing.
+
+Environment (mirrored in `.env` and Vercel project env vars):
+`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SITE_URL`.
+Edge Function secrets are set with `supabase secrets set`
+(`ALLOWED_ORIGINS`, `BOOTSTRAP_ADMIN_SECRET`, Razorpay keys — not set yet).
+Credentials are **not** committed; obtain them from the project owner or the
+Supabase/Vercel dashboards. `TODO.md` tracks credential rotation — rotate any
+token that was ever pasted into a chat or issue.
+
+## 7. PowerShell / Windows gotchas
+
+- `npm`/`supabase` scripts fail directly (execution policy) → use `cmd /c "…"`.
+- Git: run `& "C:\Program Files\Git\cmd\git.exe" …`; `git push origin HEAD`
+  succeeds even though stderr progress output makes it look like exit 1.
+- Inline SQL gets mangled by quoting → write SQL to a file under
+  `C:\Users\WELCOME\AppData\Local\Temp\opencode` and run
+  `supabase db query --linked --file <path>`.
+
+## 8. Error codes
+
+`MISSING_FIELDS`, `INVALID_FIELDS`, `INVALID_EMAIL`, `INVALID_PASSWORD`,
+`UNKNOWN_ACTION`, `CHAMPIONSHIP_NOT_FOUND`, `REGISTRATION_CLOSED`,
+`NOT_OPEN_YET`, `DEADLINE_PASSED`, `ALREADY_REGISTERED`,
+`SESSION_EXPIRED`, `CATEGORY_REQUIRED`, `CATEGORY_INVALID`,
+`GENDER_NOT_ELIGIBLE`, `AGE_NOT_ELIGIBLE`, `EVENTS_REQUIRED`,
+`EVENT_INVALID`, `EVENT_GENDER_NOT_ELIGIBLE`, `EVENT_CATEGORY_NOT_ELIGIBLE`,
+`TOO_MANY_EVENTS`, `AADHAAR_REQUIRED`, `PAYMENTS_NOT_CONFIGURED`,
+`NO_VERIFIED_PAYMENT`, `NOT_ALLOWED`, `ALREADY_EXISTS`.
+
+## 9. Current state & next steps
+
+Done: registration portal, Aadhaar-verified DOB, event caps (cap enforced
+in UI **and** in `create_registration`), geography-aware representing,
+championship defaults, admin password chosen at creation, dialog focus fix,
+Vercel env vars fixed, **bibs issued at registration**, **championship-wise
+Athletes tab + template-format XLSX export**.
+
+Open (see `TODO.md`):
+1. Configure Razorpay (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`,
+   `RAZORPAY_WEBHOOK_SECRET`) → test real payment → bib stays the same,
+   status flips to `confirmed`.
+2. Email provider for confirmation emails (best-effort today).
+3. Production security review; credential rotation.
+4. Any championship edited before the max-events fix may still have a blank
+   `max_events_per_athlete` — check Admin → Championships before opening.
+5. `payments_configured` is still `false` on the live meet; registration is
+   open (`registration_opens_at` in the past).
+
+Testing checklist: register at `/register` → bib appears immediately →
+shows in Admin → Athletes under the right championship chip → Export XLSX
+matches the `athlete-bulk-import-template` column layout.

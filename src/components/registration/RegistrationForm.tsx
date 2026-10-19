@@ -334,7 +334,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
           </CardHeader>
           <CardContent className="space-y-4">
             <Alert tone="success" title="Your details have been recorded">
-              Keep your Athlete ID safe. Your bib number is issued automatically once your payment is confirmed.
+              Keep your Athlete ID and bib number safe — they are issued now and stay the same even after payment.
             </Alert>
 
             <dl className="grid gap-3 sm:grid-cols-2">
