@@ -289,6 +289,8 @@ export const adminUsers = (body: Record<string, unknown> = { action: 'list' }) =
     temp_password?: string
     message?: string
     admin?: AdminUserRow
+    deleted?: number
+    skipped?: number
   }>('admin-users', body)
 
 export const adminChampionships = (body: Record<string, unknown> = { action: 'list' }) =>

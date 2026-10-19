@@ -56,6 +56,11 @@ export function AdminUsersPage() {
   const [confirming, setConfirming] = useState(false)
   const [savingChange, setSavingChange] = useState(false)
 
+  const [deleteTarget, setDeleteTarget] = useState<AdminUserRow | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -136,6 +141,50 @@ export function AdminUsersPage() {
   const changeHappens =
     pending && (pending.role !== pending.user.role || pending.isActive !== pending.user.is_active)
 
+  /** Disabled accounts eligible for permanent deletion (owners only by an owner). */
+  const inactiveRows = rows.filter(
+    (user) =>
+      !user.is_active &&
+      user.id !== currentAdmin?.id &&
+      (currentAdmin?.role === 'owner' || user.role !== 'owner'),
+  )
+
+  const commitDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      await adminUsers({ action: 'delete', userId: deleteTarget.id })
+      toast.success('Administrator deleted', `${deleteTarget.email} can no longer sign in.`)
+      setDeleteTarget(null)
+      await load()
+    } catch (err) {
+      toast.error('Could not delete administrator', err instanceof ApiError ? err.message : 'Please try again.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const commitBulkDelete = async () => {
+    setBulkDeleting(true)
+    try {
+      const result = await adminUsers({ action: 'delete_inactive' })
+      const deleted = result.deleted ?? 0
+      const skipped = result.skipped ?? 0
+      toast.success(
+        'Inactive administrators deleted',
+        skipped > 0
+          ? `${deleted} account(s) removed; ${skipped} skipped (owner accounts need an owner to delete them).`
+          : `${deleted} account(s) removed permanently.`,
+      )
+      setBulkOpen(false)
+      await load()
+    } catch (err) {
+      toast.error('Could not delete inactive administrators', err instanceof ApiError ? err.message : 'Please try again.')
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -143,9 +192,16 @@ export function AdminUsersPage() {
         description="Accounts that can sign in to this dashboard."
         actions={
           !readOnly ? (
-            <Button variant="accent" size="sm" onClick={() => setCreateOpen(true)}>
-              Add administrator
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {inactiveRows.length > 0 && (
+                <Button variant="outline" size="sm" onClick={() => setBulkOpen(true)}>
+                  Delete inactive ({inactiveRows.length})
+                </Button>
+              )}
+              <Button variant="accent" size="sm" onClick={() => setCreateOpen(true)}>
+                Add administrator
+              </Button>
+            </div>
           ) : undefined
         }
       />
@@ -360,6 +416,29 @@ export function AdminUsersPage() {
                 if it would be the last one.
               </Alert>
             )}
+            {!pending.user.is_active &&
+              pending.user.id !== currentAdmin?.id &&
+              (currentAdmin?.role === 'owner' || pending.user.role !== 'owner') && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                  <p className="text-sm font-medium text-red-800">Delete this account</p>
+                  <p className="mt-1 text-xs text-red-700">
+                    This account is disabled. Deleting removes it permanently and it can never sign in again. Audit
+                    history is kept.
+                  </p>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => {
+                      setDeleteTarget(pending.user)
+                      setPending(null)
+                      setConfirming(false)
+                    }}
+                  >
+                    Delete account
+                  </Button>
+                </div>
+              )}
           </div>
         )}
       </Dialog>
@@ -372,6 +451,32 @@ export function AdminUsersPage() {
         loading={savingChange}
         onClose={() => setConfirming(false)}
         onConfirm={() => void commitChange()}
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete this administrator?"
+        description={
+          deleteTarget
+            ? `${deleteTarget.email} will be removed permanently and can never sign in again. Audit history is kept.`
+            : undefined
+        }
+        confirmLabel="Delete account"
+        tone="danger"
+        loading={deleting}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => void commitDelete()}
+      />
+
+      <ConfirmDialog
+        open={bulkOpen}
+        title="Delete all inactive administrators?"
+        description={`${inactiveRows.length} disabled account(s) will be removed permanently and can never sign in again. Audit history is kept.`}
+        confirmLabel="Delete inactive accounts"
+        tone="danger"
+        loading={bulkDeleting}
+        onClose={() => setBulkOpen(false)}
+        onConfirm={() => void commitBulkDelete()}
       />
     </div>
   )

@@ -172,6 +172,82 @@ Deno.serve(
       return json(req, { ok: true, admin: refreshed })
     }
 
+    // ---- delete (disabled accounts only) ------------------------------------
+    if (action === 'delete') {
+      const userId = str(body.userId)
+      if (!userId) return errorJson(req, 'MISSING_FIELDS', 'Administrator id is required.', 400)
+
+      const { data: target } = await supabase
+        .from('admin_users')
+        .select('id, email, role, is_active')
+        .eq('id', userId)
+        .maybeSingle()
+      if (!target) return errorJson(req, 'NOT_FOUND', 'Administrator not found.', 404)
+      if (target.id === admin.id) {
+        return errorJson(req, 'NOT_ALLOWED', 'You cannot delete your own account.', 400)
+      }
+      if (target.is_active) {
+        return errorJson(req, 'NOT_INACTIVE', 'Only disabled accounts can be deleted. Disable the account first.', 409)
+      }
+      if (target.role === 'owner' && admin.role !== 'owner') {
+        return errorJson(req, 'FORBIDDEN', 'Only an owner can delete an owner account.', 403)
+      }
+
+      const { error: deleteError } = await supabase.auth.admin.deleteUser(userId)
+      if (deleteError) {
+        console.error('admin delete failed', deleteError)
+        return errorJson(req, 'SERVER_ERROR', 'Could not delete the administrator account.', 500)
+      }
+      // The admin_users row references auth.users with ON DELETE CASCADE; the
+      // explicit delete keeps this correct if the schema ever changes.
+      await supabase.from('admin_users').delete().eq('id', userId)
+
+      await writeAudit(supabase, admin, 'admin.deleted', 'admin_user', userId, {
+        email: target.email,
+        role: target.role,
+      })
+      return json(req, { ok: true, email: target.email })
+    }
+
+    // ---- delete_inactive (bulk cleanup of disabled accounts) ----------------
+    if (action === 'delete_inactive') {
+      const { data: inactive, error: listError } = await supabase
+        .from('admin_users')
+        .select('id, email, role')
+        .eq('is_active', false)
+      if (listError) {
+        console.error('inactive admins list failed', listError)
+        return errorJson(req, 'SERVER_ERROR', 'Could not load disabled administrators.', 500)
+      }
+
+      // Only an owner may remove owner accounts; nobody may delete themselves.
+      const deletable = (inactive ?? []).filter(
+        (user) => user.id !== admin.id && (admin.role === 'owner' || user.role !== 'owner'),
+      )
+      const skipped = (inactive ?? []).length - deletable.length
+
+      const deletedEmails: string[] = []
+      for (const user of deletable) {
+        const { error: deleteError } = await supabase.auth.admin.deleteUser(user.id)
+        if (deleteError) {
+          console.error('bulk admin delete failed', user.email, deleteError)
+          continue
+        }
+        await supabase.from('admin_users').delete().eq('id', user.id)
+        deletedEmails.push(user.email)
+      }
+
+      if (deletedEmails.length > 0) {
+        await writeAudit(supabase, admin, 'admin.inactive_deleted', 'admin_user', null, {
+          deleted: deletedEmails.length,
+          skipped,
+          emails: deletedEmails,
+        })
+      }
+
+      return json(req, { ok: true, deleted: deletedEmails.length, skipped })
+    }
+
     return errorJson(req, 'UNKNOWN_ACTION', 'Unknown action.', 400)
   }),
 )
