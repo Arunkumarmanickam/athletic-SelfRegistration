@@ -84,12 +84,13 @@ supabase secrets set RESEND_API_KEY=re_xxxxxxxx \
 - [x] Push to GitHub — `https://github.com/Arunkumarmanickam/athletic-SelfRegistration`
 - [x] Import into Vercel, build `npm run build`, output `dist`
 - [x] Domain connected — `https://www.cdmaa.in` (apex `cdmaa.in` redirects to www)
-- [ ] Add `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SITE_URL` in
+- [x] Add `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SITE_URL` in
       Vercel → **Settings → Environment Variables**, scoped to **Production**,
       then redeploy. The values are baked into the bundle at build time, so a
       deployment built before the variables existed keeps reporting
       "The backend is not configured yet" no matter how often the page is
       reloaded. Setting a variable is not enough — a **new build** is required.
+      **Done** ✅ (verified live: bundle contains the Supabase URL/anon key)
 - [x] Add the Vercel domain to `ALLOWED_ORIGINS` and redeploy functions
       (secrets take effect immediately, no function redeploy needed)
 
@@ -107,7 +108,47 @@ supabase secrets set RESEND_API_KEY=re_xxxxxxxx \
 
 ## 🟢 7. Data still to create
 
-- [ ] Create at least one **championship** (Admin → Championships) with
+- [x] Create at least one **championship** (Admin → Championships) with
       categories, events, fees and deadlines — the app ships with none, by design
-- [ ] Run a full **test registration** end to end (IDs, bib, receipt, admin view)
+      (live: `state-meet-2026`, 15 categories, 22 events, cap 3)
+- [x] Run a full **test registration** end to end (IDs, bib, receipt, admin view)
 - [ ] Run the **test checklist** in `README.md`
+
+---
+
+## 🟢 8. Handoff — transfer project to the client (end of project)
+
+Supabase supports official **Project Transfers**; the project ref, URLs and
+API keys stay identical, so **no code or Vercel changes** are needed — only
+ownership/billing changes.
+
+### Order of operations
+1. **Decide ongoing access first.** After the transfer you lose dashboard
+   access unless the client's organization adds you (or your GitHub) as
+   Owner/Admin afterwards.
+2. Client creates a Supabase account + organization (free plan is fine).
+   ⚠️ Free plan limit: **2 projects per account** (across all orgs where they
+   are Owner/Admin) — this project must fit within that.
+3. You: Supabase Dashboard → **Project Settings → General → Danger zone →
+   Transfer Project** → select the client's organization.
+4. The client's org **Owner/Admin approves** the request → project moves.
+5. Verify after transfer: `public-config` still 200, admin login works,
+   Edge Functions still respond (nothing should change).
+
+### Also hand over
+- [ ] **GitHub repo** — add the client as collaborator (or transfer repo)
+- [ ] **Vercel project** (`cdmaaregistration`) — transfer to their Vercel
+      account or at minimum add them; env vars already set
+- [ ] `README.md` + `TODO.md` (they contain the full project context;
+      no secrets are committed)
+- [ ] `.env` values (Supabase URL, anon key, site URL) — send securely
+- [ ] Rotate personal tokens **before** handoff (see §6): Vercel `vcp_…`,
+      GitHub `github_pat_…`, Supabase `sbp_…`
+- [ ] Razorpay account (if configured by then) must be the client's own —
+      their merchant account, their webhook, their secrets
+
+### Storage note (free plan)
+- Database storage is **per project** (500 MB each) — the client's other
+  projects do not share this quota. Current usage ~12 MB (~11 MB is fixed
+  Supabase baseline; actual athlete data is ~1 KB for 2 registrations, so
+  ~1.5–2 KB per athlete).
