@@ -1,64 +1,6 @@
 import type { Confirmation, PublicConfig } from '@/lib/types'
 import { formatDate, formatDateTime, formatMoney, titleCase } from '@/lib/format'
-
-const ONES = [
-  '',
-  'One',
-  'Two',
-  'Three',
-  'Four',
-  'Five',
-  'Six',
-  'Seven',
-  'Eight',
-  'Nine',
-  'Ten',
-  'Eleven',
-  'Twelve',
-  'Thirteen',
-  'Fourteen',
-  'Fifteen',
-  'Sixteen',
-  'Seventeen',
-  'Eighteen',
-  'Nineteen',
-]
-const TENS = ['', 'Ten', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
-
-function underHundred(value: number): string {
-  if (value < 20) return ONES[value]
-  const tens = Math.floor(value / 10)
-  const ones = value % 10
-  return `${TENS[tens]}${ones ? ` ${ONES[ones]}` : ''}`
-}
-
-function underThousand(value: number): string {
-  const hundreds = Math.floor(value / 100)
-  const rest = value % 100
-  const parts: string[] = []
-  if (hundreds) parts.push(`${ONES[hundreds]} Hundred`)
-  if (rest) parts.push(underHundred(rest))
-  return parts.join(' ')
-}
-
-/** Indian numbering system, e.g. 125000 -> "One Lakh Twenty Five Thousand". */
-function rupeesInWords(paise: number): string {
-  const rupees = Math.floor(Math.abs(paise) / 100)
-  if (rupees === 0) return 'Zero'
-  let rest = rupees
-  const parts: string[] = []
-  const crore = Math.floor(rest / 10000000)
-  rest %= 10000000
-  const lakh = Math.floor(rest / 100000)
-  rest %= 100000
-  const thousand = Math.floor(rest / 1000)
-  rest %= 1000
-  if (crore) parts.push(`${underThousand(crore)} Crore`)
-  if (lakh) parts.push(`${underThousand(lakh)} Lakh`)
-  if (thousand) parts.push(`${underThousand(thousand)} Thousand`)
-  if (rest) parts.push(underThousand(rest))
-  return parts.join(' ')
-}
+import { amountInWords } from '@/lib/amountWords'
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
@@ -244,8 +186,7 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
               </div>
             </div>
             <p className="mt-2 max-w-[340px] text-right text-xs italic text-slate-500">
-              Amount in words: Rupees {rupeesInWords(registration.fee_paise)}
-              {registration.fee_paise % 100 ? ` and ${underHundred(registration.fee_paise % 100)} Paise` : ''} only.
+              Amount in words: {amountInWords(registration.fee_paise)}
             </p>
           </div>
         </section>
