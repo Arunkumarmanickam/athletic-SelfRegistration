@@ -109,7 +109,10 @@ Overview · **Registrations** (full filters, sorting, column-picker export) ·
 Export XLSX in template format for the current selection) · Payments ·
 Championships (create/edit, per-championship categories/events, defaults) ·
 Settings · Audit trail · Administrators (create with an owner-chosen password;
-no one-time passwords — see `admin-users`).
+no one-time passwords — see `admin-users`; disabled accounts can be deleted
+per-row or in bulk with "Delete inactive"; **only disabled accounts are
+deletable**, the last active owner cannot be disabled, and only an owner can
+delete an owner account).
 
 Roles: `owner` (everything incl. administrators), `admin` (management),
 `viewer` (read-only; `update` actions return `NOT_ALLOWED`). Payment status
@@ -152,7 +155,8 @@ token that was ever pasted into a chat or issue.
 `GENDER_NOT_ELIGIBLE`, `AGE_NOT_ELIGIBLE`, `EVENTS_REQUIRED`,
 `EVENT_INVALID`, `EVENT_GENDER_NOT_ELIGIBLE`, `EVENT_CATEGORY_NOT_ELIGIBLE`,
 `TOO_MANY_EVENTS`, `AADHAAR_REQUIRED`, `PAYMENTS_NOT_CONFIGURED`,
-`NO_VERIFIED_PAYMENT`, `NOT_ALLOWED`, `ALREADY_EXISTS`.
+`NO_VERIFIED_PAYMENT`, `NOT_ALLOWED`, `ALREADY_EXISTS`, `NOT_INACTIVE`,
+`LAST_OWNER`, `NOT_FOUND`.
 
 ## 9. Current state & next steps
 
