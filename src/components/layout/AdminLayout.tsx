@@ -73,7 +73,7 @@ export function AdminLayout() {
               >
                 AR
               </span>
-              <span className="text-sm font-bold text-slate-900">Admin dashboard</span>
+              <span className="hidden text-sm font-bold text-slate-900 sm:inline">Admin dashboard</span>
             </Link>
           </div>
           <div className="flex items-center gap-3">
@@ -81,7 +81,7 @@ export function AdminLayout() {
               <p className="text-xs font-medium text-slate-900">{admin.full_name || admin.email}</p>
               <p className="text-xs text-slate-500">Role: {admin.role}</p>
             </div>
-            <Link to="/" className="hidden sm:block">
+            <Link to="/" className="shrink-0">
               <Button variant="ghost" size="sm">
                 View site
               </Button>
