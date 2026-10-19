@@ -50,7 +50,16 @@ body {
 }
 
 /* Printable receipt styling: hide chrome, keep content on white. */
+@page {
+  size: A4;
+  margin: 10mm;
+}
+
 @media print {
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   .print-hide {
     display: none !important;
   }
@@ -64,5 +73,8 @@ body {
   .print-full {
     max-width: none !important;
     padding: 0 !important;
+  }
+  .print-sheet {
+    break-inside: avoid;
   }
 }

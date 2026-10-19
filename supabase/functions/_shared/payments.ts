@@ -202,7 +202,7 @@ export async function loadConfirmation(
   const { data: registration } = await supabase
     .from('registrations')
     .select(
-      'id, registration_code, bib_number, status, payment_status, fee_paise, currency, registered_at, confirmed_at, championships (id, name, slug, starts_on, ends_on, location), championship_categories (name), athlete_profiles (athlete_id, full_name, email), registration_events (event_name)',
+      'id, registration_code, bib_number, status, payment_status, fee_paise, currency, registered_at, confirmed_at, championships (id, name, slug, starts_on, ends_on, location), championship_categories (name), athlete_profiles (athlete_id, full_name, email, mobile_e164, state, district), registration_events (event_name, fee_paise)',
     )
     .eq('id', registrationId)
     .maybeSingle()

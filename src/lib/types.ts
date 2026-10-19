@@ -139,7 +139,14 @@ export interface ConfirmationRegistration {
     location?: string | null
   } | null
   championship_categories: { name: string } | null
-  athlete_profiles: { athlete_id: string; full_name: string; email?: string | null } | null
+  athlete_profiles: {
+    athlete_id: string
+    full_name: string
+    email?: string | null
+    mobile_e164?: string | null
+    state?: string | null
+    district?: string | null
+  } | null
   registration_events: RegistrationEventRow[] | null
 }
 

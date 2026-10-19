@@ -52,6 +52,13 @@ athlete-registration-portal/
   issued at registration time, before payment** (migration
   `20261019000001_bib_at_registration.sql`). Payment is only needed to move
   `payment_status` to `paid` / `status` to `confirmed`.
+- **Receipt**: a verified payment lands on `/registration/success`, which renders
+  an invoice-style receipt (`src/components/registration/ReceiptInvoice.tsx`):
+  organiser header, billed-to block, bib number, itemised events, totals, amount
+  in words and the payment record. It is designed to print as **one A4 page**;
+  "Print / Save as PDF" gives the athlete a clean bill with no site chrome. The
+  data lives only in `sessionStorage` for the current tab — no file is
+  auto-downloaded and nothing extra is stored server-side.
 - **Identity**: `athlete_profiles` are permanent (Athlete ID `ATH-2026-######`).
   Duplicate protection keys on mobile + date of birth. An athlete session
   token (15 days) lets an athlete re-enter and edit before paying. There is
