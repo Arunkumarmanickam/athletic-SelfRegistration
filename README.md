@@ -91,11 +91,15 @@ match on-screen filters), `cors.ts` (`ALLOWED_ORIGINS`), `payments.ts`
 confirmation email).
 
 **Excel export** (`admin-export`): `kind` = `registrations` | `payments` |
-`athletes`. The `athletes` kind writes the organiser's template layout (sheet
-"Athletes": S.No, Name, Gender (M/W), Age Category, DOB, Representing,
-Event1..N, T-shirt size, Bib No) — T-shirt size is currently left blank
-because the registration form does not collect it. Exports are audited
-(`export.generated`) and formula-injection safe.
+`athletes`. The `athletes` kind writes the organiser's template layout with a
+Mobile column added (sheet "Athletes": S.No, Name, Gender (M/W), Age Category,
+DOB, Mobile, Representing, Event1..N, T-shirt size, Bib No; phone exported as
+E.164 text, e.g. +919025054960) — T-shirt size is currently left blank
+because the registration form does not collect it. The
+`registrations`/`payments` kinds spell out **Men/Women** (the app never says
+"Male/Female" anywhere). Exports are audited (`export.generated`) and
+formula-injection safe (E.164 numbers starting with `+` are exempted from the
+apostrophe guard).
 
 ## 5. Admin dashboard (`/admin`)
 
@@ -156,7 +160,9 @@ Done: registration portal, Aadhaar-verified DOB, event caps (cap enforced
 in UI **and** in `create_registration`), geography-aware representing,
 championship defaults, admin password chosen at creation, dialog focus fix,
 Vercel env vars fixed, **bibs issued at registration**, **championship-wise
-Athletes tab + template-format XLSX export**.
+Athletes tab + template-format XLSX export**, **Mobile column in the athletes
+export (E.164 text, no stray apostrophe)**, **Men/Women wording everywhere
+(UI + exports) — the strings "Male"/"Female" do not exist in the codebase**.
 
 Open (see `TODO.md`):
 1. Configure Razorpay (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`,
