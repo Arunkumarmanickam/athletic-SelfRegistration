@@ -3,7 +3,7 @@ import { Alert, Badge } from '@/components/ui/display'
 import { Button } from '@/components/ui/button'
 import { formatMoney } from '@/lib/format'
 import { loadRazorpayCheckout, openRazorpayCheckout } from '@/lib/razorpay'
-import { ApiError, retryPayment, verifyPayment } from '@/lib/api'
+import { ApiError, paymentCallbackUrl, retryPayment, verifyPayment } from '@/lib/api'
 import type { Confirmation } from '@/lib/types'
 
 export interface PaymentOrder {
@@ -104,9 +104,11 @@ export function PaymentPanel({
       notes: { registration_code: registrationCode },
       theme: { color: '#f97316' },
       // Net banking and bank UPI apps leave the page and come back by redirect.
-      // Send them to a route the app controls so PaymentReturnGate can verify
-      // the result from the URL; card and in-app UPI still use the handler.
-      callback_url: `${window.location.origin}/status`,
+      // Razorpay POSTs the result to this Edge Function (a static site would
+      // answer 405), which verifies the payment and redirects the browser to
+      // /registration/success with a single-use receipt token. Card and in-app
+      // UPI still use the handler above.
+      callback_url: paymentCallbackUrl(),
       redirect: true,
       handler: (response) => {
         void verify(response)

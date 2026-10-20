@@ -3,17 +3,16 @@ import { useNavigate } from 'react-router-dom'
 import { recoverRedirectedPayment, stripPaymentParams } from '@/lib/paymentReturn'
 
 /**
- * Recovers a net-banking / bank-app payment that returned as a browser redirect.
+ * Resolves a net-banking / bank-app payment that returned as a browser redirect.
  *
- * Razorpay's redirect flows come back with the payment result in the URL. This
- * gate sits in front of the public routes: if it sees those parameters it
- * verifies the payment on the server, stores the confirmation and moves to the
- * receipt page. Every other navigation renders immediately, so this costs one
- * cheap `URLSearchParams` read on ordinary page loads.
+ * Razorpay's callback Edge Function has already verified the payment by the time
+ * the browser lands here; this gate exchanges the single-use token for the
+ * receipt, stores it and moves to the receipt page. Ordinary navigations render
+ * immediately, so the cost is one `URLSearchParams` read per page load.
  */
 export function PaymentReturnGate({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
-  const [busy, setBusy] = useState(() => hasPaymentParams(window.location.search))
+  const [busy, setBusy] = useState(() => hasReturnParams(window.location.search))
 
   useEffect(() => {
     if (!busy) return
@@ -21,7 +20,7 @@ export function PaymentReturnGate({ children }: { children: React.ReactNode }) {
     void (async () => {
       const result = await recoverRedirectedPayment(window.location.search)
       if (cancelled) return
-      // Drop the parameters so a refresh cannot replay the verification.
+      // Drop the parameters so a refresh cannot replay the exchange.
       navigate(
         { pathname: window.location.pathname, search: stripPaymentParams(window.location.search) },
         { replace: true },
@@ -31,6 +30,14 @@ export function PaymentReturnGate({ children }: { children: React.ReactNode }) {
         navigate('/registration/success', { replace: true })
       } else if (result.error) {
         navigate('/status', { replace: true, state: { paymentError: result.error } })
+      } else if (result.needsLookup) {
+        navigate('/status', {
+          replace: true,
+          state: {
+            paymentError:
+              'Your payment was received, but the receipt could not be shown automatically. Look up your registration to view it.',
+          },
+        })
       }
     })()
     return () => {
@@ -55,16 +62,8 @@ export function PaymentReturnGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-/** True when the URL carries a Razorpay redirect result. */
-function hasPaymentParams(search: string): boolean {
+/** True when the URL carries a redirect-payment result. */
+function hasReturnParams(search: string): boolean {
   const params = new URLSearchParams(search)
-  return Boolean(
-    params.get('razorpay_payment_id') ||
-      params.get('razorpay_order_id') ||
-      // Razorpay documents the failure form as `error[code]` / `error[description]`,
-      // but some flows send a plain `error` or `error_code`.
-      params.get('error') ||
-      params.get('error[code]') ||
-      params.get('error_code'),
-  )
+  return Boolean(params.get('receipt') || params.get('payment_callback'))
 }

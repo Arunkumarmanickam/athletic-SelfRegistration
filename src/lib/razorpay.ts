@@ -18,9 +18,9 @@ export interface RazorpayCheckoutOptions {
   notes?: Record<string, string>
   theme?: { color?: string }
   /**
-   * Where Razorpay sends the browser after a redirect-based payment (net
-   * banking, bank UPI apps). Must be on the site's own origin so the app can
-   * pick the result out of the URL.
+   * Where Razorpay POSTs the result after a redirect-based payment (net
+   * banking, bank UPI apps). Must accept a POST, so it points at the
+   * `payment-callback` Edge Function rather than the static site.
    */
   callback_url?: string
   /** Required alongside `callback_url`: redirect instead of firing the handler. */

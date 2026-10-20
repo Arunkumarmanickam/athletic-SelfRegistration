@@ -171,6 +171,20 @@ export const verifyPayment = (body: {
 export const retryPayment = (body: { registrationCode: string; mobileE164: string }) =>
   invoke<RegisterResponse>('payment-retry', body)
 
+/**
+ * Public URL of the redirect callback Edge Function.
+ *
+ * Razorpay's callback URL must accept a POST, which a static Vercel site cannot
+ * (405). This points the browser at the function, which verifies the payment
+ * and then redirects back to us.
+ */
+export const paymentCallbackUrl = () =>
+  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/payment-callback`
+
+/** Exchanges a single-use receipt token (from a redirect return) for the receipt. */
+export const fetchReceiptByToken = (token: string) =>
+  invoke<{ ok: boolean; confirmation: Confirmation }>('receipt-token', { token })
+
 export const lookupRegistrationStatus = (body: { registrationCode: string; mobileE164: string }) =>
   invoke<{
     registration: {
