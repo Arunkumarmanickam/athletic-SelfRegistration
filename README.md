@@ -14,6 +14,53 @@ categories, events, athletes, payments and admin accounts from `/admin`.
 
 ---
 
+## 0. Setting up on a new machine (start here)
+
+This project lives entirely in the cloud — **GitHub, Supabase and Vercel** — so
+a new machine loses no code, data or deployment history. **The only thing that
+does not travel is any chat history**, so everything needed to work on this
+lives in this file and in the repository.
+
+```bash
+git clone https://github.com/Arunkumarmanickam/athletic-SelfRegistration.git
+cd athletic-SelfRegistration
+npm install
+npm run build     # tsc --noEmit && vite build — must pass before pushing
+npm run dev       # localhost, talks to the LIVE database (see §6)
+```
+
+Three things are **deliberately not in the repo** and must be obtained:
+
+| What | Where to get it | Used for |
+|---|---|---|
+| `.env` | Supabase → Project Settings → API. Values below. | Running the app locally |
+| `SUPABASE_ACCESS_TOKEN` | Supabase → Account → Access Tokens | Deploying functions/migrations |
+| Razorpay keys | The client's Razorpay dashboard (§6) | Payments |
+
+`.env` contents (the anon key is a **public** key — it ships in the browser
+bundle, so it is safe in `.env`, but keep it out of Git anyway):
+
+```
+VITE_SUPABASE_URL=https://urlkpbvvtossdzsjcmie.supabase.co
+VITE_SUPABASE_ANON_KEY=<from Supabase → Project Settings → API>
+VITE_SITE_URL=http://localhost:5173
+```
+
+Install the CLI and authenticate:
+
+```bash
+npm install -g supabase        # or: npx supabase …
+supabase login                 # opens a browser; accepts an access token
+supabase link --project-ref urlkpbvvtossdzsjcmie
+```
+
+**Nothing is stored in this repo that cannot be regenerated** from the
+Supabase, Vercel and Razorpay dashboards. If a token is lost, issue a new one.
+If `.env` is lost, the two values above are two clicks away.
+
+> Access tokens and the service-role key are **never** committed and must never
+> be pasted into a chat, issue or screenshot. See `TODO.md` for rotation.
+
 ## 1. Tech stack
 
 | Layer | Technology |
