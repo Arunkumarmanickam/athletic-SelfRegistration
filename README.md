@@ -217,7 +217,89 @@ token that was ever pasted into a chat or issue.
 - Leave the webhook URL unset until `RAZORPAY_WEBHOOK_SECRET` exists; the
   redirect/handler paths verify payments without it.
 
-## 7. PowerShell / Windows gotchas
+## 7. Platform ownership, renewals and running costs
+
+Read this before promising anyone "it will just keep working". **Only the
+domain has a renewal date.** Everything else is either monthly or per
+transaction, and the real risks are ownership and inactivity, not expiry.
+
+| Platform | Renewal / expiry | If it is not renewed or maintained |
+|---|---|---|
+| **Domain `cdmaa.in`** | **Annual** — registered 2026-10-17, **expires 2027-10-17** (verified via RDAP) | The site becomes unreachable, and anyone can then register the name. Every receipt, email and QR code pointing at it would lead elsewhere. |
+| **Vercel** (hosting + TLS) | **None** — monthly, cancel-anytime | Stops serving when the plan lapses. |
+| **TLS certificate** | **Auto-renews every 90 days**, free | Nothing to do; Vercel renews it. (Currently issued by Let's Encrypt, `CN=www.cdmaa.in`.) |
+| **Supabase** | **None** — but a **free** project is **paused after 1 week of inactivity** | Site loads but the database is unreachable, so registration fails. Projects on paid plans never pause. |
+| **Razorpay** | **None** — no setup fee, no AMC, no refund fee | Nothing expires. It is **2% per successful transaction** (+18% GST on that fee); UPI itself is zero-MDR, so the 2% is Razorpay's platform fee rather than a government charge. A ₹500 entry nets roughly ₹490. |
+
+### Ownership — the real single point of failure
+
+Both the repository and the Vercel project are currently on the **developer's**
+personal accounts:
+
+- GitHub: `github.com/Arunkumarmanickam/athletic-SelfRegistration`
+- Vercel: project `cdmaaregistration`, serving `cdmaa.in` / `www.cdmaa.in`
+
+The same principle applied to Razorpay — *the account must belong to the client,
+not the deliverer* — applies here. If the site lives on one person's account,
+then only that person can deploy a fix on event day, and a falling-out or an
+unavailable developer strands the client's live event site. **Transferring costs
+nothing and needs no downtime.**
+
+Transfer outline (do this when the client has both accounts ready):
+
+1. Create/confirm a GitHub account (or org) for the organiser.
+2. **Transfer the repository** — GitHub → Settings → General → Danger Zone →
+   *Transfer ownership*. (Or transfer to an organisation both parties are in.)
+3. Create/confirm a **Vercel account on the organiser's email** (the same
+   identity used for Razorpay KYC), then import the repository as a new project
+   with the same build settings (framework Vite, node 24.x, output `dist/`).
+4. Re-create the environment variables in the new project:
+   `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SITE_URL`.
+5. **Move the domain** to the new project. The old project keeps serving until
+   DNS resolves to the new one, so visitors see **no outage**; then remove the
+   domain from the old project.
+6. Verify the same way every change in this repo is verified: check the served
+   bundle hash matches the build, then run one registration and one status
+   lookup.
+
+The Supabase project (`urlkpbvvtossdzsjcmie`) and the Razorpay account are also
+on individual accounts and should be transferred the same way before the client
+is billed directly.
+
+### Vercel plan: Hobby vs Pro — documented trade-off
+
+Vercel's **Hobby** plan is licensed for *"personal, non-commercial use"*; Pro
+($20/month) covers freelancers and businesses. This site takes real money for a
+real event, so strictly it belongs on Pro.
+
+That licence question is **not** affected by moving the project to the client —
+an individual on Hobby is on Hobby either way, with identical terms. So:
+
+- **Transfer ownership regardless.** It is free and removes the real risk.
+- **Staying on Hobby is a deliberate, deferred risk.** Vercel does not scan
+  projects for commercial use; the constraint tends to surface during a
+  support, abuse or compliance review rather than in normal operation. For a
+  once-a-year district meet the practical exposure is low.
+- **Middle path**: Vercel bills monthly with no lock-in, so Pro can be enabled
+  for the event months only (roughly ₹2,000–3,500/year) and dropped back to
+  Hobby afterwards.
+- **Not recommended**: paying $20/month ($240/year) year-round. For this
+  workload the paid tier buys nothing technical — Hobby already includes
+  unlimited deployments, 1M CDN requests/month, 100 GB transfer and automatic
+  TLS, while traffic is a few thousand athletes for a few weeks a year.
+
+**Decision status:** documented only — no account changes have been made. The
+organiser currently has **one** of the two required accounts, so the transfer
+above is pending until they hold both. Revisit before the next edition.
+
+**Calendar reminders to set:**
+
+- **September 2027** — renew `cdmaa.in` (do it early; do not wait for the
+  expiry date itself).
+- **Before that** — check whether the Supabase project has been paused, or move
+  it to a paid plan if the gap between editions is long.
+
+## 8. PowerShell / Windows gotchas
 
 - `npm`/`supabase` scripts fail directly (execution policy) → use `cmd /c "…"`.
 - Git: run `& "C:\Program Files\Git\cmd\git.exe" …`; `git push origin HEAD`
@@ -226,7 +308,7 @@ token that was ever pasted into a chat or issue.
   `C:\Users\WELCOME\AppData\Local\Temp\opencode` and run
   `supabase db query --linked --file <path>`.
 
-## 8. Error codes
+## 9. Error codes
 
 `MISSING_FIELDS`, `INVALID_FIELDS`, `INVALID_EMAIL`, `INVALID_PASSWORD`,
 `UNKNOWN_ACTION`, `CHAMPIONSHIP_NOT_FOUND`, `REGISTRATION_CLOSED`,
@@ -248,7 +330,7 @@ Payment verification (`verify-payment`) additionally returns:
 `PAYMENT_NOT_COMPLETED`, `AMOUNT_MISMATCH`, `PAYMENT_FAILED`. A redirect-based
 payment that fails any of these shows the message on `/status`.
 
-## 9. Current state & next steps
+## 10. Current state & next steps
 
 Done: registration portal, Aadhaar-verified DOB, event caps (cap enforced
 in UI **and** in `create_registration_draft`), geography-aware representing,
@@ -287,6 +369,13 @@ Open (see `TODO.md`):
 8. Production security review; credential rotation (see `TODO.md`).
 9. Any championship edited before the max-events fix may still have a blank
    `max_events_per_athlete` — check Admin → Championships before opening.
+10. **Transfer repository + Vercel project (+ Supabase, Razorpay) to the
+    organiser's accounts** — see §7. The site currently deploys only from the
+    developer's personal accounts. Needs the organiser to hold a GitHub *and*
+    a Vercel account; they currently have one of the two.
+11. **Renew `cdmaa.in` by September 2027** (expires 2027-10-17) — calendar it.
+12. **Check the Supabase project is not paused** before each edition (free
+    projects pause after a week without traffic). See §7.
 
 Testing checklist: register at `/register` → **no bib and no Athlete ID yet**
 (the panel says "Issued after payment") → pay → receipt downloads once and
