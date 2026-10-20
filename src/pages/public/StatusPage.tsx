@@ -71,19 +71,20 @@ export function StatusPage() {
     <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
       <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Check registration status</h1>
       <p className="mt-2 text-sm text-slate-600">
-        Enter your Registration ID (which is also your bib number) and the mobile number you registered with. For your
-        privacy, both must match.
+        Enter your Registration ID (for example <span className="font-mono">R000013</span>) or your bib number (for
+        example <span className="font-mono">W7001</span>), together with the mobile number you registered with. For
+        your privacy, both must match.
       </p>
 
       <Card className="mt-6">
         <CardContent className="pt-5">
           <form onSubmit={handleLookup} className="grid gap-5 sm:grid-cols-2" noValidate>
             <Field
-              label="Registration ID / bib number"
+              label="Registration ID or bib number"
               htmlFor={codeField}
               required
               className="sm:col-span-2"
-              hint="Example: M60103"
+              hint="Either works. Example: R000013 or W7001"
             >
               <Input
                 id={codeField}

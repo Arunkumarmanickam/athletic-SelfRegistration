@@ -1,6 +1,10 @@
 // Public registration status lookup.
-// Requires BOTH the registration code (bib number) and the registered mobile
-// number, and returns only status information — never personal details.
+// Requires BOTH an identifier and the registered mobile number, and returns only
+// status information — never personal details.
+//
+// The identifier may be EITHER the registration code (R######) OR the bib number
+// (e.g. W7001). Athletes are given both, and the receipt leads with the bib, so
+// accepting only the code made a correct lookup report "no match found".
 import { handler } from '../_shared/handler.ts'
 import { json, errorJson } from '../_shared/responses.ts'
 import { serviceClient } from '../_shared/supabase.ts'
@@ -27,12 +31,14 @@ Deno.serve(
     await enforceRateLimit(supabase, `status-lookup:ip:${ip}`, 30, 3600)
     await enforceRateLimit(supabase, `status-lookup:code:${registrationCode}`, 15, 3600)
 
+    // Accept either the registration code (R######) or the bib number (M3501,
+    // W7001). Both are shown to the athlete, so either is a valid way in.
     const { data: registration } = await supabase
       .from('registrations')
       .select(
         'id, registration_code, bib_number, status, payment_status, fee_paise, currency, registered_at, confirmed_at, championships (name, starts_on, location), championship_categories (name), athlete_profiles (full_name, mobile_e164), registration_events (event_name)',
       )
-      .ilike('registration_code', registrationCode)
+      .or(`registration_code.ilike.${registrationCode},bib_number.ilike.${registrationCode}`)
       .maybeSingle()
 
     const profile = (registration as unknown as { athlete_profiles?: { full_name: string; mobile_e164: string } } | null)

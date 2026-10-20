@@ -161,8 +161,8 @@ export function HomePage() {
           <div>
             <h3 className="text-base font-semibold text-slate-900">A permanent Athlete ID</h3>
             <p className="mt-2 text-sm text-slate-600">
-              You only create your profile once. Each championship gives you a separate Registration ID, which is also
-              your bib number.
+              You only create your profile once. Each championship gives you a separate Registration ID and its own
+              bib number.
             </p>
           </div>
           <div>

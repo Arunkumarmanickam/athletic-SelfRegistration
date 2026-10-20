@@ -56,7 +56,8 @@ export function SuccessPage() {
           <CardContent className="space-y-4">
             <p className="text-sm text-slate-600">
               For your privacy, a receipt is only kept for the current browser tab. If you have just paid, you can look
-              up your registration again with your Registration ID (bib number) and registered mobile number.
+              up your registration again with your Registration ID or your bib number, plus the registered mobile
+              number.
             </p>
             <div className="flex flex-wrap gap-3">
               <Link to="/status">
