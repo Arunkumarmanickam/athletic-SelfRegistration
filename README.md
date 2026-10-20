@@ -48,7 +48,9 @@ athlete-registration-portal/
 │                          (…20261020000003_registration_drafts.sql adds the
 │                          draft + payment_orders tables;
 │                          …20261020000004_draft_functions.sql adds
-│                          create_registration_draft / promote_draft)
+│                          create_registration_draft / promote_draft;
+│                          …20261020000005_keep_alive.sql adds the pg_cron
+│                          keep-alive job — see §7)
 ├─ TODO.md                 Open work: payments, email, security, credential rotation
 └─ README.md               This file
 ```
@@ -144,6 +146,7 @@ athlete-registration-portal/
 | `receipt-token` | Exchanges a single-use receipt token for the confirmation payload |
 | `payment-retry` | Creates the Razorpay order **against the draft** (in `payment_orders`) after the Aadhaar upload; returns the `prefill` |
 | `admin-*` | `admin-me`, `admin-stats`, `admin-registrations`, `admin-athletes`, `admin-payments`, `admin-championships`, `admin-users`, `admin-audit`, `admin-export`, `admin-bootstrap` |
+| `health` | Public keep-alive/liveness ping (no auth, returns no data). Called twice weekly by the `pg_cron` job and usable by an external uptime monitor — see §7 |
 
 Shared helpers live in `_shared/`: `helpers.ts` (**`str()` returns `''` for
 non-strings — never use it to test blankness of numeric fields; check
@@ -228,7 +231,7 @@ transaction, and the real risks are ownership and inactivity, not expiry.
 | **Domain `cdmaa.in`** | **Annual** — registered 2026-10-17, **expires 2027-10-17** (verified via RDAP) | The site becomes unreachable, and anyone can then register the name. Every receipt, email and QR code pointing at it would lead elsewhere. |
 | **Vercel** (hosting + TLS) | **None** — monthly, cancel-anytime | Stops serving when the plan lapses. |
 | **TLS certificate** | **Auto-renews every 90 days**, free | Nothing to do; Vercel renews it. (Currently issued by Let's Encrypt, `CN=www.cdmaa.in`.) |
-| **Supabase** | **None** — but a **free** project is **paused after 1 week of inactivity** | Site loads but the database is unreachable, so registration fails. Projects on paid plans never pause. |
+| **Supabase** | **None** — but a **free** project is **paused after 1 week of inactivity**. Mitigated by a keep-alive job — see below. | Site loads but the database is unreachable, so registration fails. A paused project keeps its data and is restored from the dashboard in about a minute. |
 | **Razorpay** | **None** — no setup fee, no AMC, no refund fee | Nothing expires. It is **2% per successful transaction** (+18% GST on that fee); UPI itself is zero-MDR, so the 2% is Razorpay's platform fee rather than a government charge. A ₹500 entry nets roughly ₹490. |
 
 ### Ownership — the real single point of failure
@@ -298,6 +301,62 @@ above is pending until they hold both. Revisit before the next edition.
   expiry date itself).
 - **Before that** — check whether the Supabase project has been paused, or move
   it to a paid plan if the gap between editions is long.
+
+### Supabase inactivity and the keep-alive job
+
+The portal is dormant for most of the year — a championship runs for a few
+weeks, then nothing until the next edition. Supabase pauses **free** projects
+after a week without activity. A paused project keeps all its data and is
+restored from the dashboard in about a minute, so this is an **availability**
+risk (a registration window lost), not a data-loss risk.
+
+Two layers cover it.
+
+**Layer 1 — scheduled keep-alive (implemented, free).**
+Migration `20261020000005_keep_alive.sql` enables `pg_cron` and `pg_net` and
+schedules a twice-weekly call to the public `health` Edge Function
+(Monday and Thursday, 06:00 UTC — the gap can never approach a week).
+
+- `supabase/functions/health` deliberately runs a **real but empty** database
+  query (`head: true`, no rows), so a response proves the database answered.
+  A paused project's API can still reply, so a static "I'm alive" would be a
+  misleading signal. It returns `503` when the database is unreachable and
+  exposes no data of any kind.
+- **The 20-second timeout is deliberate and was verified, not guessed.** At
+  5000 ms the call *times out* — a cold Edge Function needs longer — and
+  `net._http_response` recorded `timed_out = true`. That failure mode is
+  invisible: the job looks scheduled and healthy while doing nothing. Do not
+  lower it without re-verifying.
+- **Verified working end-to-end**: scheduler → `pg_net` → function → DB query
+  returned `200 {"ok":true,"database":"ok"}`.
+
+To check it is still firing:
+
+```sql
+select jobid, status, return_message, start_time
+from cron.job_run_details order by start_time desc limit 5;
+
+select id, status_code, timed_out, left(content, 80)
+from net._http_response order by id desc limit 5;
+```
+
+**Layer 2 — external uptime monitor (recommended, free).**
+The cron can only prove the database is awake. A free monitor (UptimeRobot,
+Better Stack, cron-job.org) pointed at
+`https://urlkpbvvtossdzsjcmie.supabase.co/functions/v1/health` every
+**5–10 minutes** adds real inbound traffic *and* emails you when the response
+is not `200` — catching a paused project, a broken deploy, DNS problems and
+Vercel outages, not just inactivity. Set the alert contact to the organiser as
+well as the developer.
+
+**Layer 3 — manual, the guaranteed recovery.** Open the Supabase dashboard the
+day before registration opens. If the project shows as paused, click Restore.
+This is the documented last resort and takes about a minute.
+
+> Note: Supabase's one-week timer is officially based on project activity, so an
+> in-database cron is very likely — but not contractually guaranteed — to
+> prevent pausing. A paid plan is the only certain fix; Layers 1 and 2 together
+> are the free equivalent, and Layer 2 tells you when it has failed.
 
 ## 8. PowerShell / Windows gotchas
 
@@ -375,7 +434,9 @@ Open (see `TODO.md`):
     a Vercel account; they currently have one of the two.
 11. **Renew `cdmaa.in` by September 2027** (expires 2027-10-17) — calendar it.
 12. **Check the Supabase project is not paused** before each edition (free
-    projects pause after a week without traffic). See §7.
+    projects pause after a week without traffic). A twice-weekly `pg_cron`
+    keep-alive now guards this — see §7. Still worth adding a **free external
+    uptime monitor** on `/functions/v1/health` so a genuine outage emails you.
 
 Testing checklist: register at `/register` → **no bib and no Athlete ID yet**
 (the panel says "Issued after payment") → pay → receipt downloads once and
