@@ -81,6 +81,18 @@ athlete-registration-portal/
   (Account & Settings → Payment Methods); it is not a code setting. The webhook
   is not configured yet, so a payment abandoned mid-redirect is only captured
   when the athlete returns to the success page.
+- **Redirect payments (net banking / bank UPI apps)**: these do **not** return
+  through checkout.js's `handler` — the browser goes to the bank and comes back
+  with the result in the URL. `PaymentPanel` therefore sets
+  `callback_url: <origin>/status` + `redirect: true`, and
+  `PaymentReturnGate` (wrapping the public routes in `App.tsx`) detects
+  `razorpay_payment_id`/`razorpay_order_id`/`razorpay_signature` on landing,
+  calls the same `verify-payment` function, stores the confirmation and routes
+  to `/registration/success` (receipt + auto-download). Query parameters are
+  stripped afterwards so a refresh cannot replay verification. A bank failure
+  return (`error[code]` / `error[description]`) is shown on `/status`. Card and
+  in-app UPI keep using the `handler` — both paths end in the same verification.
+  Logic lives in `src/lib/paymentReturn.ts`.
 - **Identity**: `athlete_profiles` are permanent (Athlete ID `ATH-2026-######`).
   Duplicate protection keys on mobile + date of birth. An athlete session
   token (15 days) lets an athlete re-enter and edit before paying. There is
@@ -172,6 +184,16 @@ Credentials are **not** committed; obtain them from the project owner or the
 Supabase/Vercel dashboards. `TODO.md` tracks credential rotation — rotate any
 token that was ever pasted into a chat or issue.
 
+**Razorpay dashboard prerequisites** (none of these can be set from code):
+
+- **Payment Methods → UPI must be enabled** for UPI to appear in the checkout.
+  The app never restricts methods, so a missing UPI tile is always this setting.
+- The site domain (`www.cdmaa.in`, plus `localhost` for testing) must be
+  **allowlisted for callback/redirect URLs** — `PaymentPanel` sends net-banking
+  returns to `<origin>/status`. An unallowlisted origin breaks redirect returns.
+- Leave the webhook URL unset until `RAZORPAY_WEBHOOK_SECRET` exists; the
+  redirect/handler paths verify payments without it.
+
 ## 7. PowerShell / Windows gotchas
 
 - `npm`/`supabase` scripts fail directly (execution policy) → use `cmd /c "…"`.
@@ -193,6 +215,11 @@ token that was ever pasted into a chat or issue.
 `NO_VERIFIED_PAYMENT`, `NOT_ALLOWED`, `ALREADY_EXISTS`, `NOT_INACTIVE`,
 `LAST_OWNER`, `NOT_FOUND`.
 
+Payment verification (`verify-payment`) additionally returns:
+`PAYMENT_NOT_FOUND`, `INVALID_SIGNATURE`, `PAYMENT_MISMATCH`,
+`PAYMENT_NOT_COMPLETED`, `AMOUNT_MISMATCH`, `PAYMENT_FAILED`. A redirect-based
+payment that fails any of these shows the message on `/status`.
+
 ## 9. Current state & next steps
 
 Done: registration portal, Aadhaar-verified DOB, event caps (cap enforced
@@ -206,7 +233,9 @@ export (E.164 text, no stray apostrophe)**, **Men/Women wording everywhere
 receipt with auto-downloading PDF**, **admin account deletion (disabled
 accounts only, per-row + bulk)**, **Razorpay Test Mode keys set and a real
 test order created end-to-end**, **registration form collects an optional
-email**, **Razorpay checkout is prefilled with name/email/mobile**.
+email**, **Razorpay checkout is prefilled with name/email/mobile**,
+**redirect-based payments (net banking) are recovered from the return URL and
+land on the receipt**.
 
 Open (see `TODO.md`):
 1. **Enable UPI in the Razorpay dashboard** (Account & Settings → Payment
