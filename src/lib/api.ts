@@ -184,30 +184,38 @@ export const paymentCallbackUrl = () =>
 export const fetchReceiptByToken = (token: string) =>
   invoke<{ ok: boolean; confirmation: Confirmation }>('receipt-token', { token })
 
+export interface StatusLookupRegistration {
+  registration_code: string
+  bib_number?: string | null
+  athlete_name_masked: string
+  status: string
+  payment_status: string
+  fee_paise: number
+  currency: string
+  registered_at: string
+  confirmed_at: string | null
+  championship: { name: string; starts_on: string | null; location: string | null } | null
+  category: { name: string } | null
+  events: string[]
+  payments: {
+    status: string
+    razorpay_payment_id: string | null
+    amount_paise: number
+    currency: string
+    verified_at: string | null
+    created_at: string
+  }[]
+}
+
 export const lookupRegistrationStatus = (body: { registrationCode: string; mobileE164: string }) =>
   invoke<{
-    registration: {
-      registration_code: string
-      bib_number?: string | null
-      athlete_name_masked: string
-      status: string
-      payment_status: string
-      fee_paise: number
-      currency: string
-      registered_at: string
-      confirmed_at: string | null
-      championship: { name: string; starts_on: string | null; location: string | null } | null
-      category: { name: string } | null
-      events: string[]
-    }
-    payments: {
-      status: string
-      razorpay_payment_id: string | null
-      amount_paise: number
-      currency: string
-      verified_at: string | null
-      created_at: string
-    }[]
+    /** The first match, kept for the common single-registration case. */
+    registration: StatusLookupRegistration
+    /** Every registration matching the identifier that belongs to that mobile. */
+    registrations: StatusLookupRegistration[]
+    /** True when one mobile number holds more than one matching entry. */
+    multiple: boolean
+    payments: StatusLookupRegistration['payments']
   }>('lookup-registration-status', body)
 
 export async function uploadDocument(input: {

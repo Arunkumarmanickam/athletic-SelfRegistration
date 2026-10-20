@@ -65,8 +65,6 @@ export function StatusPage() {
     }
   }
 
-  const registration = result?.registration
-
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
       <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Check registration status</h1>
@@ -127,47 +125,56 @@ export function StatusPage() {
         </Alert>
       )}
 
-      {registration && (
+      {result && (
         <div className="mt-6 space-y-5">
-          <Card>
-            <CardHeader>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <CardTitle>Registration {registration.registration_code}</CardTitle>
-                <div className="flex flex-wrap gap-2">
-                  <Badge tone={registrationStatusTone(registration.status)}>{titleCase(registration.status)}</Badge>
-                  <Badge tone={paymentStatusTone(registration.payment_status)}>
-                    Payment: {titleCase(registration.payment_status)}
-                  </Badge>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-                {[
-                  ['Athlete', registration.athlete_name_masked],
-                  ['Bib number', registration.bib_number ?? 'Issued after payment'],
-                  ['Championship', registration.championship?.name ?? '—'],
-                  ['Category', registration.category?.name ?? '—'],
-                  ['Events', registration.events.join(', ') || '—'],
-                  ['Fee', formatMoney(registration.fee_paise, registration.currency)],
-                  ['Registered on', formatDate(registration.registered_at)],
-                  [
-                    'Confirmed on',
-                    registration.confirmed_at ? formatDateTime(registration.confirmed_at) : 'Not confirmed yet',
-                  ],
-                  [
-                    'Championship dates',
-                    registration.championship?.starts_on ? formatDate(registration.championship.starts_on) : '—',
-                  ],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</dt>
-                    <dd className="text-slate-800">{value}</dd>
+          {result.multiple && (
+            <Alert tone="info" title="More than one registration uses this mobile number">
+              The details below are the {result.registrations.length} registrations that match what you entered. Each has
+              its own bib number.
+            </Alert>
+          )}
+
+          {result.registrations.map((registration) => (
+            <Card key={registration.registration_code}>
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <CardTitle>Registration {registration.registration_code}</CardTitle>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone={registrationStatusTone(registration.status)}>{titleCase(registration.status)}</Badge>
+                    <Badge tone={paymentStatusTone(registration.payment_status)}>
+                      Payment: {titleCase(registration.payment_status)}
+                    </Badge>
                   </div>
-                ))}
-              </dl>
-            </CardContent>
-          </Card>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+                  {[
+                    ['Athlete', registration.athlete_name_masked],
+                    ['Bib number', registration.bib_number ?? 'Issued after payment'],
+                    ['Championship', registration.championship?.name ?? '—'],
+                    ['Category', registration.category?.name ?? '—'],
+                    ['Events', registration.events.join(', ') || '—'],
+                    ['Fee', formatMoney(registration.fee_paise, registration.currency)],
+                    ['Registered on', formatDate(registration.registered_at)],
+                    [
+                      'Confirmed on',
+                      registration.confirmed_at ? formatDateTime(registration.confirmed_at) : 'Not confirmed yet',
+                    ],
+                    [
+                      'Championship dates',
+                      registration.championship?.starts_on ? formatDate(registration.championship.starts_on) : '—',
+                    ],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</dt>
+                      <dd className="text-slate-800">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </CardContent>
+            </Card>
+          ))}
 
           <Card>
             <CardHeader>
@@ -185,43 +192,50 @@ export function StatusPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Payment history</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {result.payments.length === 0 ? (
-                <p className="text-sm text-slate-600">No payment attempts have been recorded yet.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[520px] border-collapse text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                        <th className="py-2 pr-3">Date</th>
-                        <th className="py-2 pr-3">Status</th>
-                        <th className="py-2 pr-3">Amount</th>
-                        <th className="py-2 pr-3">Reference</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {result.payments.map((payment, index) => (
-                        <tr key={`${payment.razorpay_payment_id ?? 'attempt'}-${index}`} className="border-b border-slate-100">
-                          <td className="py-2 pr-3 text-slate-700">{formatDateTime(payment.created_at)}</td>
-                          <td className="py-2 pr-3">
-                            <Badge tone={paymentStatusTone(payment.status)}>{titleCase(payment.status)}</Badge>
-                          </td>
-                          <td className="py-2 pr-3 text-slate-700">{formatMoney(payment.amount_paise, payment.currency)}</td>
-                          <td className="py-2 pr-3 font-mono text-xs text-slate-600">
-                            {payment.razorpay_payment_id ?? '—'}
-                          </td>
+          {result.registrations.map((registration) => (
+            <Card key={`pay-${registration.registration_code}`}>
+              <CardHeader>
+                <CardTitle>Payment history — {registration.registration_code}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {registration.payments.length === 0 ? (
+                  <p className="text-sm text-slate-600">No payment attempts have been recorded yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[520px] border-collapse text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                          <th className="py-2 pr-3">Date</th>
+                          <th className="py-2 pr-3">Status</th>
+                          <th className="py-2 pr-3">Amount</th>
+                          <th className="py-2 pr-3">Reference</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                      </thead>
+                      <tbody>
+                        {registration.payments.map((payment, index) => (
+                          <tr
+                            key={`${payment.razorpay_payment_id ?? 'attempt'}-${index}`}
+                            className="border-b border-slate-100"
+                          >
+                            <td className="py-2 pr-3 text-slate-700">{formatDateTime(payment.created_at)}</td>
+                            <td className="py-2 pr-3">
+                              <Badge tone={paymentStatusTone(payment.status)}>{titleCase(payment.status)}</Badge>
+                            </td>
+                            <td className="py-2 pr-3 text-slate-700">
+                              {formatMoney(payment.amount_paise, payment.currency)}
+                            </td>
+                            <td className="py-2 pr-3 font-mono text-xs text-slate-600">
+                              {payment.razorpay_payment_id ?? '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
 
           <div className="flex flex-wrap gap-3">
             <Link to="/returning">
