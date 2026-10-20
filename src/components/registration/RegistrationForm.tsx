@@ -9,7 +9,6 @@ import { EventMultiSelect } from '@/components/ui/event-multi-select'
 import { AadhaarReference } from './AadhaarReference'
 import { FeeSummary } from './FeeSummary'
 import { PaymentPanel } from './PaymentPanel'
-import { DocumentUpload } from './DocumentUpload'
 import { ApiError, register, uploadAadhaar } from '@/lib/api'
 import { useToast } from '@/context/ToastContext'
 import { useConfig } from '@/context/ConfigContext'
@@ -109,7 +108,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
   const [hydrated, setHydrated] = useState(false)
 
   const [result, setResult] = useState<RegisterResponse | null>(null)
-  const [sessionToken, setSessionToken] = useState<string | null>(null)
+  const [draftToken, setDraftToken] = useState<string | null>(null)
   const [uploadPending, setUploadPending] = useState(false)
   const [retryFile, setRetryFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -257,22 +256,23 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
       })
 
       clearDraft()
-      setSessionToken(response.athlete_session_token)
+      setDraftToken(response.draft_token)
       setResult(response)
 
-      // Mandatory Aadhaar front: uploaded right after saving, before payment.
-      if (!response.athlete_session_token) {
+      // Mandatory Aadhaar front: uploaded against the draft, before payment.
+      // Nothing permanent has been created yet.
+      if (!response.draft_token) {
         setUploadPending(true)
         setUploadError('Your upload session could not be started. Please try the upload below again.')
         return
       }
       try {
         await uploadAadhaar({
-          athleteSessionToken: response.athlete_session_token,
-          registrationId: response.registration.id,
+          draftToken: response.draft_token,
+          draftId: response.draft.id,
           file: aadhaarFile!,
         })
-        toast.info('Registration saved', 'Upload received. Continue to payment to confirm your entry.')
+        toast.info('Details received', 'Aadhaar upload received. Continue to payment to confirm your entry.')
       } catch (err) {
         setUploadPending(true)
         setUploadError(err instanceof ApiError ? err.message : 'The Aadhaar upload failed. Please try again.')
@@ -298,16 +298,16 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
       setUploadError('Please choose the front side of your Aadhaar card first.')
       return
     }
-    if (!sessionToken) {
+    if (!draftToken) {
       setUploadError(
-        'Your upload session has expired. Use “Retrieve my details” to verify again, or contact the organiser.',
+        'Your session has expired. Please fill in your details again, or contact the organiser.',
       )
       return
     }
     setUploading(true)
     setUploadError(null)
     try {
-      await uploadAadhaar({ athleteSessionToken: sessionToken, registrationId: result.registration.id, file: retryFile })
+      await uploadAadhaar({ draftToken, draftId: result.draft.id, file: retryFile })
       setUploadPending(false)
       setRetryFile(null)
       toast.success('Aadhaar uploaded', 'You can continue to payment.')
@@ -326,52 +326,46 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
 
   // ---- post-registration view ----------------------------------------------
   if (result) {
-    const registration = result.registration
+    const draft = result.draft
     const paymentWithOrder = result.payment.configured ? result.payment : null
 
     return (
       <div className="space-y-5">
         <Card>
           <CardHeader>
-            <CardTitle>Registration saved</CardTitle>
+            <CardTitle>Details saved</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Alert tone="success" title="Your details have been recorded">
-              Keep your Athlete ID and bib number safe — they are issued now and stay the same even after payment.
+            <Alert tone="warning" title="Not registered yet — payment is still pending">
+              Your details are saved but your entry is not confirmed. Your bib number and Athlete ID will be
+              issued once your payment succeeds.
             </Alert>
 
             <dl className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Athlete ID</dt>
-                <dd className="mt-1 font-mono text-lg font-semibold text-slate-900">{registration.athlete_id}</dd>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Registration reference</dt>
-                <dd className="mt-1 font-mono text-lg font-semibold text-slate-900">{registration.registration_code}</dd>
-              </div>
-              {registration.bib_number && (
-                <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
-                  <dt className="text-xs font-medium uppercase tracking-wide text-orange-600">Bib number</dt>
-                  <dd className="mt-1 font-mono text-lg font-semibold text-orange-800">{registration.bib_number}</dd>
-                </div>
-              )}
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
                 <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Championship</dt>
                 <dd className="mt-1 text-sm font-semibold text-slate-900">{championship.name}</dd>
               </div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Age category</dt>
+                <dd className="mt-1 text-sm font-semibold text-slate-900">{draft.category_name ?? '—'}</dd>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
                 <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Fee</dt>
                 <dd className="mt-1 text-lg font-semibold text-slate-900">
-                  {formatMoney(registration.fee_paise, registration.currency)}
+                  {formatMoney(draft.fee_paise, draft.currency)}
                 </dd>
+              </div>
+              <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+                <dt className="text-xs font-medium uppercase tracking-wide text-orange-600">Bib number</dt>
+                <dd className="mt-1 text-sm font-semibold text-orange-800">Issued after payment</dd>
               </div>
             </dl>
 
-            {registration.is_new_profile && (
-              <p className="text-sm text-slate-600">
-                Your Athlete ID was created now — use it to retrieve your details next time.
-              </p>
-            )}
+            <p className="text-sm text-slate-600">
+              Complete the payment below to confirm your entry. Nothing is registered until the payment succeeds,
+              so you can simply close this page if you change your mind.
+            </p>
           </CardContent>
         </Card>
 
@@ -408,7 +402,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
                 <PaymentPanel
                   championshipName={championship.name}
                   organizerName={config?.site?.organizer_name}
-                  registrationCode={registration.registration_code}
+                  draftToken={draftToken}
                   mobileE164={mobileE164}
                   amountPaise={paymentWithOrder.amount_paise}
                   currency={paymentWithOrder.currency}
@@ -431,10 +425,10 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
                 <PaymentPanel
                   championshipName={championship.name}
                   organizerName={config?.site?.organizer_name}
-                  registrationCode={registration.registration_code}
+                  draftToken={draftToken}
                   mobileE164={mobileE164}
-                  amountPaise={registration.fee_paise}
-                  currency={registration.currency}
+                  amountPaise={draft.fee_paise}
+                  currency={draft.currency}
                   prefill={{
                     name: values.full_name,
                     email: values.email,
@@ -445,25 +439,9 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
               ) : (
                 <Alert tone="warning" title="Online payment is not configured yet">
                   {result.message ??
-                    'Your registration is saved, but this deployment has no online payment set up. Please contact the organiser to complete your payment.'}
+                    'Your details are saved, but this deployment has no online payment set up. Please contact the organiser to complete your payment.'}
                 </Alert>
               )}
-            </CardContent>
-          </Card>
-        )}
-
-        {championship.form_config?.allow_photo_upload && sessionToken && !uploadPending && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Optional: upload a photo</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DocumentUpload
-                athleteSessionToken={sessionToken}
-                registrationId={registration.id}
-                label="Athlete photo"
-                hint="JPG, PNG or WEBP up to 5 MB."
-              />
             </CardContent>
           </Card>
         )}

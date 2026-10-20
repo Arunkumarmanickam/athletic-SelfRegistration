@@ -1,7 +1,11 @@
-// Validates a registration, creates or refreshes it, and returns a payment
-// instruction. No Razorpay order is created here: the order is only created
-// after the mandatory Aadhaar upload (see payment-retry), so checkout can
-// never bypass it.
+// Validates a registration and stages it as a DRAFT.
+//
+// Nothing permanent is created here: no athlete profile, no Athlete ID, no bib
+// number, no registration row. Only a `registration_drafts` row is written,
+// keyed by a bearer token. The profile, the Athlete ID, the bib and the
+// registration are all created by promote_draft when payment is captured, so
+// someone who fills in the form and abandons the payment gate leaves nothing
+// behind but a draft that is pruned.
 //
 // The browser never decides the fee or the amount: both come from Postgres.
 import { handler } from '../_shared/handler.ts'
@@ -14,11 +18,10 @@ import {
   isEmail,
   isE164,
   readJson,
-  sessionToken,
   str,
 } from '../_shared/helpers.ts'
 import { normalizeMobile } from '../_shared/athlete-lookup.ts'
-import { issueAthleteSession } from '../_shared/athlete-session.ts'
+import { newDraftToken } from '../_shared/draft.ts'
 import { razorpayConfigured } from '../_shared/razorpay.ts'
 
 interface PersonalInput {
@@ -93,8 +96,7 @@ Deno.serve(
     const body = await readJson(req)
     const championshipId = str(body.championshipId)
     const categoryId = str(body.categoryId)
-    const token = sessionToken(req, body)
-    const isReturning = token.length > 0
+    const draftToken = str(body.draftToken)
 
     const eventIds = Array.isArray(body.eventIds)
       ? (body.eventIds as unknown[]).map((v) => str(v)).filter(Boolean)
@@ -116,11 +118,13 @@ Deno.serve(
 
     const personal = sanitizePersonal(rawPersonal)
     const hasPersonal = Object.keys(rawPersonal).length > 0
-    const personalError = hasPersonal ? validatePersonal(personal, !isReturning) : null
-    if (personalError) return errorJson(req, 'INVALID_FIELDS', personalError, 400)
-    if (!isReturning && !hasPersonal) {
+    // Every draft submission carries the athlete's own details: there is no
+    // pre-existing profile to fall back on before payment.
+    if (!hasPersonal) {
       return errorJson(req, 'MISSING_FIELDS', 'Please fill in the athlete\u2019s personal details.', 400)
     }
+    const personalError = validatePersonal(personal, true)
+    if (personalError) return errorJson(req, 'INVALID_FIELDS', personalError, 400)
 
     const supabase = serviceClient()
     const ip = clientIp(req)
@@ -129,17 +133,22 @@ Deno.serve(
       await enforceRateLimit(supabase, `register:mobile:${personal.mobile_e164}`, 12, 3600)
     }
 
-    const { data: rpcResult, error: rpcError } = await supabase.rpc('create_registration', {
+    const draftTokenPair = await newDraftToken()
+    if (!draftTokenPair) {
+      return errorJson(req, 'SERVER_ERROR', 'We could not save your registration. Please try again.', 500)
+    }
+
+    const { data: rpcResult, error: rpcError } = await supabase.rpc('create_registration_draft', {
       p_championship_id: championshipId,
-      p_athlete_session_token: isReturning ? token : null,
-      p_personal: hasPersonal ? personal : null,
+      p_personal: personal,
       p_category_id: categoryId,
       p_event_ids: eventIds,
       p_request_ip: ip,
+      p_token_hash: draftTokenPair.hash,
     })
 
     if (rpcError) {
-      console.error('create_registration failed', rpcError)
+      console.error('create_registration_draft failed', rpcError)
       return errorJson(req, 'SERVER_ERROR', 'We could not save your registration. Please try again.', 500)
     }
 
@@ -151,24 +160,19 @@ Deno.serve(
       return errorJson(req, code, err.message ?? 'We could not save your registration.', status)
     }
 
-    const registrationId = result.registration_id as string
-    const registrationCode = result.registration_code as string
+    const draftId = result.draft_id as string
     const feePaise = Number(result.fee_paise)
     const currency = (result.currency as string) ?? 'INR'
-    const profileId = result.profile_id as string
 
-    // A fresh session lets the athlete edit details / upload documents / retry
-    // payment without re-verifying.
-    const session = await issueAthleteSession(profileId, 15)
-
-    const registrationPayload = {
-      id: registrationId,
-      registration_code: registrationCode,
-      bib_number: (result.bib_number as string | null) ?? null,
-      athlete_id: result.athlete_id,
+    // No Athlete ID and no bib yet: both are issued only once payment is
+    // captured. The draft token is what the next steps authenticate with.
+    const draftPayload = {
+      id: draftId,
+      championship_id: championshipId,
+      category_name: (result.category_name as string | null) ?? null,
       fee_paise: feePaise,
       currency,
-      is_new_profile: result.is_new_profile === true,
+      expires_at: (result.expires_at as string | null) ?? null,
     }
 
     // Prefill the Razorpay checkout with what the athlete just typed, so the
@@ -181,18 +185,17 @@ Deno.serve(
 
     // Honest behaviour: no order is created before the mandatory Aadhaar
     // upload is recorded. payment-retry creates the order afterwards and
-    // refuses until aadhaar_verified_at is set.
+    // refuses until the draft records an Aadhaar upload.
     if (!razorpayConfigured()) {
       return json(
         req,
         {
           ok: true,
-          registration: registrationPayload,
+          draft: draftPayload,
           payment: { configured: false },
-          athlete_session_token: session?.token ?? null,
-          athlete_session_expires_at: session?.expiresAt ?? null,
+          draft_token: draftTokenPair.token,
           message:
-            'Your registration has been saved, but online payment is not configured yet. Please contact the organiser to complete payment.',
+            'Your details have been recorded, but online payment is not configured yet. Please contact the organiser to complete payment.',
         },
         200,
       )
@@ -200,11 +203,10 @@ Deno.serve(
 
     return json(req, {
       ok: true,
-      registration: registrationPayload,
+      draft: draftPayload,
       payment: { configured: false, aadhaar_required: true },
       prefill,
-      athlete_session_token: session?.token ?? null,
-      athlete_session_expires_at: session?.expiresAt ?? null,
+      draft_token: draftTokenPair.token,
     })
   }),
 )

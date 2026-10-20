@@ -132,11 +132,11 @@ export const register = (body: Record<string, unknown>) => invoke<RegisterRespon
  * and then DISCARDED — only a "received" timestamp is kept, so the card is
  * never stored anywhere. Returns the server's acknowledgement.
  */
-export async function uploadAadhaar(input: { athleteSessionToken: string; registrationId: string; file: File }) {
+export async function uploadAadhaar(input: { draftToken: string; draftId: string; file: File }) {
   const form = new FormData()
   form.append('file', input.file)
-  form.append('athleteSessionToken', input.athleteSessionToken)
-  form.append('registrationId', input.registrationId)
+  form.append('draftToken', input.draftToken)
+  form.append('draftId', input.draftId)
   form.append('purpose', 'aadhaar')
 
   const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-document`
@@ -168,8 +168,7 @@ export const verifyPayment = (body: {
     body,
   )
 
-export const retryPayment = (body: { registrationCode: string; mobileE164: string }) =>
-  invoke<RegisterResponse>('payment-retry', body)
+export const retryPayment = (body: { draftToken: string }) => invoke<RegisterResponse>('payment-retry', body)
 
 /**
  * Public URL of the redirect callback Edge Function.

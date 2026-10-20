@@ -26,27 +26,38 @@ Deno.serve(
       return errorJson(req, 'MISSING_FIELDS', 'Incomplete payment confirmation data.', 400)
     }
 
-    const { data: payment } = await supabase
-      .from('payments')
-      .select('id, registration_id, status, amount_paise, currency')
+    const { data: order } = await supabase
+      .from('payment_orders')
+      .select('id, draft_id, status, amount_paise, currency')
       .eq('razorpay_order_id', orderId)
       .maybeSingle()
 
-    if (!payment) return errorJson(req, 'PAYMENT_NOT_FOUND', 'We could not find that payment order.', 404)
+    if (!order) return errorJson(req, 'PAYMENT_NOT_FOUND', 'We could not find that payment order.', 404)
 
     // Idempotent: already-verified payments simply return the confirmation.
-    if (payment.status === 'captured') {
-      const confirmation = await loadConfirmation(supabase, payment.registration_id)
-      return json(req, { ok: true, status: 'paid', already_verified: true, confirmation })
+    if (order.status === 'captured') {
+      const { data: registration } = await supabase
+        .from('registrations')
+        .select('id')
+        .eq('draft_id', order.draft_id)
+        .maybeSingle()
+      if (registration) {
+        const confirmation = await loadConfirmation(supabase, registration.id)
+        return json(req, { ok: true, status: 'paid', already_verified: true, confirmation })
+      }
     }
 
     const signatureValid = await verifyCheckoutSignature(orderId, paymentId, signature)
     if (!signatureValid) {
       console.error('invalid payment signature', { orderId, paymentId })
       await supabase
-        .from('payments')
-        .update({ failure_reason: 'Signature verification failed', signature_verified: false })
-        .eq('id', payment.id)
+        .from('payment_orders')
+        .update({
+          failure_reason: 'Signature verification failed',
+          signature_verified: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', order.id)
       return errorJson(
         req,
         'INVALID_SIGNATURE',
@@ -72,7 +83,7 @@ Deno.serve(
           409,
         )
       }
-      if (remoteAmount !== Number(payment.amount_paise)) {
+      if (remoteAmount !== Number(order.amount_paise)) {
         return errorJson(req, 'AMOUNT_MISMATCH', 'The paid amount does not match the registration fee.', 400)
       }
     }

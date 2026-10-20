@@ -16,7 +16,8 @@ export interface PaymentOrder {
 export interface PaymentPanelProps {
   championshipName: string
   organizerName?: string
-  registrationCode: string
+  /** Draft bearer token: the only credential that exists before payment. */
+  draftToken: string | null
   mobileE164: string
   /** Server-calculated fee, used for display before/without an order. */
   amountPaise: number
@@ -40,8 +41,7 @@ type Stage = 'idle' | 'opening' | 'verifying' | 'dismissed' | 'failed'
 export function PaymentPanel({
   championshipName,
   organizerName,
-  registrationCode,
-  mobileE164,
+  draftToken,
   amountPaise,
   currency,
   order,
@@ -98,10 +98,9 @@ export function PaymentPanel({
       amount: paymentOrder.amount_paise,
       currency: paymentOrder.currency,
       name: organizerName?.trim() || championshipName,
-      description: `Registration ${registrationCode}`,
+      description: `${championshipName} registration`,
       order_id: paymentOrder.razorpay_order_id,
       prefill: checkoutPrefill,
-      notes: { registration_code: registrationCode },
       theme: { color: '#f97316' },
       // Net banking and bank UPI apps leave the page and come back by redirect.
       // Razorpay POSTs the result to this Edge Function (a static site would
@@ -128,8 +127,13 @@ export function PaymentPanel({
   const handleRetry = async () => {
     setStage('opening')
     setError(null)
+    if (!draftToken) {
+      setStage('failed')
+      setError('Your session has expired. Please fill in your details again.')
+      return
+    }
     try {
-      const result = await retryPayment({ registrationCode, mobileE164 })
+      const result = await retryPayment({ draftToken })
       if (result.prefill) setPrefillValues(result.prefill)
       if (!result.payment.configured) {
         setStage('failed')
@@ -170,7 +174,8 @@ export function PaymentPanel({
 
       {stage === 'dismissed' && !error && (
         <Alert tone="warning" title="Payment window closed">
-          Your payment was not completed. You can start a new attempt — your registration and bib number are saved.
+          Your payment was not completed, so your entry is not registered. You can try again whenever you are ready —
+          nothing has been issued yet.
         </Alert>
       )}
 

@@ -66,13 +66,13 @@ Deno.serve(
 
     const supabase = serviceClient()
 
-    const { data: payment } = await supabase
-      .from('payments')
-      .select('id, registration_id, status, amount_paise')
+    const { data: order } = await supabase
+      .from('payment_orders')
+      .select('id, draft_id, status, amount_paise')
       .eq('razorpay_order_id', orderId)
       .maybeSingle()
 
-    if (!payment) {
+    if (!order) {
       console.error('payment-callback: unknown order', { orderId })
       return redirectTo('/status', {
         payment_callback: 'failed',
@@ -82,14 +82,18 @@ Deno.serve(
 
     // Idempotent: a re-post (the athlete refreshing, or a retry) simply returns
     // the existing receipt.
-    if (payment.status !== 'captured') {
+    if (order.status !== 'captured') {
       const signatureValid = await verifyCheckoutSignature(orderId, paymentId, signature)
       if (!signatureValid) {
         console.error('payment-callback: invalid signature', { orderId, paymentId })
         await supabase
-          .from('payments')
-          .update({ failure_reason: 'Signature verification failed', signature_verified: false })
-          .eq('id', payment.id)
+          .from('payment_orders')
+          .update({
+            failure_reason: 'Signature verification failed',
+            signature_verified: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', order.id)
         return redirectTo('/status', {
           payment_callback: 'failed',
           payment_error: 'Payment verification failed. If money was deducted, please contact the organiser.',
@@ -114,7 +118,7 @@ Deno.serve(
             payment_error: `Payment is not completed yet. Please try again or contact the organiser.`,
           })
         }
-        if (remoteAmount !== Number(payment.amount_paise)) {
+        if (remoteAmount !== Number(order.amount_paise)) {
           return redirectTo('/status', {
             payment_callback: 'failed',
             payment_error: 'The paid amount does not match the registration fee. Please contact the organiser.',
@@ -136,6 +140,18 @@ Deno.serve(
       }
     }
 
+    // The draft has been promoted, so the registration now exists.
+    const { data: registration } = await supabase
+      .from('registrations')
+      .select('id')
+      .eq('draft_id', order.draft_id)
+      .maybeSingle()
+
+    if (!registration) {
+      console.error('payment-callback: registration missing after capture', { orderId })
+      return redirectTo('/registration/success', { payment_callback: 'paid' })
+    }
+
     // Mint a single-use token so the receipt can be shown without trusting
     // anything the browser supplies.
     const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '')
@@ -148,7 +164,7 @@ Deno.serve(
 
     const { error: tokenError } = await supabase.from('receipt_tokens').insert({
       token_hash: tokenHash as string,
-      registration_id: payment.registration_id,
+      registration_id: registration.id,
       expires_at: expiresAt,
     })
     if (tokenError) {

@@ -183,14 +183,17 @@ export interface AthleteRegistrationSummary {
 
 export interface RegisterResponse {
   ok: boolean
-  registration: {
+  /**
+   * The staged submission. Nothing permanent exists yet: no Athlete ID, no bib
+   * number and no registration. Both are issued when payment is captured.
+   */
+  draft: {
     id: string
-    registration_code: string
-    bib_number?: string | null
-    athlete_id: string
+    championship_id: string
+    category_name: string | null
     fee_paise: number
     currency: string
-    is_new_profile: boolean
+    expires_at: string | null
   }
   payment:
     | { configured: false; aadhaar_required?: boolean }
@@ -202,10 +205,10 @@ export interface RegisterResponse {
         currency: string
       }
     | { configured: false; aadhaar_required: true }
-  /** Name/email/phone to prefill in the Razorpay checkout, from the registration. */
+  /** Name/email/phone to prefill in the Razorpay checkout, from the draft. */
   prefill?: { name?: string; email?: string; contact?: string }
-  athlete_session_token: string | null
-  athlete_session_expires_at: string | null
+  /** Bearer token for the pre-payment steps (Aadhaar upload, payment order). */
+  draft_token: string | null
   message?: string
 }
 

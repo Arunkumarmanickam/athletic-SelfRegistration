@@ -1,13 +1,10 @@
 import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Alert, Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/display'
 import { Button } from '@/components/ui/button'
 import { Field, Input, useFieldId } from '@/components/ui/input'
 import { Select } from '@/components/ui/form-controls'
-import { PaymentPanel } from '@/components/registration/PaymentPanel'
 import { ApiError, lookupRegistrationStatus } from '@/lib/api'
-import { useConfig } from '@/context/ConfigContext'
-import { useToast } from '@/context/ToastContext'
 import { COUNTRY_CODES } from '@/lib/constants'
 import {
   formatDate,
@@ -18,16 +15,11 @@ import {
   titleCase,
   toE164,
 } from '@/lib/format'
-import { saveConfirmation } from '@/lib/receipt'
-import type { Confirmation } from '@/lib/types'
 
 type LookupResult = Awaited<ReturnType<typeof lookupRegistrationStatus>>
 
 export function StatusPage() {
-  const navigate = useNavigate()
   const location = useLocation()
-  const toast = useToast()
-  const { config } = useConfig()
 
   const [registrationCode, setRegistrationCode] = useState('')
   const [countryCode, setCountryCode] = useState('+91')
@@ -73,18 +65,7 @@ export function StatusPage() {
     }
   }
 
-  const handlePaymentSuccess = (confirmation: Confirmation) => {
-    saveConfirmation(confirmation)
-    toast.success('Payment verified', 'Your registration is confirmed.')
-    navigate('/registration/success')
-  }
-
   const registration = result?.registration
-  const canPay =
-    registration &&
-    config?.payments_configured &&
-    registration.payment_status !== 'paid' &&
-    registration.status !== 'cancelled'
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
@@ -187,24 +168,21 @@ export function StatusPage() {
             </CardContent>
           </Card>
 
-          {canPay && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Complete your payment</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <PaymentPanel
-                  championshipName={registration.championship?.name ?? 'Championship'}
-                  organizerName={config?.site?.organizer_name}
-                  registrationCode={registration.registration_code}
-                  mobileE164={mobileE164}
-                  amountPaise={registration.fee_paise}
-                  currency={registration.currency}
-                  onSuccess={handlePaymentSuccess}
-                />
-              </CardContent>
-            </Card>
-          )}
+          <Card>
+            <CardHeader>
+              <CardTitle>Need to finish a payment?</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-slate-600">
+                An entry only appears here once its payment has succeeded — that is when your bib number and Athlete ID
+                are issued. If you left the payment step unfinished, simply{' '}
+                <Link to="/register" className="font-semibold text-orange-700 underline-offset-2 hover:underline">
+                  register again
+                </Link>{' '}
+                and complete the payment. Nothing was registered the first time, so nothing is duplicated.
+              </p>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
