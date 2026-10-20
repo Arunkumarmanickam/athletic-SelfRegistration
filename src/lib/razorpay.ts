@@ -17,6 +17,14 @@ export interface RazorpayCheckoutOptions {
   prefill?: { name?: string; email?: string; contact?: string }
   notes?: Record<string, string>
   theme?: { color?: string }
+  /**
+   * Where Razorpay sends the browser after a redirect-based payment (net
+   * banking, bank UPI apps). Must be on the site's own origin so the app can
+   * pick the result out of the URL.
+   */
+  callback_url?: string
+  /** Required alongside `callback_url`: redirect instead of firing the handler. */
+  redirect?: boolean
   handler: (response: RazorpaySuccessResponse) => void
   modal?: { ondismiss?: () => void }
 }

@@ -103,6 +103,11 @@ export function PaymentPanel({
       prefill: checkoutPrefill,
       notes: { registration_code: registrationCode },
       theme: { color: '#f97316' },
+      // Net banking and bank UPI apps leave the page and come back by redirect.
+      // Send them to a route the app controls so PaymentReturnGate can verify
+      // the result from the URL; card and in-app UPI still use the handler.
+      callback_url: `${window.location.origin}/status`,
+      redirect: true,
       handler: (response) => {
         void verify(response)
       },

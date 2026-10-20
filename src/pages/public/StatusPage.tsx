@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Alert, Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/display'
 import { Button } from '@/components/ui/button'
 import { Field, Input, useFieldId } from '@/components/ui/input'
@@ -25,6 +25,7 @@ type LookupResult = Awaited<ReturnType<typeof lookupRegistrationStatus>>
 
 export function StatusPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const toast = useToast()
   const { config } = useConfig()
 
@@ -32,7 +33,11 @@ export function StatusPage() {
   const [countryCode, setCountryCode] = useState('+91')
   const [mobileNumber, setMobileNumber] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // A redirect-based payment that came back but could not be verified is
+  // reported here by PaymentReturnGate.
+  const [error, setError] = useState<string | null>(
+    (location.state as { paymentError?: string } | null)?.paymentError ?? null,
+  )
   const [result, setResult] = useState<LookupResult | null>(null)
 
   const codeField = useFieldId('registration_code')

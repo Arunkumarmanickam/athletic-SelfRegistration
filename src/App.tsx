@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { PaymentReturnGate } from './components/registration/PaymentReturnGate'
 import { PublicLayout } from './components/layout/PublicLayout'
 import { AdminLayout } from './components/layout/AdminLayout'
 import { HomePage } from './pages/public/HomePage'
@@ -23,7 +24,13 @@ import { SettingsPage } from './pages/admin/SettingsPage'
 export default function App() {
   return (
     <Routes>
-      <Route element={<PublicLayout />}>
+      <Route
+        element={
+          <PaymentReturnGate>
+            <PublicLayout />
+          </PaymentReturnGate>
+        }
+      >
         <Route index element={<HomePage />} />
         <Route path="register" element={<RegisterPage />} />
         <Route path="register/:slug" element={<RegisterPage />} />
