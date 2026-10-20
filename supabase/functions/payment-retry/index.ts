@@ -32,14 +32,14 @@ Deno.serve(
     const { data: registration } = await supabase
       .from('registrations')
       .select(
-        'id, registration_code, fee_paise, currency, status, payment_status, championship_id, athlete_profiles (mobile_e164), championships (id, name, status, registration_closes_at)',
+        'id, registration_code, fee_paise, currency, status, payment_status, championship_id, athlete_profiles (full_name, email, mobile_e164), championships (id, name, status, registration_closes_at)',
       )
       .ilike('registration_code', registrationCode)
       .maybeSingle()
 
-    const profile = (registration as unknown as { athlete_profiles?: { mobile_e164: string } } | null)
-      ?.athlete_profiles
-
+    const profile = (registration as unknown as {
+      athlete_profiles?: { full_name: string | null; email: string | null; mobile_e164: string | null }
+    } | null)?.athlete_profiles
     if (!registration || !profile || profile.mobile_e164 !== mobileE164) {
       return errorJson(
         req,
@@ -133,6 +133,13 @@ Deno.serve(
         registration_code: registration.registration_code,
         fee_paise: Number(registration.fee_paise),
         currency: registration.currency,
+      },
+      // Prefill the checkout with the details the athlete already gave us, so
+      // they are not asked for their own name/email/phone a second time.
+      prefill: {
+        name: profile.full_name ?? '',
+        email: profile.email ?? '',
+        contact: profile.mobile_e164 ?? '',
       },
       payment: {
         configured: true,

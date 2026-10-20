@@ -19,7 +19,7 @@ categories, events, athletes, payments and admin accounts from `/admin`.
 | Frontend | React 19 + TypeScript + Vite + Tailwind, React Router |
 | Hosting | Vercel (production branch `main`, node 24.x, project `cdmaaregistration`) |
 | Backend | Supabase: Postgres + Deno Edge Functions |
-| Payments | Razorpay (not configured yet — see TODO.md) |
+| Payments | Razorpay (Test Mode keys configured 2026-10-19; live keys must come from the client's account) |
 | Excel export | SheetJS (`xlsx`) imported inside the Edge Function from esm.sh |
 
 ## 2. Repository map
@@ -30,10 +30,12 @@ athlete-registration-portal/
 │  ├─ pages/public/        Registration, status lookup, success pages
 │  ├─ pages/admin/         Admin dashboard pages (see §5)
 │  ├─ components/
-│  │  ├─ registration/     RegistrationForm (the whole single-page flow)
+│  │  ├─ registration/     RegistrationForm (the whole single-page flow),
+│  │  │                    PaymentPanel (Razorpay checkout), ReceiptInvoice (bill)
 │  │  ├─ admin/            ExportBar, PageHeader
 │  │  └─ ui/               Design system (Dialog, Table, SearchCombobox, …)
-│  ├─ lib/                 api.ts (all API calls), types.ts, geo.ts, format.ts
+│  ├─ lib/                 api.ts (all API calls), types.ts, geo.ts, format.ts,
+│  │                       receiptPdf.ts (A4 PDF receipt), amountWords.ts
 │  └─ context/             ConfigContext, AdminAuthContext, ToastContext
 ├─ supabase/
 │  ├─ functions/           Deno Edge Functions (see §4)
@@ -52,6 +54,13 @@ athlete-registration-portal/
   issued at registration time, before payment** (migration
   `20261019000001_bib_at_registration.sql`). Payment is only needed to move
   `payment_status` to `paid` / `status` to `confirmed`.
+- **Checkout prefill**: the form collects name, date of birth, gender, mobile
+  and an **optional email** (used on the receipt and in the Razorpay checkout).
+  Both `register` and `payment-retry` return a `prefill` block
+  (`{ name, email, contact }`) and `PaymentPanel` passes it to Razorpay, so the
+  gateway does not ask the athlete for details they already typed. A retry
+  re-reads the prefill from the server, so it still works after a page reload.
+  Nothing is stored beyond what the athlete submitted.
 - **Receipt**: a verified payment lands on `/registration/success`, which renders
   an invoice-style receipt (`src/components/registration/ReceiptInvoice.tsx`):
   organiser header, billed-to block, bib number, itemised events, totals, amount
@@ -63,6 +72,15 @@ athlete-registration-portal/
   organiser name from `public-config` (the download waits briefly for config so
   the letterhead is not blank). The on-screen invoice stays printable and there
   is a manual "Download PDF" button. Nothing is stored server-side.
+- **Payments**: Razorpay Test Mode is live (`payments_configured: true`,
+  base fee ₹500). `register` creates the registration **without** an order;
+  `payment-retry` creates the order once `aadhaar_verified_at` is set. The
+  checkout is opened by `PaymentPanel` with `prefill` from the registration and
+  **no method restriction** — every method enabled on the account (including
+  UPI) appears. If UPI is missing, enable it in the Razorpay dashboard
+  (Account & Settings → Payment Methods); it is not a code setting. The webhook
+  is not configured yet, so a payment abandoned mid-redirect is only captured
+  when the athlete returns to the success page.
 - **Identity**: `athlete_profiles` are permanent (Athlete ID `ATH-2026-######`).
   Duplicate protection keys on mobile + date of birth. An athlete session
   token (15 days) lets an athlete re-enter and edit before paying. There is
@@ -85,12 +103,12 @@ athlete-registration-portal/
 
 | Function | Purpose |
 |---|---|
-| `public-config` | Public championship + feature config (CORS-restricted to cdmaa.in + localhost) |
-| `register` | Creates a registration via the `create_registration` RPC |
+| `public-config` | Public championship + feature config (CORS-restricted to cdmaa.in + localhost); returns `payments_configured` |
+| `register` | Creates a registration via the `create_registration` RPC; returns a checkout `prefill` block |
 | `verify-athlete` / `retrieve-profile` | Session-based identity (no OTP) |
-| `upload-aadhaar` | Validates the Aadhaar front image, records timestamp, discards file |
+| `upload-document` | Validates the Aadhaar front image, records `aadhaar_verified_at`, discards file |
 | `verify-payment` / `payment-webhook` | Razorpay verification + webhook (needs secrets) |
-| `payment-retry` | Creates the Razorpay order after Aadhaar upload |
+| `payment-retry` | Creates the Razorpay order after Aadhaar upload; returns the `prefill` and current fee |
 | `admin-*` | `admin-me`, `admin-stats`, `admin-registrations`, `admin-athletes`, `admin-payments`, `admin-championships`, `admin-users`, `admin-audit`, `admin-export`, `admin-bootstrap` |
 
 Shared helpers live in `_shared/`: `helpers.ts` (**`str()` returns `''` for
@@ -143,7 +161,13 @@ captured payment row first.
 Environment (mirrored in `.env` and Vercel project env vars):
 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SITE_URL`.
 Edge Function secrets are set with `supabase secrets set`
-(`ALLOWED_ORIGINS`, `BOOTSTRAP_ADMIN_SECRET`, Razorpay keys — not set yet).
+(`ALLOWED_ORIGINS`, `BOOTSTRAP_ADMIN_SECRET`, Razorpay keys). As of
+2026-10-19 the **Razorpay Test Mode** keys are set as Supabase secrets only
+(`RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` — never committed, never in the
+repo). `payments_configured` is therefore `true` and a real test order can be
+created end-to-end. `RAZORPAY_WEBHOOK_SECRET` and `RESEND_API_KEY` are still
+unset, so a payment where the athlete closes the browser is not captured and
+no confirmation email is sent.
 Credentials are **not** committed; obtain them from the project owner or the
 Supabase/Vercel dashboards. `TODO.md` tracks credential rotation — rotate any
 token that was ever pasted into a chat or issue.
@@ -177,19 +201,34 @@ championship defaults, admin password chosen at creation, dialog focus fix,
 Vercel env vars fixed, **bibs issued at registration**, **championship-wise
 Athletes tab + template-format XLSX export**, **Mobile column in the athletes
 export (E.164 text, no stray apostrophe)**, **Men/Women wording everywhere
-(UI + exports) — the strings "Male"/"Female" do not exist in the codebase**.
+(UI + exports) — the strings "Male"/"Female" do not exist in the codebase**,
+**relay events removed** (championship now has 20 events), **invoice-style
+receipt with auto-downloading PDF**, **admin account deletion (disabled
+accounts only, per-row + bulk)**, **Razorpay Test Mode keys set and a real
+test order created end-to-end**, **registration form collects an optional
+email**, **Razorpay checkout is prefilled with name/email/mobile**.
 
 Open (see `TODO.md`):
-1. Configure Razorpay (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`,
-   `RAZORPAY_WEBHOOK_SECRET`) → test real payment → bib stays the same,
-   status flips to `confirmed`.
-2. Email provider for confirmation emails (best-effort today).
-3. Production security review; credential rotation.
-4. Any championship edited before the max-events fix may still have a blank
+1. **Enable UPI in the Razorpay dashboard** (Account & Settings → Payment
+   Methods). UPI is supported by checkout.js and the app does not restrict
+   methods, so a missing UPI tile is a dashboard setting, not a code problem.
+2. Finish a test payment (card `4111 1111 1111 1111`, OTP `1234`, or UPI
+   `success@razorpay`) → confirm `payment_status = paid`, `status = confirmed`,
+   receipt auto-download, and the payment visible in Admin → Payments.
+3. Configure the webhook (`RAZORPAY_WEBHOOK_SECRET`) so a payment survives the
+   athlete closing the browser.
+4. Set `organizer_name` in config — the receipt letterhead currently falls back
+   to "Champion organiser".
+5. Email provider for confirmation emails (best-effort today; `RESEND_API_KEY`).
+6. Swap the Test Mode keys for the **client's own** Razorpay account
+   (their email, KYC and bank) before taking real money — Live Mode needs the
+   client's account, not the developer's.
+7. Remove the Razorpay test secrets once testing is finished.
+8. Production security review; credential rotation (see `TODO.md`).
+9. Any championship edited before the max-events fix may still have a blank
    `max_events_per_athlete` — check Admin → Championships before opening.
-5. `payments_configured` is still `false` on the live meet; registration is
-   open (`registration_opens_at` in the past).
 
 Testing checklist: register at `/register` → bib appears immediately →
 shows in Admin → Athletes under the right championship chip → Export XLSX
-matches the `athlete-bulk-import-template` column layout.
+matches the `athlete-bulk-import-template` column layout → pay → receipt
+downloads once and shows Men/Women, the Mobile column and the invoice layout.

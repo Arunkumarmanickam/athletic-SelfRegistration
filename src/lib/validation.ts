@@ -37,6 +37,8 @@ export interface RegistrationFormValues {
   event_ids: string[]
   mobile_country_code: string
   mobile_number: string
+  /** Optional. Used for the payment receipt and the Razorpay checkout. */
+  email: string
   accept_terms: boolean
 }
 
@@ -63,6 +65,10 @@ export const registrationFormSchema = z.object({
     .min(6, 'Please enter a valid mobile number')
     .max(15, 'Please enter a valid mobile number')
     .regex(/^\d+$/, 'Mobile number should contain digits only'),
+  email: z
+    .union([z.literal(''), z.string().trim().email('Please enter a valid email address')])
+    .optional()
+    .transform((value) => value ?? ''),
   accept_terms: z.boolean(),
 })
 

@@ -171,6 +171,14 @@ Deno.serve(
       is_new_profile: result.is_new_profile === true,
     }
 
+    // Prefill the Razorpay checkout with what the athlete just typed, so the
+    // gateway does not ask for the same name/email/phone again.
+    const prefill = {
+      name: personal.full_name ?? '',
+      email: personal.email ?? '',
+      contact: personal.mobile_e164 ?? '',
+    }
+
     // Honest behaviour: no order is created before the mandatory Aadhaar
     // upload is recorded. payment-retry creates the order afterwards and
     // refuses until aadhaar_verified_at is set.
@@ -194,6 +202,7 @@ Deno.serve(
       ok: true,
       registration: registrationPayload,
       payment: { configured: false, aadhaar_required: true },
+      prefill,
       athlete_session_token: session?.token ?? null,
       athlete_session_expires_at: session?.expiresAt ?? null,
     })

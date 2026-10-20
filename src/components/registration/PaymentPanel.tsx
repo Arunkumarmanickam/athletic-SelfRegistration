@@ -51,6 +51,10 @@ export function PaymentPanel({
   const [currentOrder, setCurrentOrder] = useState<PaymentOrder | null>(order ?? null)
   const [stage, setStage] = useState<Stage>('idle')
   const [error, setError] = useState<string | null>(null)
+  // Name/email/phone from the registration. A retry refreshes them from the
+  // server so the checkout is prefilled even after a page reload.
+  const [prefillValues, setPrefillValues] = useState(prefill)
+  const checkoutPrefill = prefillValues ?? prefill
 
   const displayAmount = currentOrder?.amount_paise ?? amountPaise
   const displayCurrency = currentOrder?.currency ?? currency
@@ -96,7 +100,7 @@ export function PaymentPanel({
       name: organizerName?.trim() || championshipName,
       description: `Registration ${registrationCode}`,
       order_id: paymentOrder.razorpay_order_id,
-      prefill,
+      prefill: checkoutPrefill,
       notes: { registration_code: registrationCode },
       theme: { color: '#f97316' },
       handler: (response) => {
@@ -119,6 +123,7 @@ export function PaymentPanel({
     setError(null)
     try {
       const result = await retryPayment({ registrationCode, mobileE164 })
+      if (result.prefill) setPrefillValues(result.prefill)
       if (!result.payment.configured) {
         setStage('failed')
         setError('Online payment is not available right now. Please contact the organiser.')

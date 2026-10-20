@@ -39,6 +39,7 @@ const EMPTY: RegistrationFormValues = {
   event_ids: [],
   mobile_country_code: '+91',
   mobile_number: '',
+  email: '',
   accept_terms: false,
 }
 
@@ -97,6 +98,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
   const reprId = useFieldId('representing')
   const countryId = useFieldId('mobile_country_code')
   const mobileId = useFieldId('mobile_number')
+  const emailId = useFieldId('email')
   const aadhaarId = useFieldId('aadhaar')
 
   const [values, setValues] = useState<RegistrationFormValues>(EMPTY)
@@ -131,6 +133,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
         event_ids: part.event_ids ?? [],
         mobile_country_code: p.mobile_country_code || '+91',
         mobile_number: p.mobile_number,
+        email: p.email ?? '',
         accept_terms: false,
       })
     }
@@ -147,7 +150,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
         gender: values.gender,
         mobile_country_code: values.mobile_country_code,
         mobile_number: values.mobile_number,
-        email: '',
+        email: values.email,
         ...locationFields(values.representing),
         address: '',
         representing: values.representing,
@@ -246,7 +249,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
           mobile_country_code: values.mobile_country_code,
           mobile_number: values.mobile_number,
           mobile_e164: mobileE164,
-          email: '',
+          email: values.email.trim(),
           ...locationFields(values.representing),
           address: '',
           representing: values.representing,
@@ -409,6 +412,13 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
                   mobileE164={mobileE164}
                   amountPaise={paymentWithOrder.amount_paise}
                   currency={paymentWithOrder.currency}
+                  prefill={
+                    result.prefill ?? {
+                      name: values.full_name,
+                      email: values.email,
+                      contact: mobileE164,
+                    }
+                  }
                   order={{
                     razorpay_order_id: paymentWithOrder.razorpay_order_id,
                     razorpay_key_id: paymentWithOrder.razorpay_key_id,
@@ -425,6 +435,11 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
                   mobileE164={mobileE164}
                   amountPaise={registration.fee_paise}
                   currency={registration.currency}
+                  prefill={{
+                    name: values.full_name,
+                    email: values.email,
+                    contact: mobileE164,
+                  }}
                   onSuccess={handlePaymentSuccess}
                 />
               ) : (
@@ -685,6 +700,24 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
               />
             </Field>
           </div>
+
+          <Field
+            label="Email"
+            htmlFor={emailId}
+            error={errors.email}
+            hint="Optional. Used on your payment receipt and the Razorpay checkout."
+          >
+            <Input
+              id={emailId}
+              name="email"
+              type="email"
+              autoComplete="email"
+              value={values.email}
+              invalid={Boolean(errors.email)}
+              onChange={(event) => setValues((current) => ({ ...current, email: event.target.value }))}
+              placeholder="name@example.com"
+            />
+          </Field>
 
           <FeeSummary championship={championship} category={eligibleCategory} events={selectedEvents} />
 

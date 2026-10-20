@@ -202,6 +202,8 @@ export interface RegisterResponse {
         currency: string
       }
     | { configured: false; aadhaar_required: true }
+  /** Name/email/phone to prefill in the Razorpay checkout, from the registration. */
+  prefill?: { name?: string; email?: string; contact?: string }
   athlete_session_token: string | null
   athlete_session_expires_at: string | null
   message?: string
