@@ -399,7 +399,8 @@ Vercel env vars fixed, **Athlete ID + bib issued only after payment via
 Athletes tab + template-format XLSX export**, **Mobile column in the athletes
 export (E.164 text, no stray apostrophe)**, **Men/Women wording everywhere
 (UI + exports) — the strings "Male"/"Female" do not exist in the codebase**,
-**relay events removed** (championship now has 20 events), **invoice-style
+**relay events removed** (they were not part of the athletics programme),
+**invoice-style
 receipt with auto-downloading PDF**, **admin account deletion (disabled
 accounts only, per-row + bulk)**, **Razorpay Test Mode keys set and a real
 test order created end-to-end**, **registration form collects an optional
