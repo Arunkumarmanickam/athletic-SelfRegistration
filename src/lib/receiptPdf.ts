@@ -116,7 +116,7 @@ export async function buildReceiptPdf(
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7.5)
   doc.setTextColor(...COLORS.orange)
-  doc.setCharSpace(0.7)
+  doc.setCharSpace(0.45)
   doc.text('PAYMENT RECEIPT / INVOICE', RIGHT, 15, { align: 'right' })
   doc.setCharSpace(0)
 
@@ -277,20 +277,26 @@ export async function buildReceiptPdf(
   doc.setFont('helvetica', 'italic')
   doc.setFontSize(7)
   doc.setTextColor(...COLORS.muted)
-  doc.text(text(`Amount in words: ${amountInWords(registration.fee_paise)}`, 100), RIGHT, totalsY + 15, {
-    align: 'right',
+  const wordsLines = text(`Amount in words: ${amountInWords(registration.fee_paise)}`, 100)
+  wordsLines.forEach((line, index) => {
+    doc.text(line, RIGHT, totalsY + 15 + index * 3.2, { align: 'right' })
   })
+  const wordsHeight = (wordsLines.length - 1) * 3.2
 
   // Payment record -------------------------------------------------------------
-  const boxY = totalsY + 20
-  const boxHeight = 38
-  doc.setDrawColor(...COLORS.line)
-  doc.setLineWidth(0.3)
-  doc.roundedRect(M, boxY, WIDTH, boxHeight, 1.5, 1.5, 'S')
-
-  label('Payment record', M + 4, boxY + 5.5)
-
-  const paymentRows: [string, string][] = capturedPayment
+  // The box height is measured from the content rather than fixed, so long
+  // values (an order reference, a long email) can use their full width without
+  // overlapping the row beneath.
+  const columnWidth = (WIDTH - 8) / 2
+  const valueWidth = columnWidth - 2
+  const paymentCell = (field: string, value: string) => {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    const wrapped = text(value, valueWidth)
+    return { field, lines: wrapped.length ? wrapped : ['—'] }
+  }
+  const cellHeight = 3.6 + 3.2 // value line + gap after the label line
+  const paymentCells: [string, string][] = capturedPayment
     ? [
         ['Amount', money(capturedPayment.amount_paise, capturedPayment.currency)],
         ['Status', titleCase(capturedPayment.status)],
@@ -303,25 +309,47 @@ export async function buildReceiptPdf(
       ]
     : [['Payment', 'No payment record attached']]
 
-  const columnWidth = (WIDTH - 8) / 2
-  paymentRows.forEach(([field, value], index) => {
-    const column = index % 2
+  // Pre-measure every cell so the box can be sized to fit, and each grid row can
+  // take the height of its tallest cell.
+  const measured = paymentCells.map(([field, value]) => paymentCell(field, value))
+  const gridRows: { column: number; cell: (typeof measured)[number] }[][] = []
+  measured.forEach((cell, index) => {
     const row = Math.floor(index / 2)
-    const x = M + 4 + column * (columnWidth + 4)
-    const y = boxY + 11 + row * 7
+    gridRows[row] = gridRows[row] ?? []
+    gridRows[row].push({ column: index % 2, cell })
+  })
+  const rowHeights = gridRows.map(
+    (row) => Math.max(...row.map(({ cell }) => cell.lines.length * cellHeight)),
+  )
+  const paymentGridHeight = rowHeights.reduce((sum, height) => sum + height, 0) + 2.5
 
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(6.2)
-    doc.setTextColor(...COLORS.faint)
-    doc.setCharSpace(0.3)
-    doc.text(field.toUpperCase(), x, y)
-    doc.setCharSpace(0)
+  const boxY = totalsY + 20 + wordsHeight
+  const boxHeight = 11 + paymentGridHeight + 4
+  doc.setDrawColor(...COLORS.line)
+  doc.setLineWidth(0.3)
+  doc.roundedRect(M, boxY, WIDTH, boxHeight, 1.5, 1.5, 'S')
 
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.setTextColor(...COLORS.body)
-    const valueLines = text(value, columnWidth)
-    doc.text(valueLines[0] ?? '—', x, y + 3.6)
+  label('Payment record', M + 4, boxY + 5.5)
+
+  const columnWidthPadded = columnWidth + 4
+  let rowY = boxY + 11
+  gridRows.forEach((row, rowIndex) => {
+    row.forEach(({ column, cell }) => {
+      const x = M + 4 + column * columnWidthPadded
+
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(6.2)
+      doc.setTextColor(...COLORS.faint)
+      doc.setCharSpace(0.3)
+      doc.text(cell.field.toUpperCase(), x, rowY)
+      doc.setCharSpace(0)
+
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      doc.setTextColor(...COLORS.body)
+      doc.text(cell.lines, x, rowY + 3.6)
+    })
+    rowY += rowHeights[rowIndex]
   })
 
   // Footer ---------------------------------------------------------------------
@@ -342,17 +370,23 @@ export async function buildReceiptPdf(
     footerY + 5,
   )
 
+  // The signature block is centred on a 45 mm rule. Both the rule and the text
+  // share the same centre so they cannot drift apart.
+  const signWidth = 45
+  const signCentre = RIGHT - signWidth / 2
   doc.setDrawColor(...COLORS.faint)
-  doc.line(RIGHT - 45, footerY + 13, RIGHT, footerY + 13)
+  doc.setLineWidth(0.3)
+  doc.line(signCentre - signWidth / 2, footerY + 13, signCentre + signWidth / 2, footerY + 13)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(6.2)
   doc.setTextColor(...COLORS.muted)
-  doc.setCharSpace(0.35)
-  doc.text('AUTHORISED SIGNATORY', RIGHT - 22.5, footerY + 17, { align: 'center' })
+  doc.setCharSpace(0.3)
+  doc.text('AUTHORISED SIGNATORY', signCentre, footerY + 17, { align: 'center' })
   doc.setCharSpace(0)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
-  doc.text(organizer, RIGHT - 22.5, footerY + 20.5, { align: 'center', maxWidth: 45 })
+  const orgSignLines = text(`For ${organizer}`, signWidth)
+  doc.text(orgSignLines, signCentre, footerY + 20.5, { align: 'center' })
 
   return doc
 }

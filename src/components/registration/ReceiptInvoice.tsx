@@ -68,8 +68,8 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
       <div className="h-1.5 bg-orange-500" />
       <div className="px-6 py-4 sm:px-8 sm:py-5">
         {/* Organiser + receipt identity */}
-        <header className="flex flex-wrap items-start justify-between gap-6">
-          <div className="flex items-start gap-3">
+        <header className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
+          <div className="flex min-w-0 items-start gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-sm font-bold tracking-wide text-orange-400">
               {organizer
                 .split(/\s+/)
@@ -77,28 +77,28 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
                 .map((word) => word[0]?.toUpperCase() ?? '')
                 .join('') || 'AR'}
             </span>
-            <div>
-              <p className="text-lg font-bold leading-tight text-slate-900">{organizer}</p>
+            <div className="min-w-0">
+              <p className="text-lg font-bold leading-tight break-words text-slate-900">{organizer}</p>
               {site?.address && (
-                <p className="mt-1 max-w-xs text-xs leading-relaxed text-slate-500">{site.address}</p>
+                <p className="mt-1 max-w-xs text-xs leading-relaxed break-words text-slate-500">{site.address}</p>
               )}
-              {contact && <p className="mt-1 text-xs text-slate-500">{contact}</p>}
+              {contact && <p className="mt-1 text-xs break-words text-slate-500">{contact}</p>}
             </div>
           </div>
 
-          <div className="min-w-[190px] text-right">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-orange-600">
+          <div className="min-w-0 text-left sm:max-w-[52%] sm:text-right">
+            <p className="text-[9px] font-semibold uppercase leading-tight tracking-[0.12em] break-words text-orange-600">
               Payment receipt / invoice
             </p>
-            <p className="mt-1.5 font-mono text-xl font-bold tracking-tight text-slate-900">
+            <p className="mt-1.5 font-mono text-xl font-bold tracking-tight break-all text-slate-900">
               {registration.registration_code}
             </p>
-            <p className="mt-1 text-xs text-slate-500">Issued {formatDateTime(issuedAt)}</p>
-            <div className="mt-2 flex justify-end gap-1.5">
-              <span className="rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+            <p className="mt-1 text-xs break-words text-slate-500">Issued {formatDateTime(issuedAt)}</p>
+            <div className="mt-2 flex flex-wrap gap-1.5 sm:justify-end">
+              <span className="rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide whitespace-nowrap text-emerald-700">
                 {paid ? 'Paid' : titleCase(registration.payment_status)}
               </span>
-              <span className="rounded border border-slate-300 bg-slate-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+              <span className="rounded border border-slate-300 bg-slate-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide whitespace-nowrap text-slate-600">
                 {titleCase(registration.status)}
               </span>
             </div>
@@ -247,20 +247,20 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
         </section>
 
         {/* Footer */}
-        <footer className="mt-3 flex flex-wrap items-end justify-between gap-6 border-t border-slate-200 pt-3">
+        <footer className="mt-4 flex flex-col gap-6 border-t border-slate-200 pt-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
           <div className="max-w-sm">
-            <p className="text-xs leading-relaxed text-slate-500">
+            <p className="text-xs leading-relaxed break-words text-slate-500">
               This is a computer-generated receipt for a payment verified by our server with the payment gateway. Please
               carry the bib number above on event day. For any correction, contact the organiser quoting the receipt
               number.
             </p>
           </div>
-          <div className="text-center">
-            <div className="mb-1 h-6 w-36 border-b border-slate-300" />
+          <div className="shrink-0 text-center">
+            <div className="mx-auto mb-1 h-8 w-36 border-b border-slate-300" />
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
               Authorised signatory
             </p>
-            <p className="text-xs text-slate-500">{organizer}</p>
+            <p className="mt-0.5 text-[11px] text-slate-500">For {organizer}</p>
           </div>
         </footer>
       </div>
