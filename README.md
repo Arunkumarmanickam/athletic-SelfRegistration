@@ -16,6 +16,11 @@ categories, events, athletes, payments and admin accounts from `/admin`.
 
 ## 0. Setting up on a new machine (start here)
 
+> **If you are an AI picking this up: ask the user for their TODO list before
+> doing anything else.** The open work is tracked in `TODO.md` and at the end of
+> this file, but the user usually has items that are not written down yet. Ask
+> first, then read.
+
 This project lives entirely in the cloud — **GitHub, Supabase and Vercel** — so
 a new machine loses no code, data or deployment history. **The only thing that
 does not travel is any chat history**, so everything needed to work on this
@@ -135,7 +140,7 @@ athlete-registration-portal/
 - **Redirect payments (net banking / bank UPI apps)**: these do **not** return
   through checkout.js's `handler` — the browser goes to the bank and comes back
   via Razorpay's `callback_url`, which **must accept a POST**. A static Vercel
-  site answers POST with **405**, so `Callback_url` points at the
+  site answers POST with **405**, so `callback_url` points at the
   **`payment-callback` Edge Function**: it verifies the signature server-side,
   promotes the draft, mints a single-use receipt token and **303-redirects** the
   browser to `/registration/success?receipt=<token>`. `receipt-token` exchanges
@@ -157,10 +162,10 @@ athlete-registration-portal/
   (`src/lib/receiptPdf.ts`, jsPDF, loaded lazily) and **downloaded automatically
   once per registration** — tracked per browser tab in `sessionStorage`, so a
   refresh never downloads twice and the athlete keeps a copy without touching
-  the print dialog. The PDF is one A4 page, 14 mm side margins, with the
-  organiser name from `public-config` (the download waits briefly for config so
-  the letterhead is not blank). The on-screen invoice stays printable and there
-  is a manual "Download PDF" button. Nothing is stored server-side.
+  the print dialog. The PDF is A4 with 14 mm side margins, and the organiser
+  name comes from `public-config` (the download waits briefly for config so the
+  letterhead is not blank). The on-screen invoice stays printable and there is a
+  manual "Download PDF" button. Nothing is stored server-side.
 - **Identity**: `athlete_profiles` are permanent (Athlete ID `ATH-2026-######`)
   and are created **only on payment**, by `promote_draft`. Duplicate protection
   keys on mobile + date of birth, so a returning athlete reuses their profile
@@ -442,20 +447,26 @@ Done: registration portal, Aadhaar-verified DOB, event caps (cap enforced
 in UI **and** in `create_registration_draft`), geography-aware representing,
 championship defaults, admin password chosen at creation, dialog focus fix,
 Vercel env vars fixed, **Athlete ID + bib issued only after payment via
-`promote_draft` (drafts carry unpaid submissions and are purged)**, **championship-wise
-Athletes tab + template-format XLSX export**, **Mobile column in the athletes
-export (E.164 text, no stray apostrophe)**, **Men/Women wording everywhere
-(UI + exports) — the strings "Male"/"Female" do not exist in the codebase**,
+`promote_draft` (drafts carry unpaid submissions and are purged)**,
+**championship-wise Athletes tab + template-format XLSX export**, **Mobile
+column in the athletes export (E.164 text, no stray apostrophe)**, **Men/Women
+wording everywhere (UI + exports) — the strings "Male"/"Female" do not exist in
+the codebase**,
 **relay events removed** (they were not part of the athletics programme),
-**invoice-style
-receipt with auto-downloading PDF**, **admin account deletion (disabled
-accounts only, per-row + bulk)**, **Razorpay Test Mode keys set and a real
-test order created end-to-end**, **registration form collects an optional
+**invoice-style receipt with auto-downloading PDF**, **admin account deletion
+(disabled accounts only, per-row + bulk)**, **Razorpay Test Mode keys set and a
+real test order created end-to-end**, **registration form collects an optional
 email**, **Razorpay checkout is prefilled with name/email/mobile**,
 **redirect-based payments (net banking / bank UPI apps) return via Razorpay's
 POST to `payment-callback`, are verified server-side and land on the receipt**.
 
 Open (see `TODO.md`):
+
+> **Ask the user for their current TODO list before starting work.** This list
+> and `TODO.md` are the written record, but the user normally has priorities,
+> new requests and context that are not written down. Ask first; do not assume
+> this list is complete.
+
 1. **Enable UPI in the Razorpay dashboard** (Account & Settings → Payment
    Methods). UPI is supported by checkout.js and the app does not restrict
    methods, so a missing UPI tile is a dashboard setting, not a code problem.
