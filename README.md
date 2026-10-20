@@ -3,11 +3,13 @@
 Live site: **https://www.cdmaa.in** (Vercel) — backend: **Supabase** project
 `urlkpbvvtossdzsjcmie` (project ref is embedded in `.env`).
 
-A registration portal for a masters athletics championship. Athletes register
-themselves (single-page form), get a permanent Athlete ID and an immediate bib
-number, upload an Aadhaar front image for DOB verification (image is validated
-and then **discarded** — only `aadhaar_verified_at` is stored), and pay a fee
-through Razorpay once it is configured. Administrators manage championships,
+A registration portal for a masters athletics championship. Athletes fill a
+single-page form and upload an Aadhaar front image for DOB verification (image
+is validated and then **discarded** — only a verified timestamp is kept). The
+submission is held as a **draft**; the permanent Athlete ID and the bib number
+are issued **only when the payment is captured**, so anyone who abandons the
+payment gateway leaves nothing behind but a draft that is purged. Fees are paid
+through Razorpay once configured. Administrators manage championships,
 categories, events, athletes, payments and admin accounts from `/admin`.
 
 ---
@@ -31,15 +33,22 @@ athlete-registration-portal/
 │  ├─ pages/admin/         Admin dashboard pages (see §5)
 │  ├─ components/
 │  │  ├─ registration/     RegistrationForm (the whole single-page flow),
-│  │  │                    PaymentPanel (Razorpay checkout), ReceiptInvoice (bill)
+│  │  │                    PaymentPanel (Razorpay checkout), PaymentReturnGate
+│  │  │                    (redirect-return recovery), ReceiptInvoice (bill)
 │  │  ├─ admin/            ExportBar, PageHeader
 │  │  └─ ui/               Design system (Dialog, Table, SearchCombobox, …)
 │  ├─ lib/                 api.ts (all API calls), types.ts, geo.ts, format.ts,
-│  │                       receiptPdf.ts (A4 PDF receipt), amountWords.ts
+│  │                       paymentReturn.ts (redirect-return handling),
+│  │                       receipt.ts + receiptPdf.ts (receipt + A4 PDF),
+│  │                       amountWords.ts
 │  └─ context/             ConfigContext, AdminAuthContext, ToastContext
 ├─ supabase/
 │  ├─ functions/           Deno Edge Functions (see §4)
 │  └─ migrations/          SQL migrations, applied in filename order
+│                          (…20261020000003_registration_drafts.sql adds the
+│                          draft + payment_orders tables;
+│                          …20261020000004_draft_functions.sql adds
+│                          create_registration_draft / promote_draft)
 ├─ TODO.md                 Open work: payments, email, security, credential rotation
 └─ README.md               This file
 ```
@@ -47,13 +56,44 @@ athlete-registration-portal/
 ## 3. How the pieces fit together
 
 - **Public flow** (`/register`): `public-config` → categories/events/limits →
-  optional athlete verification (mobile + DOB, no OTP anywhere) →
-  `create_registration` RPC (one Postgres function does ALL validation:
-  window open, category, age, gender, event cap, fees, duplicate protection).
-  The RPC returns the reference code `R######` **and the bib number — bibs are
-  issued at registration time, before payment** (migration
-  `20261019000001_bib_at_registration.sql`). Payment is only needed to move
-  `payment_status` to `paid` / `status` to `confirmed`.
+  `create_registration_draft` RPC (one Postgres function does ALL validation:
+  window open, level-aware required fields, category, age, gender, event cap,
+  fees, duplicate protection). It writes **one `registration_drafts` row** and
+  returns a bearer **`draft_token`**.
+- **Nothing is issued before payment** (migration
+  `20261020000003_registration_drafts.sql` +
+  `20261020000004_draft_functions.sql`). A draft has no
+  `athlete_profile_id`, so there is **no athlete profile, no Athlete ID
+  (`ATH-…`), no bib number and no `registrations` row** until the money is
+  captured. Someone who fills the form and walks away at the payment gate
+  leaves a single draft row, removed by `prune_registration_drafts()` once it
+  expires (24 h, unless a live Razorpay order is still open).
+- **Promotion**: on capture, `promote_draft(draft_id)` does everything in one
+  transaction — reuse the existing profile when the same mobile + date of birth
+  is already known (otherwise create it, which is where the **Athlete ID** is
+  minted), create the confirmed registration and its events, assign the **bib**,
+  carry the orders over, and delete the draft. It is **idempotent**: promoting
+  again returns the same registration, so a webhook plus a browser callback
+  cannot issue two bibs or two Athlete IDs.
+- **Payments**: Razorpay Test Mode is live (`payments_configured: true`, base
+  fee ₹500). `register` writes only the draft; `payment-retry` creates the
+  Razorpay order **against the draft** (recorded in `payment_orders`, since
+  `payments.registration_id` requires a real registration) once the draft has an
+  Aadhaar upload. `PaymentPanel` opens checkout with `prefill` from the draft
+  and **no method restriction** — every method enabled on the account appears.
+  If UPI is missing, enable it in the Razorpay dashboard (Account & Settings →
+  Payment Methods); it is not a code setting.
+- **Redirect payments (net banking / bank UPI apps)**: these do **not** return
+  through checkout.js's `handler` — the browser goes to the bank and comes back
+  via Razorpay's `callback_url`, which **must accept a POST**. A static Vercel
+  site answers POST with **405**, so `Callback_url` points at the
+  **`payment-callback` Edge Function**: it verifies the signature server-side,
+  promotes the draft, mints a single-use receipt token and **303-redirects** the
+  browser to `/registration/success?receipt=<token>`. `receipt-token` exchanges
+  that token once for the receipt (only its hash is stored, 30-minute TTL).
+  Card and in-app UPI still use the checkout.js handler. `payment-callback` and
+  `receipt-token` are deployed with `--no-verify-jwt`, because Razorpay POSTs
+  without a Supabase JWT.
 - **Checkout prefill**: the form collects name, date of birth, gender, mobile
   and an **optional email** (used on the receipt and in the Razorpay checkout).
   Both `register` and `payment-retry` return a `prefill` block
@@ -72,31 +112,11 @@ athlete-registration-portal/
   organiser name from `public-config` (the download waits briefly for config so
   the letterhead is not blank). The on-screen invoice stays printable and there
   is a manual "Download PDF" button. Nothing is stored server-side.
-- **Payments**: Razorpay Test Mode is live (`payments_configured: true`,
-  base fee ₹500). `register` creates the registration **without** an order;
-  `payment-retry` creates the order once `aadhaar_verified_at` is set. The
-  checkout is opened by `PaymentPanel` with `prefill` from the registration and
-  **no method restriction** — every method enabled on the account (including
-  UPI) appears. If UPI is missing, enable it in the Razorpay dashboard
-  (Account & Settings → Payment Methods); it is not a code setting. The webhook
-  is not configured yet, so a payment abandoned mid-redirect is only captured
-  when the athlete returns to the success page.
-- **Redirect payments (net banking / bank UPI apps)**: these do **not** return
-  through checkout.js's `handler` — the browser goes to the bank and comes back
-  with the result in the URL. `PaymentPanel` therefore sets
-  `callback_url: <origin>/status` + `redirect: true`, and
-  `PaymentReturnGate` (wrapping the public routes in `App.tsx`) detects
-  `razorpay_payment_id`/`razorpay_order_id`/`razorpay_signature` on landing,
-  calls the same `verify-payment` function, stores the confirmation and routes
-  to `/registration/success` (receipt + auto-download). Query parameters are
-  stripped afterwards so a refresh cannot replay verification. A bank failure
-  return (`error[code]` / `error[description]`) is shown on `/status`. Card and
-  in-app UPI keep using the `handler` — both paths end in the same verification.
-  Logic lives in `src/lib/paymentReturn.ts`.
-- **Identity**: `athlete_profiles` are permanent (Athlete ID `ATH-2026-######`).
-  Duplicate protection keys on mobile + date of birth. An athlete session
-  token (15 days) lets an athlete re-enter and edit before paying. There is
-  no OTP/SMS anywhere by design.
+- **Identity**: `athlete_profiles` are permanent (Athlete ID `ATH-2026-######`)
+  and are created **only on payment**, by `promote_draft`. Duplicate protection
+  keys on mobile + date of birth, so a returning athlete reuses their profile
+  and Athlete ID rather than getting a second one. There is no OTP/SMS anywhere
+  by design.
 - **Geography**: `championships.nation` + `championships.state_name`.
   State meet = `nation='India'` + a `state_name`; national meet = a nation +
   `state_name = null`. On registration, a state meet asks for a district of
@@ -108,28 +128,31 @@ athlete-registration-portal/
   per championship. The defaults themselves are changed only by migration.
 - **Bib format**: `<M|W><min_age><seq>` e.g. `M4501`, `W35101` — generated by
   `generate_bib_number()` using race-safe per-scope counters (`id_sequences`),
-  unique per championship. `assign_bib()` is idempotent and is called by
-  `create_registration` (immediately) and by payment capture (no-op once set).
+  unique per championship. `assign_bib()` is idempotent and is called **only**
+  from `promote_draft`, i.e. only once payment is captured.
 
 ## 4. Edge Functions (`supabase/functions/`)
 
 | Function | Purpose |
 |---|---|
 | `public-config` | Public championship + feature config (CORS-restricted to cdmaa.in + localhost); returns `payments_configured` |
-| `register` | Creates a registration via the `create_registration` RPC; returns a checkout `prefill` block |
+| `register` | Validates everything and writes one `registration_drafts` row via `create_registration_draft`; returns a `draft_token` and a checkout `prefill` block. Issues no Athlete ID, no bib and no registration |
 | `verify-athlete` / `retrieve-profile` | Session-based identity (no OTP) |
-| `upload-document` | Validates the Aadhaar front image, records `aadhaar_verified_at`, discards file |
-| `verify-payment` / `payment-webhook` | Razorpay verification + webhook (needs secrets) |
-| `payment-retry` | Creates the Razorpay order after Aadhaar upload; returns the `prefill` and current fee |
+| `upload-document` | `purpose=aadhaar` validates the image against a **draft** (records the timestamp on the draft), then discards the file; `purpose=photo` needs an athlete session |
+| `verify-payment` / `payment-webhook` | Razorpay verification + webhook (needs secrets); both promote the draft on capture |
+| `payment-callback` | Receives Razorpay's **POST** for redirect payments (a static site would answer 405), verifies + promotes, then 303-redirects to the receipt |
+| `receipt-token` | Exchanges a single-use receipt token for the confirmation payload |
+| `payment-retry` | Creates the Razorpay order **against the draft** (in `payment_orders`) after the Aadhaar upload; returns the `prefill` |
 | `admin-*` | `admin-me`, `admin-stats`, `admin-registrations`, `admin-athletes`, `admin-payments`, `admin-championships`, `admin-users`, `admin-audit`, `admin-export`, `admin-bootstrap` |
 
 Shared helpers live in `_shared/`: `helpers.ts` (**`str()` returns `''` for
 non-strings — never use it to test blankness of numeric fields; check
 null/undefined/empty-string explicitly**), `admin-auth.ts` (`requireAdmin`),
 `admin-queries.ts` (list/export share one query builder so exports always
-match on-screen filters), `cors.ts` (`ALLOWED_ORIGINS`), `payments.ts`
-(`markPaymentCaptured` — amount check, status transitions, `assign_bib`,
-confirmation email).
+match on-screen filters), `cors.ts` (`ALLOWED_ORIGINS`), `draft.ts`
+(pre-payment draft tokens: `resolveDraft` / `newDraftToken`), `payments.ts`
+(`markPaymentCaptured` — amount check, `promote_draft`, order/payment
+transitions, confirmation email).
 
 **Excel export** (`admin-export`): `kind` = `registrations` | `payments` |
 `athletes`. The `athletes` kind writes the organiser's template layout with a
@@ -213,7 +236,12 @@ token that was ever pasted into a chat or issue.
 `EVENT_INVALID`, `EVENT_GENDER_NOT_ELIGIBLE`, `EVENT_CATEGORY_NOT_ELIGIBLE`,
 `TOO_MANY_EVENTS`, `AADHAAR_REQUIRED`, `PAYMENTS_NOT_CONFIGURED`,
 `NO_VERIFIED_PAYMENT`, `NOT_ALLOWED`, `ALREADY_EXISTS`, `NOT_INACTIVE`,
-`LAST_OWNER`, `NOT_FOUND`.
+`LAST_OWNER`, `NOT_FOUND`, `DRAFT_NOT_FOUND`, `MISSING_TOKEN`,
+`PROMOTE_FAILED`, `PAYMENT_NOT_CAPTURABLE`.
+
+There is **no pay-later path**: an entry only exists after payment, so `/status`
+looks up confirmed registrations only and advises anyone who abandoned the
+payment gate to register again (nothing was saved, so nothing duplicates).
 
 Payment verification (`verify-payment`) additionally returns:
 `PAYMENT_NOT_FOUND`, `INVALID_SIGNATURE`, `PAYMENT_MISMATCH`,
@@ -223,9 +251,10 @@ payment that fails any of these shows the message on `/status`.
 ## 9. Current state & next steps
 
 Done: registration portal, Aadhaar-verified DOB, event caps (cap enforced
-in UI **and** in `create_registration`), geography-aware representing,
+in UI **and** in `create_registration_draft`), geography-aware representing,
 championship defaults, admin password chosen at creation, dialog focus fix,
-Vercel env vars fixed, **bibs issued at registration**, **championship-wise
+Vercel env vars fixed, **Athlete ID + bib issued only after payment via
+`promote_draft` (drafts carry unpaid submissions and are purged)**, **championship-wise
 Athletes tab + template-format XLSX export**, **Mobile column in the athletes
 export (E.164 text, no stray apostrophe)**, **Men/Women wording everywhere
 (UI + exports) — the strings "Male"/"Female" do not exist in the codebase**,
@@ -234,16 +263,18 @@ receipt with auto-downloading PDF**, **admin account deletion (disabled
 accounts only, per-row + bulk)**, **Razorpay Test Mode keys set and a real
 test order created end-to-end**, **registration form collects an optional
 email**, **Razorpay checkout is prefilled with name/email/mobile**,
-**redirect-based payments (net banking) are recovered from the return URL and
-land on the receipt**.
+**redirect-based payments (net banking / bank UPI apps) return via Razorpay's
+POST to `payment-callback`, are verified server-side and land on the receipt**.
 
 Open (see `TODO.md`):
 1. **Enable UPI in the Razorpay dashboard** (Account & Settings → Payment
    Methods). UPI is supported by checkout.js and the app does not restrict
    methods, so a missing UPI tile is a dashboard setting, not a code problem.
 2. Finish a test payment (card `4111 1111 1111 1111`, OTP `1234`, or UPI
-   `success@razorpay`) → confirm `payment_status = paid`, `status = confirmed`,
-   receipt auto-download, and the payment visible in Admin → Payments.
+   `success@razorpay`) → confirm the **bib and Athlete ID are issued only now**,
+   `payment_status = paid`, `status = confirmed`, receipt auto-download, and the
+   payment visible in Admin → Payments. **UPI is unavailable on the Test Mode
+   account**, so it must be tested on the client's Live account.
 3. Configure the webhook (`RAZORPAY_WEBHOOK_SECRET`) so a payment survives the
    athlete closing the browser.
 4. Set `organizer_name` in config — the receipt letterhead currently falls back
@@ -257,7 +288,9 @@ Open (see `TODO.md`):
 9. Any championship edited before the max-events fix may still have a blank
    `max_events_per_athlete` — check Admin → Championships before opening.
 
-Testing checklist: register at `/register` → bib appears immediately →
-shows in Admin → Athletes under the right championship chip → Export XLSX
-matches the `athlete-bulk-import-template` column layout → pay → receipt
-downloads once and shows Men/Women, the Mobile column and the invoice layout.
+Testing checklist: register at `/register` → **no bib and no Athlete ID yet**
+(the panel says "Issued after payment") → pay → receipt downloads once and
+shows Men/Women, the Mobile column and the invoice layout → the bib and Athlete
+ID now appear in Admin → Athletes under the right championship chip → Export
+XLSX matches the `athlete-bulk-import-template` column layout. Abandoning at the
+payment gate must leave **no** profile, bib or registration — only a draft.
