@@ -10,8 +10,8 @@
 // succeeded.
 import { handler } from '../_shared/handler.ts'
 import { serviceClient } from '../_shared/supabase.ts'
-import { cashfreePaidPayment, fetchCashfreeOrder } from '../_shared/cashfree.ts'
-import { markPaymentCaptured, notifyConfirmedRegistration } from '../_shared/payments.ts'
+import { cashfreePaidPayment, fetchCashfreeOrder, fetchCashfreePayments } from '../_shared/cashfree.ts'
+import { markPaymentCaptured, markPaymentFailed, notifyConfirmedRegistration } from '../_shared/payments.ts'
 
 const RECEIPT_TOKEN_TTL_MINUTES = 30
 
@@ -109,7 +109,26 @@ Deno.serve(
         return failure('We could not confirm this payment. Please contact the organiser.', appNoForRedirect, mobileForRedirect)
       }
 
-      if ((remote.order_status ?? '').toUpperCase() !== 'PAID') {
+      const orderStatus = (remote.order_status ?? '').toUpperCase()
+      if (orderStatus !== 'PAID') {
+        // Record only terminal failures here. A still-active order with no
+        // failed attempt remains pending so the athlete can retry it, and a
+        // failed order can still be captured later if the gateway confirms it.
+        if (orderStatus === 'EXPIRED' || orderStatus === 'TERMINATED') {
+          await markPaymentFailed(supabase, {
+            orderId,
+            reason: orderStatus === 'EXPIRED' ? 'Payment order expired before payment' : 'Payment order was terminated',
+          })
+        } else {
+          const attempts = await fetchCashfreePayments(orderId)
+          const latestStatus = (attempts[0]?.payment_status ?? '').toUpperCase()
+          if (latestStatus === 'FAILED') {
+            await markPaymentFailed(supabase, {
+              orderId,
+              reason: 'Payment failed at the gateway',
+            })
+          }
+        }
         return failure(`Payment is not completed yet. Please try again or contact the organiser.`, appNoForRedirect, mobileForRedirect)
       }
 
