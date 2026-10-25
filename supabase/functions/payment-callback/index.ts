@@ -1,16 +1,16 @@
-// Razorpay redirect callback for net banking and bank UPI apps.
+// Cashfree return callback.
 //
-// Razorpay POSTs the payment result here rather than to the site, because a
-// static Vercel deployment answers POST with 405. This function is the trusted
-// server: it verifies the signature, asks Razorpay about the payment, records
-// the capture, mints a single-use receipt token and redirects the browser to
-// the receipt page. The browser never decides whether a payment succeeded.
+// Cashfree sends the athlete's browser back to `order_meta.return_url` with the
+// order id, as a GET (unlike Razorpay, which POSTs a signed payload). It is
+// also safe to POST here, so form/webhook-style callers still work.
 //
-// Razorpay follows redirects on POST, so the response is a 303 (See Other),
-// which is the correct way to turn a POST into a GET.
+// This function is the trusted server: it asks Cashfree for the order status,
+// records the capture, mints a single-use receipt token and redirects the
+// browser to the receipt page. The browser never decides whether a payment
+// succeeded.
 import { handler } from '../_shared/handler.ts'
 import { serviceClient } from '../_shared/supabase.ts'
-import { verifyCheckoutSignature, fetchRazorpayPayment } from '../_shared/razorpay.ts'
+import { cashfreePaidPayment, fetchCashfreeOrder } from '../_shared/cashfree.ts'
 import { markPaymentCaptured, notifyConfirmedRegistration } from '../_shared/payments.ts'
 
 const RECEIPT_TOKEN_TTL_MINUTES = 30
@@ -26,42 +26,43 @@ function redirectTo(path: string, params: Record<string, string> = {}): Response
   return new Response(null, { status: 303, headers: { Location: url.toString() } })
 }
 
+function failure(message: string, appNo?: string | null, mobile?: string | null): Response {
+  const params: Record<string, string> = { payment_callback: 'failed', payment_error: message }
+  if (appNo) params.application_number = appNo
+  if (mobile) params.mobile_e164 = mobile
+  return redirectTo('/status', params)
+}
+
 Deno.serve(
   handler(async (req) => {
-    if (req.method !== 'POST') {
-      // A stray GET (someone opening the URL) should land them on the status
-      // page rather than show an error page.
-      return redirectTo('/status', { payment_callback: 'invalid' })
-    }
+    const url = new URL(req.url)
 
-    // Razorpay posts these as application/x-www-form-urlencoded. Read the raw
-    // text once and parse, so a JSON body is handled too.
-    const raw = await req.text()
-    const params = new URLSearchParams(raw)
-    const contentType = req.headers.get('content-type') ?? ''
-    if (contentType.includes('application/json')) {
-      try {
-        const body = JSON.parse(raw) as Record<string, unknown>
-        for (const [key, value] of Object.entries(body)) {
-          if (typeof value === 'string') params.set(key, value)
+    // Cashfree returns the order id on the query string. Accept a form/JSON
+    // body too, so the endpoint keeps working for POST-based callers.
+    const params = new URLSearchParams(url.search)
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      const raw = await req.text()
+      const bodyParams = new URLSearchParams(raw)
+      const contentType = req.headers.get('content-type') ?? ''
+      if (contentType.includes('application/json')) {
+        try {
+          const body = JSON.parse(raw) as Record<string, unknown>
+          for (const [key, value] of Object.entries(body)) {
+            if (typeof value === 'string') bodyParams.set(key, value)
+          }
+        } catch {
+          /* fall through: treat as form-encoded */
         }
-      } catch {
-        /* fall through: treat as form-encoded */
       }
+      for (const [key, value] of bodyParams) if (!params.has(key)) params.set(key, value)
     }
 
-    const orderId = params.get('razorpay_order_id') ?? ''
-    const paymentId = params.get('razorpay_payment_id') ?? ''
-    const signature = params.get('razorpay_signature') ?? ''
-    const errorCode = params.get('error[code]') ?? params.get('error_code') ?? ''
-    const errorDescription = params.get('error[description]') ?? params.get('error_description') ?? ''
+    const orderId = params.get('order_id') ?? params.get('orderId') ?? params.get('razorpay_order_id') ?? ''
 
-    if (!orderId || !paymentId || !signature) {
-      console.error('payment-callback: incomplete return', { orderId, paymentId, hasSignature: Boolean(signature) })
-      return redirectTo('/status', {
-        payment_callback: 'failed',
-        payment_error: errorDescription || errorCode || 'Payment was not completed. Please try again.',
-      })
+    // A stray hit with nothing to verify should land on the status page rather
+    // than show an error page.
+    if (!orderId) {
+      return redirectTo('/status', { payment_callback: 'invalid' })
     }
 
     const supabase = serviceClient()
@@ -72,71 +73,66 @@ Deno.serve(
       .eq('razorpay_order_id', orderId)
       .maybeSingle()
 
-    if (!order) {
-      console.error('payment-callback: unknown order', { orderId })
-      return redirectTo('/status', {
-        payment_callback: 'failed',
-        payment_error: 'We could not find that payment order. Please contact the organiser.',
-      })
+    let appNoForRedirect: string | null = null
+    let mobileForRedirect: string | null = null
+    if (order?.draft_id) {
+      const { data: draftRow } = await supabase
+        .from('registration_drafts')
+        .select('application_number, personal')
+        .eq('id', order.draft_id)
+        .maybeSingle()
+      appNoForRedirect = (draftRow?.application_number as string | null) ?? null
+      mobileForRedirect = (draftRow?.personal as any)?.mobile_e164 ?? null
     }
 
-    // Idempotent: a re-post (the athlete refreshing, or a retry) simply returns
-    // the existing receipt.
+    if (!order) {
+      console.error('payment-callback: unknown order', { orderId })
+      return failure('We could not find that payment order. Please contact the organiser.', appNoForRedirect, mobileForRedirect)
+    }
+
+    // Also try to get mobile if not fetched
+    if (order?.draft_id && !mobileForRedirect) {
+      const { data: draftRow2 } = await supabase
+        .from('registration_drafts')
+        .select('personal')
+        .eq('id', order.draft_id)
+        .maybeSingle()
+      mobileForRedirect = (draftRow2?.personal as any)?.mobile_e164 ?? mobileForRedirect
+    }
+
+    // Idempotent: a re-return (the athlete refreshing, or a retry) simply shows
+    // the existing receipt again.
     if (order.status !== 'captured') {
-      const signatureValid = await verifyCheckoutSignature(orderId, paymentId, signature)
-      if (!signatureValid) {
-        console.error('payment-callback: invalid signature', { orderId, paymentId })
-        await supabase
-          .from('payment_orders')
-          .update({
-            failure_reason: 'Signature verification failed',
-            signature_verified: false,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', order.id)
-        return redirectTo('/status', {
-          payment_callback: 'failed',
-          payment_error: 'Payment verification failed. If money was deducted, please contact the organiser.',
-        })
+      const remote = await fetchCashfreeOrder(orderId)
+      if (!remote) {
+        console.error('payment-callback: gateway lookup failed', { orderId })
+        return failure('We could not confirm this payment. Please contact the organiser.', appNoForRedirect, mobileForRedirect)
       }
 
-      // Second factor: ask Razorpay directly.
-      const remote = await fetchRazorpayPayment(paymentId)
-      if (remote) {
-        const remoteOrder = String(remote.order_id ?? '')
-        const remoteStatus = String(remote.status ?? '')
-        const remoteAmount = Number(remote.amount ?? -1)
-        if (remoteOrder !== orderId) {
-          return redirectTo('/status', {
-            payment_callback: 'failed',
-            payment_error: 'Payment does not match this registration. Please contact the organiser.',
-          })
-        }
-        if (!['captured', 'authorized'].includes(remoteStatus)) {
-          return redirectTo('/status', {
-            payment_callback: 'failed',
-            payment_error: `Payment is not completed yet. Please try again or contact the organiser.`,
-          })
-        }
-        if (remoteAmount !== Number(order.amount_paise)) {
-          return redirectTo('/status', {
-            payment_callback: 'failed',
-            payment_error: 'The paid amount does not match the registration fee. Please contact the organiser.',
-          })
-        }
+      if ((remote.order_status ?? '').toUpperCase() !== 'PAID') {
+        return failure(`Payment is not completed yet. Please try again or contact the organiser.`, appNoForRedirect, mobileForRedirect)
       }
 
-      const method = remote ? String(remote.method ?? '') : null
-      const result = await markPaymentCaptured(supabase, { orderId, paymentId, method })
+      if (Math.round(Number(remote.order_amount) * 100) !== Number(order.amount_paise)) {
+        return failure('The paid amount does not match the registration fee. Please contact the organiser.', appNoForRedirect, mobileForRedirect)
+      }
+
+      const paid = await cashfreePaidPayment(remote)
+      if (paid?.amountPaise != null && paid.amountPaise !== Number(order.amount_paise)) {
+        return failure('The paid amount does not match the registration fee. Please contact the organiser.', appNoForRedirect, mobileForRedirect)
+      }
+
+      const result = await markPaymentCaptured(supabase, {
+        orderId,
+        paymentId: paid?.paymentId ?? null,
+        method: paid?.method ?? null,
+      })
       if (!result.ok) {
         console.error('payment-callback: capture failed', result.error)
-        return redirectTo('/status', {
-          payment_callback: 'failed',
-          payment_error: 'We could not confirm this payment. Please contact the organiser.',
-        })
+        return failure('We could not confirm this payment. Please contact the organiser.', appNoForRedirect, mobileForRedirect)
       }
       if (!result.alreadyCaptured) {
-        await notifyConfirmedRegistration(supabase, result.registrationId!, paymentId)
+        await notifyConfirmedRegistration(supabase, result.registrationId!, paid?.paymentId ?? null)
       }
     }
 

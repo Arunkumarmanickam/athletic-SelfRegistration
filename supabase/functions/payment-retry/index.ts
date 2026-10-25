@@ -1,4 +1,4 @@
-// Creates a fresh Razorpay order for a pre-payment registration draft.
+// Creates a fresh Cashfree order for a pre-payment registration draft.
 //
 // Used when a previous checkout failed, was cancelled or was abandoned. The
 // draft token is the bearer credential, so a code alone cannot be used to probe
@@ -10,7 +10,12 @@ import { json, errorJson } from '../_shared/responses.ts'
 import { serviceClient } from '../_shared/supabase.ts'
 import { clientIp, enforceRateLimit, readJson, str } from '../_shared/helpers.ts'
 import { resolveDraft } from '../_shared/draft.ts'
-import { createRazorpayOrder, razorpayConfigured, razorpayKeyId } from '../_shared/razorpay.ts'
+import {
+  cashfreeConfigured,
+  cashfreeMode,
+  cashfreeReturnUrl,
+  createCashfreeOrder,
+} from '../_shared/cashfree.ts'
 
 Deno.serve(
   handler(async (req) => {
@@ -25,7 +30,28 @@ Deno.serve(
     const ip = clientIp(req)
     await enforceRateLimit(supabase, `payment-retry:ip:${ip}`, 30, 3600)
 
+    // Pull application number too
+    const supabaseDraft = serviceClient()
+    const hashDraft = await (async () => {
+      const { hashToken } = await import('../_shared/draft.ts')
+      // @ts-ignore
+      return await hashToken(draftToken)
+    })().catch(() => null)
+    let appNo: string | null = null
+    if (hashDraft) {
+      const { data: drow } = await supabaseDraft
+        .from('registration_drafts')
+        .select('application_number')
+        .eq('token_hash', hashDraft)
+        .gt('expires_at', new Date().toISOString())
+        .maybeSingle()
+      appNo = (drow?.application_number as string | null) ?? null
+    }
+
     const draft = await resolveDraft(draftToken)
+    if (draft) {
+      ;(draft as any).application_number = appNo
+    }
     if (!draft) {
       return errorJson(
         req,
@@ -55,7 +81,7 @@ Deno.serve(
       return errorJson(req, 'DEADLINE_PASSED', 'The registration deadline has passed.', 409)
     }
 
-    if (!razorpayConfigured()) {
+    if (!cashfreeConfigured()) {
       return errorJson(
         req,
         'PAYMENTS_NOT_CONFIGURED',
@@ -70,15 +96,24 @@ Deno.serve(
       .eq('draft_id', draft.id)
     const attemptNumber = (count ?? 0) + 1
 
-    let orderId: string
+    // Cashfree order ids must be unique and at most 50 characters; the draft id
+    // plus the attempt number satisfies both.
+    const orderId = `cdf${draft.id.replace(/-/g, '')}${attemptNumber}`
+
+    let paymentSessionId: string
     try {
-      const order = await createRazorpayOrder({
+      const order = await createCashfreeOrder({
+        orderId,
         amountPaise: Number(draft.fee_paise),
         currency: draft.currency,
-        receipt: draft.id,
-        notes: { draft_id: draft.id, attempt: String(attemptNumber) },
+        customerId: draft.id,
+        customerName: draft.personal?.full_name ?? null,
+        customerEmail: draft.personal?.email ?? null,
+        customerPhone: draft.personal?.mobile_e164 ?? null,
+        returnUrl: cashfreeReturnUrl(),
+        note: `Draft ${draft.id}, attempt ${attemptNumber}`,
       })
-      orderId = order.id
+      paymentSessionId = order.payment_session_id
     } catch (error) {
       console.error('retry order failed', error)
       return errorJson(req, 'ORDER_FAILED', 'Could not create a new payment order. Please try again.', 502)
@@ -109,9 +144,11 @@ Deno.serve(
       ok: true,
       draft: {
         id: draft.id,
+        application_number: (draft as any).application_number ?? null,
         fee_paise: Number(draft.fee_paise),
         currency: draft.currency,
       },
+      application_number: (draft as any).application_number ?? null,
       // Prefill the checkout with the details the athlete already gave us, so
       // they are not asked for their own name/email/phone a second time.
       prefill: {
@@ -121,8 +158,12 @@ Deno.serve(
       },
       payment: {
         configured: true,
+        // Field names are kept for compatibility with the existing client and
+        // database columns: `razorpay_order_id` now holds the Cashfree order id,
+        // and `razorpay_key_id` holds the Cashfree payment_session_id.
         razorpay_order_id: orderId,
-        razorpay_key_id: razorpayKeyId(),
+        razorpay_key_id: paymentSessionId,
+        cashfree_mode: cashfreeMode(),
         amount_paise: Number(draft.fee_paise),
         currency: draft.currency,
       },

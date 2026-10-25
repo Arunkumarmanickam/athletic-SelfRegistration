@@ -109,10 +109,7 @@ export function SettingsPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Settings"
-        description="Organisation details and how new permanent Athlete IDs are formatted."
-      />
+      <PageHeader title="Settings" />
 
       {readOnly && (
         <Alert tone="info" className="mb-5">

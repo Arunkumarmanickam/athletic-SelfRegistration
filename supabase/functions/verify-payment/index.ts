@@ -1,28 +1,32 @@
-// Verifies a Razorpay checkout result server-side.
+// Verifies a Cashfree payment server-side.
+//
+// Cashfree's checkout has no signed `handler` response: the browser is
+// redirected back to `payment-callback`, which calls this same verification.
+// This endpoint remains available so a client can confirm an order explicitly.
 //
 // A frontend "success" message is never trusted. Confirmation requires:
-//   1. a valid HMAC signature computed with the secret key,
-//   2. the order recorded in our database,
+//   1. the order recorded in our database,
+//   2. Cashfree reporting the order as PAID,
 //   3. a matching server-side amount, and
-//   4. Razorpay reporting the payment as captured/authorized for that order.
+//   4. a SUCCESS payment for that order (when Cashfree exposes it).
 import { handler } from '../_shared/handler.ts'
 import { json, errorJson } from '../_shared/responses.ts'
 import { serviceClient } from '../_shared/supabase.ts'
 import { clientIp, enforceRateLimit, readJson, str } from '../_shared/helpers.ts'
-import { fetchRazorpayPayment, verifyCheckoutSignature } from '../_shared/razorpay.ts'
+import { cashfreePaidPayment, fetchCashfreeOrder } from '../_shared/cashfree.ts'
 import { loadConfirmation, markPaymentCaptured, notifyConfirmedRegistration } from '../_shared/payments.ts'
 
 Deno.serve(
   handler(async (req) => {
     const body = await readJson(req)
-    const orderId = str(body.razorpayOrderId)
-    const paymentId = str(body.razorpayPaymentId)
-    const signature = str(body.razorpaySignature)
+    // `razorpayOrderId` is accepted for compatibility with older clients; it
+    // now carries the Cashfree order id.
+    const orderId = str(body.cashfreeOrderId) || str(body.orderId) || str(body.razorpayOrderId)
 
     const supabase = serviceClient()
     await enforceRateLimit(supabase, `verify-payment:${clientIp(req)}`, 60, 3600)
 
-    if (!orderId || !paymentId || !signature) {
+    if (!orderId) {
       return errorJson(req, 'MISSING_FIELDS', 'Incomplete payment confirmation data.', 400)
     }
 
@@ -47,49 +51,40 @@ Deno.serve(
       }
     }
 
-    const signatureValid = await verifyCheckoutSignature(orderId, paymentId, signature)
-    if (!signatureValid) {
-      console.error('invalid payment signature', { orderId, paymentId })
-      await supabase
-        .from('payment_orders')
-        .update({
-          failure_reason: 'Signature verification failed',
-          signature_verified: false,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', order.id)
+    // Ask Cashfree about the order rather than trusting the browser.
+    const remote = await fetchCashfreeOrder(orderId)
+    if (!remote) {
       return errorJson(
         req,
-        'INVALID_SIGNATURE',
-        'Payment verification failed. If money was deducted, please contact the organiser with your payment reference.',
-        400,
+        'PAYMENT_NOT_FOUND',
+        'We could not read that payment order from the gateway. Please contact the organiser.',
+        502,
       )
     }
 
-    // Second factor: ask Razorpay about this payment directly.
-    const remote = await fetchRazorpayPayment(paymentId)
-    if (remote) {
-      const remoteOrder = String(remote.order_id ?? '')
-      const remoteStatus = String(remote.status ?? '')
-      const remoteAmount = Number(remote.amount ?? -1)
-      if (remoteOrder !== orderId) {
-        return errorJson(req, 'PAYMENT_MISMATCH', 'Payment does not match this registration order.', 400)
-      }
-      if (!['captured', 'authorized'].includes(remoteStatus)) {
-        return errorJson(
-          req,
-          'PAYMENT_NOT_COMPLETED',
-          `Payment is not completed yet (status: ${remoteStatus || 'unknown'}). Please retry or contact the organiser.`,
-          409,
-        )
-      }
-      if (remoteAmount !== Number(order.amount_paise)) {
-        return errorJson(req, 'AMOUNT_MISMATCH', 'The paid amount does not match the registration fee.', 400)
-      }
+    if ((remote.order_status ?? '').toUpperCase() !== 'PAID') {
+      return errorJson(
+        req,
+        'PAYMENT_NOT_COMPLETED',
+        `Payment is not completed yet (status: ${remote.order_status || 'unknown'}). Please retry or contact the organiser.`,
+        409,
+      )
     }
 
-    const method = remote ? String(remote.method ?? '') : null
-    const result = await markPaymentCaptured(supabase, { orderId, paymentId, method })
+    if (Math.round(Number(remote.order_amount) * 100) !== Number(order.amount_paise)) {
+      return errorJson(req, 'AMOUNT_MISMATCH', 'The paid amount does not match the registration fee.', 400)
+    }
+
+    const paid = await cashfreePaidPayment(remote)
+    if (paid?.amountPaise != null && paid.amountPaise !== Number(order.amount_paise)) {
+      return errorJson(req, 'AMOUNT_MISMATCH', 'The paid amount does not match the registration fee.', 400)
+    }
+
+    const result = await markPaymentCaptured(supabase, {
+      orderId,
+      paymentId: paid?.paymentId ?? null,
+      method: paid?.method ?? null,
+    })
 
     if (!result.ok) {
       if (result.error === 'AMOUNT_MISMATCH') {
@@ -108,7 +103,7 @@ Deno.serve(
     // Best-effort confirmation email: awaited so logs are useful, but failures
     // never affect the verified payment result.
     if (!result.alreadyCaptured) {
-      await notifyConfirmedRegistration(supabase, result.registrationId!, paymentId)
+      await notifyConfirmedRegistration(supabase, result.registrationId!, paid?.paymentId ?? null)
     }
 
     return json(req, { ok: true, status: 'paid', already_verified: result.alreadyCaptured, confirmation })

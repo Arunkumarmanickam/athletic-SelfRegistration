@@ -6,6 +6,7 @@ import './index.css'
 import { ToastProvider } from './context/ToastContext'
 import { ConfigProvider } from './context/ConfigContext'
 import { AdminAuthProvider } from './context/AdminAuthContext'
+import { ScrollToTop } from './components/ScrollToTop'
 
 const container = document.getElementById('root')
 if (!container) throw new Error('Root element #root not found')
@@ -13,6 +14,7 @@ if (!container) throw new Error('Root element #root not found')
 createRoot(container).render(
   <StrictMode>
     <BrowserRouter>
+      <ScrollToTop />
       <ToastProvider>
         <ConfigProvider>
           <AdminAuthProvider>

@@ -2,10 +2,9 @@
 //
 // Card and in-app UPI return through checkout.js's handler callback, but net
 // banking (and several UPI/bank flows) send the browser away to the bank and
-// back. Razorpay then POSTs the result to `callback_url` — which points at the
-// `payment-callback` Edge Function, because a static site answers POST with
-// 405. That function verifies the payment server-side and redirects the browser
-// here with one of:
+// back. Cashfree returns via GET to the return_url — which points at the
+// `payment-callback` Edge Function. That function verifies the payment with
+// Cashfree server-side and redirects the browser here with one of:
 //
 //   ?receipt=<single-use token>   payment captured, exchange for the receipt
 //   ?payment_callback=paid        captured, but the token could not be stored
@@ -61,7 +60,7 @@ export async function recoverRedirectedPayment(search: string): Promise<Recovery
     return {
       confirmed: false,
       needsLookup: false,
-      error: message || 'Your payment could not be completed. Please try again.',
+      error: message || 'Your payment was failed or cancelled. Please try again to complete your registration.',
     }
   }
 

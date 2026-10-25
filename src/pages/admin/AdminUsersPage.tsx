@@ -189,7 +189,6 @@ export function AdminUsersPage() {
     <div>
       <PageHeader
         title="Administrators"
-        description="Accounts that can sign in to this dashboard."
         actions={
           !readOnly ? (
             <div className="flex flex-wrap items-center gap-2">

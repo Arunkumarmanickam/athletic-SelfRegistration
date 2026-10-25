@@ -103,7 +103,6 @@ export function AthletesPage() {
     <div>
       <PageHeader
         title="Registered athletes"
-        description="Athletes registered for each championship, with their bib numbers."
         actions={
           <Button variant="outline" size="sm" loading={exporting} disabled={exporting} onClick={() => void exportFile()}>
             Export XLSX

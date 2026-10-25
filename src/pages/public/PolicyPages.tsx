@@ -47,7 +47,7 @@ export function PrivacyPage() {
       <h2>What we never store</h2>
       <ul>
         <li>We never store passwords or verification details in plain text — only salted hashes.</li>
-        <li>We never store your card or bank details. Card data is handled entirely by Razorpay; we only receive a payment reference and status.</li>
+        <li>We never store your card or bank details. Card data is handled entirely by Cashfree; we only receive a payment reference and status.</li>
       </ul>
 
       <h2>Why we use it</h2>
@@ -60,8 +60,8 @@ export function PrivacyPage() {
 
       <h2>Payment processing</h2>
       <p>
-        Payments are processed by Razorpay. We share only the amount and a reference with Razorpay; we receive back a
-        payment reference, status and method. Razorpay's own privacy policy governs their processing.
+        Payments are processed by Cashfree. We share only the amount and a reference with Cashfree; we receive back a
+        payment reference, status and method. Cashfree's own privacy policy governs their processing.
       </p>
 
       <h2>Who can see your data</h2>
@@ -109,7 +109,7 @@ export function TermsPage() {
       <h2>Fees and payment</h2>
       <ul>
         <li>The fee shown is calculated by our server from the championship's current configuration and is the amount payable.</li>
-        <li>Payments are collected through Razorpay. A registration is not confirmed until the payment is verified by our server.</li>
+        <li>Payments are collected through Cashfree. A registration is not confirmed until the payment is verified by our server.</li>
         <li>Refunds, if any, are at the organiser's discretion and follow the championship's stated policy.</li>
       </ul>
 

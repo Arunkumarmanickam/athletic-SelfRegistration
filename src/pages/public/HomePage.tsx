@@ -75,8 +75,7 @@ export function HomePage() {
               Register for your championship in minutes
             </h1>
             <p className="mt-4 max-w-xl text-base text-slate-600">
-              A single, secure portal for athletes. Get a permanent Athlete ID, a championship bib number, and pay your
-              entry fee online. Returning athletes can retrieve their details anytime.
+              A single, secure portal for athletes. Get a permanent Athlete ID, a championship bib number, and pay your entry fee online.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link to="/register">
@@ -100,13 +99,12 @@ export function HomePage() {
 
           <div className="grid gap-4 sm:grid-cols-3 lg:content-center">
             {[
-              { title: '1. Enter your details', body: 'Tell us who is competing and choose a category.' },
-              { title: '2. Pick your events', body: 'Select one or more events. Fees update live.' },
-              { title: '3. Pay securely', body: 'Pay via Razorpay and get your confirmed bib number.' },
+              { title: '1. Enter your details' },
+              { title: '2. Pick your events' },
+              { title: '3. Pay securely' },
             ].map((step) => (
               <div key={step.title} className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <p className="text-sm font-semibold text-slate-900">{step.title}</p>
-                <p className="mt-2 text-sm text-slate-600">{step.body}</p>
               </div>
             ))}
           </div>
@@ -116,7 +114,7 @@ export function HomePage() {
       <section className="mx-auto w-full max-w-6xl px-4 py-12">
         <div className="flex flex-col gap-1">
           <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Open registrations</h2>
-          <p className="text-sm text-slate-600">Choose a championship below to begin. Only open championships are shown.</p>
+          <p className="text-sm text-slate-600">Choose a championship below to begin.</p>
         </div>
 
         <div className="mt-6">
@@ -160,23 +158,12 @@ export function HomePage() {
         <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-12 md:grid-cols-3">
           <div>
             <h3 className="text-base font-semibold text-slate-900">A permanent Athlete ID</h3>
-            <p className="mt-2 text-sm text-slate-600">
-              You only create your profile once. Each championship gives you a separate Registration ID and its own
-              bib number.
-            </p>
           </div>
           <div>
             <h3 className="text-base font-semibold text-slate-900">Secure identity checks</h3>
-            <p className="mt-2 text-sm text-slate-600">
-              Retrieving your details requires your Athlete ID (or registered mobile number) and date of birth. We
-              never reveal personal details to unverified visitors.
-            </p>
           </div>
           <div>
             <h3 className="text-base font-semibold text-slate-900">Verified payments</h3>
-            <p className="mt-2 text-sm text-slate-600">
-              Payments are processed by Razorpay and confirmed on our server before your entry is marked as paid.
-            </p>
           </div>
         </div>
       </section>

@@ -226,7 +226,6 @@ export function ChampionshipsPage() {
     <div>
       <PageHeader
         title="Championships"
-        description="Configure championships, categories, events, fees, deadlines and numbering."
         actions={
           <Button variant="accent" size="sm" onClick={() => setEditing('new')}>
             New championship

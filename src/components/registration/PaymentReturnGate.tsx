@@ -4,11 +4,6 @@ import { recoverRedirectedPayment, stripPaymentParams } from '@/lib/paymentRetur
 
 /**
  * Resolves a net-banking / bank-app payment that returned as a browser redirect.
- *
- * Razorpay's callback Edge Function has already verified the payment by the time
- * the browser lands here; this gate exchanges the single-use token for the
- * receipt, stores it and moves to the receipt page. Ordinary navigations render
- * immediately, so the cost is one `URLSearchParams` read per page load.
  */
 export function PaymentReturnGate({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
@@ -26,10 +21,14 @@ export function PaymentReturnGate({ children }: { children: React.ReactNode }) {
         { replace: true },
       )
       setBusy(false)
+      // Ensure we scroll to top when moving to next page
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
+      document.documentElement.scrollTop = 0
+      document.body.scrollTop = 0
       if (result.confirmed) {
         navigate('/registration/success', { replace: true })
       } else if (result.error) {
-        navigate('/status', { replace: true, state: { paymentError: result.error } })
+        navigate('/status', { replace: true, state: { paymentError: result.error, paymentFailed: true } })
       } else if (result.needsLookup) {
         navigate('/status', {
           replace: true,
@@ -43,7 +42,6 @@ export function PaymentReturnGate({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true
     }
-    // Run once per landing URL, not on every route change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy])
 
@@ -53,7 +51,7 @@ export function PaymentReturnGate({ children }: { children: React.ReactNode }) {
         <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-orange-600" />
         <h1 className="mt-5 text-lg font-semibold text-slate-900">Confirming your payment…</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Your bank has returned you to us. Please wait a moment — do not close this page.
+          Your bank has returned to us. Please wait a moment — do not close this page.
         </p>
       </div>
     )

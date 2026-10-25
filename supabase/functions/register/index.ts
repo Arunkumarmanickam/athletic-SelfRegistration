@@ -22,7 +22,7 @@ import {
 } from '../_shared/helpers.ts'
 import { normalizeMobile } from '../_shared/athlete-lookup.ts'
 import { newDraftToken } from '../_shared/draft.ts'
-import { razorpayConfigured } from '../_shared/razorpay.ts'
+import { cashfreeConfigured } from '../_shared/cashfree.ts'
 
 interface PersonalInput {
   full_name: string
@@ -163,11 +163,13 @@ Deno.serve(
     const draftId = result.draft_id as string
     const feePaise = Number(result.fee_paise)
     const currency = (result.currency as string) ?? 'INR'
+    const applicationNumber = (result.application_number as string | null) ?? null
 
     // No Athlete ID and no bib yet: both are issued only once payment is
     // captured. The draft token is what the next steps authenticate with.
     const draftPayload = {
       id: draftId,
+      application_number: applicationNumber,
       championship_id: championshipId,
       category_name: (result.category_name as string | null) ?? null,
       fee_paise: feePaise,
@@ -186,7 +188,7 @@ Deno.serve(
     // Honest behaviour: no order is created before the mandatory Aadhaar
     // upload is recorded. payment-retry creates the order afterwards and
     // refuses until the draft records an Aadhaar upload.
-    if (!razorpayConfigured()) {
+    if (!cashfreeConfigured()) {
       return json(
         req,
         {
@@ -194,8 +196,7 @@ Deno.serve(
           draft: draftPayload,
           payment: { configured: false },
           draft_token: draftTokenPair.token,
-          message:
-            'Your details have been recorded, but online payment is not configured yet. Please contact the organiser to complete payment.',
+          message: `Your details have been recorded. Application No: ${applicationNumber ?? 'N/A'}. Online payment is not configured yet. Please contact the organiser to complete payment.`,
         },
         200,
       )
@@ -207,6 +208,7 @@ Deno.serve(
       payment: { configured: false, aadhaar_required: true },
       prefill,
       draft_token: draftTokenPair.token,
+      application_number: applicationNumber,
     })
   }),
 )

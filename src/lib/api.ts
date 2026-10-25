@@ -170,12 +170,14 @@ export const verifyPayment = (body: {
 
 export const retryPayment = (body: { draftToken: string }) => invoke<RegisterResponse>('payment-retry', body)
 
+export const lookupApplicationStatus = (body: { applicationNumber: string; mobileE164: string }) =>
+  invoke<any>('lookup-application-status', body)
+
 /**
  * Public URL of the redirect callback Edge Function.
  *
- * Razorpay's callback URL must accept a POST, which a static Vercel site cannot
- * (405). This points the browser at the function, which verifies the payment
- * and then redirects back to us.
+ * Cashfree returns via GET to the return_url. This points the browser at the
+ * function, which verifies the payment with Cashfree and then redirects back.
  */
 export const paymentCallbackUrl = () =>
   `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/payment-callback`

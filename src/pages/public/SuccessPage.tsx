@@ -79,20 +79,6 @@ export function SuccessPage() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-600">Payment received</p>
           <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">Your receipt</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Entry confirmed — the PDF has been downloaded to your device. Keep the bib number handy on event day.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="accent" onClick={() => void downloadReceiptPdf(confirmation, config?.site)}>
-            Download PDF
-          </Button>
-          <Button variant="outline" onClick={() => window.print()}>
-            Print
-          </Button>
-          <Link to="/status">
-            <Button variant="ghost">Check status</Button>
-          </Link>
         </div>
       </div>
 

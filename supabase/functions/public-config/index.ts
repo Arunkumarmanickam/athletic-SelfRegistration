@@ -5,6 +5,7 @@ import { handler } from '../_shared/handler.ts'
 import { json } from '../_shared/responses.ts'
 import { serviceClient } from '../_shared/supabase.ts'
 import { clientIp, enforceRateLimit } from '../_shared/helpers.ts'
+import { cashfreeConfigured } from '../_shared/cashfree.ts'
 
 Deno.serve(
   handler(async (req) => {
@@ -44,7 +45,7 @@ Deno.serve(
     return json(req, {
       site: settings.site ?? {},
       athlete_id_format: settings.athlete_id_format ?? null,
-      payments_configured: Boolean(Deno.env.get('RAZORPAY_KEY_ID') && Deno.env.get('RAZORPAY_KEY_SECRET')),
+      payments_configured: cashfreeConfigured(),
       championships: openChampionships,
     })
   }),

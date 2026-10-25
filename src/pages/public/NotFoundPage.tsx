@@ -7,8 +7,7 @@ export function NotFoundPage() {
       <p className="text-sm font-semibold uppercase tracking-wide text-orange-600">404</p>
       <h1 className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">Page not found</h1>
       <p className="mt-3 text-sm text-slate-600">
-        The page you were looking for does not exist or has moved. You can start a registration, check its status, or go
-        back to the home page.
+        Page not found. Go back home or start a registration.
       </p>
       <div className="mt-6 flex flex-wrap justify-center gap-3">
         <Link to="/">

@@ -117,7 +117,6 @@ export function RegisterPage() {
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-12">
       <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Choose a championship</h1>
-      <p className="mt-2 text-sm text-slate-600">Several championships are open. Select the one you want to enter.</p>
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         {championships.map((championship) => (
           <Card key={championship.id} className="flex flex-col">

@@ -93,7 +93,6 @@ export function AuditPage() {
     <div>
       <PageHeader
         title="Audit trail"
-        description="A permanent record of administrative actions: who changed what, and when."
         actions={
           <Button variant="outline" size="sm" onClick={() => load()}>
             Refresh

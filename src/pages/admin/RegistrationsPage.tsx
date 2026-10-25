@@ -117,7 +117,6 @@ export function RegistrationsPage() {
     <div>
       <PageHeader
         title="Registrations"
-        description="Search, filter and export every championship registration."
         actions={<ExportBar kind="registrations" filters={requestFilters} columns={REGISTRATION_EXPORT_COLUMNS} championshipName={championshipName} />}
       />
 

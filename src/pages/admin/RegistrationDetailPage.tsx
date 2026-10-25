@@ -368,7 +368,7 @@ export function RegistrationDetailPage() {
                   id="edit-reason"
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
-                  placeholder="e.g. Duplicate entry, refunded in Razorpay"
+                  placeholder="e.g. Duplicate entry, refunded in Cashfree"
                 />
               </Field>
               <Button variant="primary" onClick={() => setConfirmSave(true)} disabled={!dirty}>
@@ -383,7 +383,7 @@ export function RegistrationDetailPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-slate-600">
-                If the money was received in Razorpay but the registration still shows unpaid, reconcile it here. This
+                If the money was received in Cashfree but the registration still shows unpaid, reconcile it here. This
                 only works when a captured payment already exists for this registration.
               </p>
               <Field label="Reason" htmlFor="reconcile-reason">

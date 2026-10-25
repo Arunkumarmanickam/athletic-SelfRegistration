@@ -105,7 +105,6 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [hydrated, setHydrated] = useState(false)
 
   const [result, setResult] = useState<RegisterResponse | null>(null)
   const [draftToken, setDraftToken] = useState<string | null>(null)
@@ -136,11 +135,10 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
         accept_terms: false,
       })
     }
-    setHydrated(true)
   }, [championship.id, representingMode])
 
   useEffect(() => {
-    if (!hydrated || result) return
+    if (result) return
     saveDraft({
       championshipId: championship.id,
       personal: {
@@ -162,7 +160,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
       },
       stepIndex: 0,
     })
-  }, [hydrated, result, championship.id, representingMode, values])
+  }, [result, championship.id, representingMode, values])
 
   // ---- live derivations ------------------------------------------------------
   const age = values.date_of_birth ? Number(formatAge(values.date_of_birth, cutoff)) : null
@@ -231,6 +229,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
     }
     if (Object.keys(extra).length > 0 || !eligibleCategory) {
       setErrors(extra)
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
       return
     }
 
@@ -256,8 +255,19 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
       })
 
       clearDraft()
+      try {
+        if ((response.draft as any)?.application_number) {
+          localStorage.setItem('cdmaa:lastApp', (response.draft as any).application_number)
+        }
+        if (mobileE164) {
+          localStorage.setItem('cdmaa:lastMobile', mobileE164)
+        }
+      } catch {}
       setDraftToken(response.draft_token)
       setResult(response)
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
+      document.documentElement.scrollTop = 0
+      document.body.scrollTop = 0
 
       // Mandatory Aadhaar front: uploaded against the draft, before payment.
       // Nothing permanent has been created yet.
@@ -281,12 +291,15 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
       if (err instanceof ApiError) {
         if (err.code === 'ALREADY_REGISTERED') {
           setAlreadyRegistered(true)
+          window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
           return
         }
         setFormError(err.message)
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
         return
       }
       setFormError('Something went wrong while saving your registration. Please try again.')
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
     } finally {
       setSubmitting(false)
     }
@@ -398,6 +411,13 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
               <CardTitle>Payment</CardTitle>
             </CardHeader>
             <CardContent>
+              {result?.draft && (result.draft as any).application_number && (
+                <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Application Number</p>
+                  <p className="mt-1 font-mono text-lg font-bold text-blue-900">{(result.draft as any).application_number}</p>
+                  <p className="mt-1 text-xs text-blue-700">Save this number. You can use it to check payment status if you return to this site.</p>
+                </div>
+              )}
               {paymentWithOrder ? (
                 <PaymentPanel
                   championshipName={championship.name}
@@ -416,9 +436,11 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
                   order={{
                     razorpay_order_id: paymentWithOrder.razorpay_order_id,
                     razorpay_key_id: paymentWithOrder.razorpay_key_id,
+                    cashfree_mode: paymentWithOrder.cashfree_mode,
                     amount_paise: paymentWithOrder.amount_paise,
                     currency: paymentWithOrder.currency,
-                  }}
+                    application_number: (result.draft as any)?.application_number || (result as any)?.application_number,
+                  } as any}
                   onSuccess={handlePaymentSuccess}
                 />
               ) : config?.payments_configured ? (
@@ -683,7 +705,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
             label="Email"
             htmlFor={emailId}
             error={errors.email}
-            hint="Optional. Used on your payment receipt and the Razorpay checkout."
+            hint="Optional. Used on your payment receipt and the Cashfree checkout."
           >
             <Input
               id={emailId}

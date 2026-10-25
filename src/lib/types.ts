@@ -199,13 +199,16 @@ export interface RegisterResponse {
     | { configured: false; aadhaar_required?: boolean }
     | {
         configured: true
+        /** Cashfree order id (field name kept for compatibility). */
         razorpay_order_id: string
+        /** Cashfree `payment_session_id` (field name kept for compatibility). */
         razorpay_key_id: string
+        cashfree_mode?: 'sandbox' | 'production'
         amount_paise: number
         currency: string
       }
     | { configured: false; aadhaar_required: true }
-  /** Name/email/phone to prefill in the Razorpay checkout, from the draft. */
+  /** Name/email/phone to prefill in the Cashfree checkout, from the draft. */
   prefill?: { name?: string; email?: string; contact?: string }
   /** Bearer token for the pre-payment steps (Aadhaar upload, payment order). */
   draft_token: string | null

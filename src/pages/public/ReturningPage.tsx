@@ -152,11 +152,6 @@ export function ReturningPage() {
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
       <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Retrieve your details</h1>
-      <p className="mt-2 text-sm text-slate-600">
-        Already registered with us before? Verify with your Athlete ID (or registered mobile number) and date of birth
-        to view your saved Athlete profile, your Athlete ID, and your registration history. You can then register for
-        another championship without re-entering everything.
-      </p>
 
       {!loaded && (
         <Card className="mt-6">

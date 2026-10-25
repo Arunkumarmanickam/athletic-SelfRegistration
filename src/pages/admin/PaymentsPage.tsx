@@ -147,7 +147,7 @@ export function PaymentsPage() {
       title: 'Mark payment as refunded',
       confirm: 'Mark refunded',
       description:
-        'Only captured payments can be refunded. Issue the actual refund in the Razorpay dashboard first, then record it here.',
+        'Only captured payments can be refunded. Issue the actual refund in the Cashfree dashboard first, then record it here.',
       tone: 'danger',
     },
     fail: {
@@ -169,13 +169,12 @@ export function PaymentsPage() {
     <div>
       <PageHeader
         title="Payments"
-        description="Every Razorpay order attempt, with the registration it belongs to."
         actions={<ExportBar kind="payments" filters={filters} columns={PAYMENT_EXPORT_COLUMNS} championshipName={championshipName} />}
       />
 
       {config?.payments_configured === false && (
         <Alert tone="warning" title="Payment method not initialized" className="mb-5">
-          Payment method still not initialized yet. Add your Razorpay keys as Supabase
+          Payment method not initialized yet. Add your Cashfree credentials (App ID and Secret Key) as Supabase
           function secrets to start recording payments.
         </Alert>
       )}

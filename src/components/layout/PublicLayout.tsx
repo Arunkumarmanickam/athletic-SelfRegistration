@@ -181,7 +181,7 @@ export function PublicLayout() {
         <div className="border-t border-slate-100">
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 py-4 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
             <p>© {new Date().getFullYear()} {organizer || 'Championship organisers'}. All rights reserved.</p>
-            <p>Payments are processed securely by Razorpay.</p>
+            <p>Payments are processed securely by Cashfree (UPI).</p>
           </div>
         </div>
       </footer>

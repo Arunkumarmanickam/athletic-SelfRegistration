@@ -21,3 +21,6 @@ Thumbs.db
 supabase/.temp/
 supabase/.branches/
 
+# Local Edge Function secrets (CASHFREE_*, SITE_URL, ...)
+supabase/functions/.env
+

@@ -49,7 +49,6 @@ export function DashboardPage() {
     <div>
       <PageHeader
         title="Overview"
-        description="A live summary of registrations, payments and athletes."
         actions={
           <Link to="/admin/registrations">
             <Button variant="accent" size="sm">
