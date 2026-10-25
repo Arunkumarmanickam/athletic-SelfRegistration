@@ -146,6 +146,7 @@ export interface ConfirmationRegistration {
     mobile_e164?: string | null
     state?: string | null
     district?: string | null
+    representing?: string | null
   } | null
   registration_events: RegistrationEventRow[] | null
 }

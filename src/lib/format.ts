@@ -64,6 +64,32 @@ export function titleCase(value: string | null | undefined): string {
   return value.charAt(0).toUpperCase() + value.slice(1).replaceAll('_', ' ')
 }
 
+/**
+ * How an athlete's "representing" answer reads on a receipt.
+ *
+ * District meets store the academy/club (or "Individual"), state meets store
+ * the district, and national meets store the state or region. Historic
+ * state-meet rows keep the district in `representing`, so the state is shown
+ * alongside it the way receipts always have.
+ */
+export function representingText(
+  profile:
+    | { representing?: string | null; district?: string | null; state?: string | null }
+    | null
+    | undefined,
+): string {
+  if (!profile) return ''
+  const representing = (profile.representing ?? '').trim()
+  const district = (profile.district ?? '').trim()
+  const state = (profile.state ?? '').trim()
+  if (representing) {
+    const isDistrict =
+      Boolean(district) && representing.toLowerCase() === district.toLowerCase()
+    return isDistrict && state ? `${representing}, ${state}` : representing
+  }
+  return [district, state].filter(Boolean).join(', ')
+}
+
 export type BadgeTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'accent'
 
 export function paymentStatusTone(status: string | null | undefined): BadgeTone {

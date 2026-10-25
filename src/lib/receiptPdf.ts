@@ -2,7 +2,7 @@
 // and downloads it. Loaded lazily so the main bundle stays lean.
 import type { jsPDF as JsPdfType } from 'jspdf'
 import type { Confirmation, PublicConfig } from '@/lib/types'
-import { formatDate, formatDateTime, titleCase } from '@/lib/format'
+import { formatDate, formatDateTime, representingText, titleCase } from '@/lib/format'
 import { amountInWords } from '@/lib/amountWords'
 
 const M = 14
@@ -187,8 +187,9 @@ export async function buildReceiptPdf(
   leftBottom = leftField('Athlete ID', profile?.athlete_id ?? '—', leftBottom)
   if (profile?.mobile_e164) leftBottom = leftField('Mobile', profile.mobile_e164, leftBottom)
   if (profile?.email) leftBottom = leftField('Email', profile.email, leftBottom)
-  if (profile?.state || profile?.district) {
-    leftBottom = leftField('Representing', [profile?.district, profile?.state].filter(Boolean).join(', '), leftBottom)
+  const representing = representingText(profile)
+  if (representing) {
+    leftBottom = leftField('Representing', representing, leftBottom)
   }
 
   label('Registration details', RIGHT, colTop - 2.6, 'right')

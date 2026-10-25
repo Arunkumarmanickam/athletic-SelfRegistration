@@ -1,5 +1,5 @@
 import type { Confirmation, PublicConfig } from '@/lib/types'
-import { formatDate, formatDateTime, formatMoney, titleCase } from '@/lib/format'
+import { formatDate, formatDateTime, formatMoney, representingText, titleCase } from '@/lib/format'
 import { amountInWords } from '@/lib/amountWords'
 
 function Detail({ label, value }: { label: string; value: string }) {
@@ -116,11 +116,8 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
               <Detail label="Athlete ID" value={profile?.athlete_id ?? '—'} />
               {profile?.mobile_e164 && <Detail label="Mobile" value={profile.mobile_e164} />}
               {profile?.email && <Detail label="Email" value={profile.email} />}
-              {(profile?.state || profile?.district) && (
-                <Detail
-                  label="Representing"
-                  value={[profile?.district, profile?.state].filter(Boolean).join(', ')}
-                />
+              {(profile?.state || profile?.district || profile?.representing) && (
+                <Detail label="Representing" value={representingText(profile)} />
               )}
             </dl>
           </div>
