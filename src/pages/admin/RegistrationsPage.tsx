@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Alert, Badge, Card, EmptyState, Spinner } from '@/components/ui/display'
 import { Button } from '@/components/ui/button'
 import { Field, Input } from '@/components/ui/input'
@@ -7,6 +7,7 @@ import { Select } from '@/components/ui/form-controls'
 import { Pagination, Table, TableWrap, Td, Th } from '@/components/ui/table'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { ExportBar } from '@/components/admin/ExportBar'
+import { ApplicationsPanel } from './ApplicationsPanel'
 import { adminRegistrations } from '@/lib/api'
 import { useChampionshipOptions } from '@/hooks/useChampionshipOptions'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
@@ -16,6 +17,7 @@ import type { RegistrationAdminRow, RegistrationFilters } from '@/lib/types'
 
 const PAGE_SIZE = 25
 
+type Tab = 'registrations' | 'applications'
 type SortBy = 'registered_at' | 'athlete_name' | 'registration_code' | 'bib_number' | 'fee_paise' | 'payment_status' | 'status'
 
 interface FilterState {
@@ -41,6 +43,14 @@ const EMPTY_FILTERS: FilterState = {
 export function RegistrationsPage() {
   const navigate = useNavigate()
   const { options: championships } = useChampionshipOptions()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab: Tab = searchParams.get('tab') === 'applications' ? 'applications' : 'registrations'
+  const setTab = (next: Tab) => {
+    const params = new URLSearchParams(searchParams)
+    if (next === 'applications') params.set('tab', 'applications')
+    else params.delete('tab')
+    setSearchParams(params, { replace: true })
+  }
 
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS)
   const [searchInput, setSearchInput] = useState('')
@@ -117,9 +127,56 @@ export function RegistrationsPage() {
     <div>
       <PageHeader
         title="Registrations"
-        actions={<ExportBar kind="registrations" filters={requestFilters} columns={REGISTRATION_EXPORT_COLUMNS} championshipName={championshipName} />}
+        description={
+          tab === 'applications'
+            ? 'Unpaid submissions that have not completed payment. No Athlete ID or bib has been issued.'
+            : undefined
+        }
+        actions={
+          tab === 'registrations' ? (
+            <ExportBar
+              kind="registrations"
+              filters={requestFilters}
+              columns={REGISTRATION_EXPORT_COLUMNS}
+              championshipName={championshipName}
+            />
+          ) : undefined
+        }
       />
 
+      <div
+        role="tablist"
+        aria-label="Registration views"
+        className="mb-5 inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'registrations'}
+          onClick={() => setTab('registrations')}
+          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+            tab === 'registrations' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+          }`}
+        >
+          Registrations
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'applications'}
+          onClick={() => setTab('applications')}
+          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+            tab === 'applications' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+          }`}
+        >
+          Unpaid applications
+        </button>
+      </div>
+
+      {tab === 'applications' ? (
+        <ApplicationsPanel championships={championships} />
+      ) : (
+        <>
       <Card className="mb-5">
         <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Search" htmlFor="reg-search" hint="Name, Athlete ID, mobile or bib number">
@@ -326,6 +383,8 @@ export function RegistrationsPage() {
           </div>
         )}
       </Card>
+        </>
+      )}
     </div>
   )
 }

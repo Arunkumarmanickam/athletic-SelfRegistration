@@ -108,6 +108,44 @@ export function paymentStatusTone(status: string | null | undefined): BadgeTone 
   }
 }
 
+/**
+ * Status of a pre-payment application (a registration draft). These labels
+ * deliberately avoid "registration" and "bib" language: neither exists yet.
+ */
+export function applicationStatusLabel(status: string | null | undefined): string {
+  switch (status) {
+    case 'pending':
+      return 'Pending payment'
+    case 'failed':
+      return 'Payment failed'
+    case 'abandoned':
+      return 'Abandoned'
+    case 'started':
+      return 'Not paid'
+    case 'paid':
+      return 'Payment captured'
+    default:
+      return '—'
+  }
+}
+
+export function applicationStatusTone(status: string | null | undefined): BadgeTone {
+  switch (status) {
+    case 'pending':
+      return 'warning'
+    case 'failed':
+      return 'danger'
+    case 'abandoned':
+      return 'neutral'
+    case 'started':
+      return 'info'
+    case 'paid':
+      return 'success'
+    default:
+      return 'neutral'
+  }
+}
+
 export function registrationStatusTone(status: string | null | undefined): BadgeTone {
   switch (status) {
     case 'confirmed':

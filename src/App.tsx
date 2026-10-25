@@ -13,6 +13,7 @@ import { AdminLoginPage } from './pages/admin/AdminLoginPage'
 import { DashboardPage } from './pages/admin/DashboardPage'
 import { RegistrationsPage } from './pages/admin/RegistrationsPage'
 import { RegistrationDetailPage } from './pages/admin/RegistrationDetailPage'
+import { ApplicationDetailPage } from './pages/admin/ApplicationDetailPage'
 import { AthletesPage } from './pages/admin/AthletesPage'
 import { AthleteDetailPage } from './pages/admin/AthleteDetailPage'
 import { PaymentsPage } from './pages/admin/PaymentsPage'
@@ -48,6 +49,7 @@ export default function App() {
         <Route index element={<DashboardPage />} />
         <Route path="registrations" element={<RegistrationsPage />} />
         <Route path="registrations/:registrationId" element={<RegistrationDetailPage />} />
+        <Route path="applications/:applicationId" element={<ApplicationDetailPage />} />
         <Route path="athletes" element={<AthletesPage />} />
         <Route path="athletes/:athleteId" element={<AthleteDetailPage />} />
         <Route path="payments" element={<PaymentsPage />} />

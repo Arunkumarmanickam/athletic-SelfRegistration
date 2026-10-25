@@ -5,6 +5,11 @@ import { json, errorJson } from '../_shared/responses.ts'
 import { requireAdmin, writeAudit } from '../_shared/admin-auth.ts'
 import { str } from '../_shared/helpers.ts'
 import { fetchRegistrations, REGISTRATION_SELECT, sanitizeFilters } from '../_shared/admin-queries.ts'
+import {
+  fetchApplicationDetail,
+  fetchApplications,
+  sanitizeApplicationFilters,
+} from '../_shared/application-queries.ts'
 
 const REGISTRATION_STATUSES = ['pending', 'confirmed', 'cancelled', 'withdrawn']
 const PAYMENT_STATUSES_ALLOWED = ['pending', 'failed', 'cancelled', 'refunded']
@@ -29,6 +34,39 @@ Deno.serve(
       } catch (queryError) {
         console.error('registrations list failed', queryError)
         return errorJson(req, 'SERVER_ERROR', 'Could not load registrations.', 500)
+      }
+    }
+
+    // ---- applications (unpaid drafts) ---------------------------------------
+    //
+    // A draft has no athlete profile, Athlete ID or bib. These rows are shown
+    // read-only so administrators can follow up on pending/failed/abandoned
+    // payments without inventing a registration or reserving a bib.
+    if (action === 'applications') {
+      const filters = sanitizeApplicationFilters(body as Record<string, unknown>)
+      const page = Math.max(1, Number(body.page) || 1)
+      const pageSize = Math.min(200, Math.max(1, Number(body.pageSize) || 25))
+      try {
+        const result = await fetchApplications(supabase, filters, page, pageSize)
+        return json(req, result)
+      } catch (queryError) {
+        console.error('applications list failed', queryError)
+        return errorJson(req, 'SERVER_ERROR', 'Could not load applications.', 500)
+      }
+    }
+
+    // ---- application detail -------------------------------------------------
+    if (action === 'applicationDetail') {
+      const applicationId = str(body.applicationId)
+      if (!applicationId) return errorJson(req, 'MISSING_FIELDS', 'Application id is required.', 400)
+
+      try {
+        const result = await fetchApplicationDetail(supabase, applicationId)
+        if (!result) return errorJson(req, 'NOT_FOUND', 'Application not found.', 404)
+        return json(req, result)
+      } catch (queryError) {
+        console.error('application detail failed', queryError)
+        return errorJson(req, 'SERVER_ERROR', 'Could not load this application.', 500)
       }
     }
 

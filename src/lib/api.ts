@@ -1,5 +1,7 @@
 import { requireSupabase } from './supabase'
 import type {
+  ApplicationAdminRow,
+  ApplicationFilters,
   AuditRow,
   Confirmation,
   DashboardStats,
@@ -270,6 +272,19 @@ export const adminRegistrationDetail = (registrationId: string) =>
     'admin-registrations',
     { action: 'detail', registrationId },
   )
+
+/**
+ * Unpaid submissions (registration drafts). They have no Athlete ID or bib;
+ * those are issued only after a gateway-verified payment.
+ */
+export const adminApplications = (body: ApplicationFilters & { page?: number; pageSize?: number }) =>
+  invoke<Paged<ApplicationAdminRow>>('admin-registrations', { action: 'applications', ...body })
+
+export const adminApplicationDetail = (applicationId: string) =>
+  invoke<{ application: ApplicationAdminRow }>('admin-registrations', {
+    action: 'applicationDetail',
+    applicationId,
+  })
 
 export const adminUpdateRegistration = (body: {
   registrationId: string

@@ -238,6 +238,90 @@ export interface RegistrationAdminRow {
   category_id?: string | null
 }
 
+export type ApplicationStatus = 'pending' | 'failed' | 'abandoned' | 'started' | 'paid'
+
+/**
+ * Personal details exactly as submitted, before any athlete profile exists.
+ * A draft has no Athlete ID and no bib number.
+ */
+export interface ApplicationPersonal {
+  full_name?: string
+  date_of_birth?: string
+  gender?: Gender | string
+  mobile_country_code?: string
+  mobile_number?: string
+  mobile_e164?: string
+  email?: string
+  state?: string
+  district?: string
+  representing?: string
+  address?: string
+  emergency_contact_name?: string
+  emergency_contact_phone?: string
+  [key: string]: unknown
+}
+
+export interface ApplicationOrder {
+  id: string
+  razorpay_order_id: string
+  razorpay_payment_id: string | null
+  amount_paise: number
+  currency: string
+  status: 'created' | 'authorized' | 'captured' | 'failed' | 'expired'
+  method: string | null
+  failure_reason: string | null
+  attempt_number: number
+  created_at: string
+  verified_at: string | null
+}
+
+export interface ApplicationEvent {
+  id: string
+  name: string
+  fee_paise: number
+}
+
+/**
+ * An unpaid submission that lives only in `registration_drafts`. It is not a
+ * registration: no Athlete ID or bib has been issued.
+ */
+export interface ApplicationAdminRow {
+  id: string
+  application_number: string
+  championship_id: string
+  category_id: string | null
+  category_name: string | null
+  personal: ApplicationPersonal
+  event_ids: string[]
+  fee_paise: number
+  currency: string
+  aadhaar_verified_at: string | null
+  request_ip?: string | null
+  created_at: string
+  updated_at: string
+  expires_at: string
+  championships: { id: string; name: string; slug: string; starts_on: string | null; level?: string } | null
+  championship_categories: { id: string; name: string } | null
+  events: ApplicationEvent[]
+  payment_orders: ApplicationOrder[]
+  latest_order: ApplicationOrder | null
+  application_status: ApplicationStatus
+}
+
+export interface ApplicationFilters {
+  championshipId?: string
+  applicationStatus?: string
+  state?: string
+  gender?: string
+  categoryId?: string
+  eventId?: string
+  search?: string
+  dateFrom?: string
+  dateTo?: string
+  sortBy?: string
+  sortDir?: 'asc' | 'desc'
+}
+
 export interface PaymentRow {
   id: string
   razorpay_order_id: string
