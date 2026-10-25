@@ -16,7 +16,7 @@ import { markPaymentCaptured, notifyConfirmedRegistration } from '../_shared/pay
 const RECEIPT_TOKEN_TTL_MINUTES = 30
 
 function siteUrl(): string {
-  return (Deno.env.get('SITE_URL') ?? 'https://www.cdmaa.in').replace(/\/+$/, '')
+  return 'https://www.cdmaa.in'
 }
 
 /** Builds the redirect back to the site after a callback. */
