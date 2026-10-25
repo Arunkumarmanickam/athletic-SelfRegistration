@@ -32,7 +32,7 @@ export interface RegistrationFormValues {
   full_name: string
   date_of_birth: string
   gender: string
-  /** District for a state-level championship, state for a national one. */
+  /** Academy/club for a district meet, district for a state meet, state for a national one. */
   representing: string
   event_ids: string[]
   mobile_country_code: string

@@ -64,10 +64,10 @@ export interface Championship {
   base_fee_paise: number
   terms_text: string | null
   form_config: FormConfig
-  level?: 'state' | 'national'
-  /** Country the championship belongs to (always India for a state meet). */
+  level?: 'district' | 'state' | 'national'
+  /** Country the championship belongs to (always India for a district/state meet). */
   nation?: string | null
-  /** Indian state, for a state-level meet (e.g. 'Tamil Nadu'). */
+  /** Indian state the meet belongs to (set for district and state meets). */
   state_name?: string | null
   max_events_per_athlete?: number | null
   championship_categories: ChampionshipCategory[]

@@ -56,7 +56,8 @@ export interface RegistrationFormProps {
  * Single-page registration form.
  *
  * Field order: name, date of birth (live age + category), representing
- * (district for a state-level meet, state for a national one), gender, events,
+ * (academy/club for a district meet, district for a state meet, state for a
+ * national one), gender, events,
  * mobile number, mandatory Aadhaar front upload, then save & payment.
  *
  * The browser validates for fast feedback only — the Edge Function and Postgres
@@ -70,15 +71,24 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
   const maxEvents = championship.max_events_per_athlete ?? null
   const cutoff = ageCutoffDate(championship)
 
-  // What "representing" asks for follows where the championship is held: a
-  // state meet asks for a district of that state, a national meet held in India
-  // asks for the athlete's state, and any other country is free text.
+  // What "representing" asks for follows the championship level: a district
+  // meet asks for the academy/club the athlete represents (free text and
+  // optional), a state meet asks for a district of that state, a national meet
+  // held in India asks for the athlete's state, and any other country is free
+  // text.
   const nation = (championship.nation ?? 'India').trim()
   const championshipState = championship.state_name ?? null
-  const representingMode = !isIndia(nation) ? 'region' : championshipState ? 'district' : 'state'
+  const representingMode =
+    championship.level === 'district'
+      ? 'academy'
+      : !isIndia(nation)
+        ? 'region'
+        : championshipState
+          ? 'district'
+          : 'state'
   const representingOptions = useMemo(
     () =>
-      representingMode === 'region'
+      representingMode === 'region' || representingMode === 'academy'
         ? []
         : representingMode === 'district'
           ? districtsOf(championshipState)
@@ -87,9 +97,11 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
   )
   /** Which stored column the answer belongs to — see create_registration(). */
   const locationFields = (representing: string) =>
-    representingMode === 'district'
-      ? { state: championshipState ?? '', district: representing }
-      : { state: representing, district: '' }
+    representingMode === 'academy'
+      ? { state: championshipState ?? '', district: '' }
+      : representingMode === 'district'
+        ? { state: championshipState ?? '', district: representing }
+        : { state: representing, district: '' }
 
   const nameId = useFieldId('full_name')
   const dobId = useFieldId('date_of_birth')
@@ -125,9 +137,11 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
         date_of_birth: p.date_of_birth,
         gender: p.gender === 'female' ? 'female' : p.gender === 'male' ? 'male' : '',
         representing:
-          representingMode === 'district'
-            ? p.district || p.representing
-            : p.state || p.representing,
+          representingMode === 'academy'
+            ? p.representing ?? ''
+            : representingMode === 'district'
+              ? p.district || p.representing
+              : p.state || p.representing,
         event_ids: part.event_ids ?? [],
         mobile_country_code: p.mobile_country_code || '+91',
         mobile_number: p.mobile_number,
@@ -212,9 +226,14 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
 
   const mobileE164 = toE164(values.mobile_country_code, values.mobile_number)
 
+  // At a district-level meet the academy/club is optional: an athlete who
+  // leaves it blank represents themselves, recorded as "Individual".
+  const representingValue =
+    representingMode === 'academy' ? values.representing.trim() || 'Individual' : values.representing
+
   const handleSubmit = async () => {
     setFormError(null)
-    const parsed = validateWith(registrationFormSchema, values)
+    const parsed = validateWith(registrationFormSchema, { ...values, representing: representingValue })
     const extra: Record<string, string> = {}
     if (!parsed.success) Object.assign(extra, parsed.errors)
     if (age !== null && values.gender && !eligibleCategory) {
@@ -248,9 +267,9 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
           mobile_number: values.mobile_number,
           mobile_e164: mobileE164,
           email: values.email.trim(),
-          ...locationFields(values.representing),
+          ...locationFields(representingValue),
           address: '',
-          representing: values.representing,
+          representing: representingValue,
         },
       })
 
@@ -482,19 +501,29 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
 
   // ---- form view ------------------------------------------------------------
   const representingLabel =
-    representingMode === 'district'
-      ? `District (you represent) — ${championshipState}`
-      : representingMode === 'state'
-        ? 'State (you represent)'
-        : 'State / Province (you represent)'
+    representingMode === 'academy'
+      ? 'Academy / Club (you represent)'
+      : representingMode === 'district'
+        ? `District (you represent) — ${championshipState}`
+        : representingMode === 'state'
+          ? 'State (you represent)'
+          : 'State / Province (you represent)'
   const representingHint =
-    representingMode === 'district'
-      ? `Start typing to find your district in ${championshipState}.`
-      : representingMode === 'state'
-        ? 'The Indian state this entry represents.'
-        : 'The region this entry represents.'
+    representingMode === 'academy'
+      ? 'Optional — leave blank and your entry will be recorded as Individual.'
+      : representingMode === 'district'
+        ? `Start typing to find your district in ${championshipState}.`
+        : representingMode === 'state'
+          ? 'The Indian state this entry represents.'
+          : 'The region this entry represents.'
   const representingPlaceholder =
-    representingMode === 'district' ? 'e.g. Coimbatore' : representingMode === 'state' ? 'e.g. Tamil Nadu' : 'Region'
+    representingMode === 'academy'
+      ? 'e.g. Coimbatore Athletics Club (optional)'
+      : representingMode === 'district'
+        ? 'e.g. Coimbatore'
+        : representingMode === 'state'
+          ? 'e.g. Tamil Nadu'
+          : 'Region'
 
   return (
     <div className="space-y-6">
@@ -606,16 +635,33 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
             </div>
           )}
 
-          <Field label={representingLabel} htmlFor={reprId} required error={errors.representing} hint={representingHint}>
-            <SearchCombobox
-              id={reprId}
-              name="representing"
-              value={values.representing}
-              invalid={Boolean(errors.representing)}
-              onChange={(value) => setValues((current) => ({ ...current, representing: value }))}
-              options={representingOptions}
-              placeholder={representingPlaceholder}
-            />
+          <Field
+            label={representingLabel}
+            htmlFor={reprId}
+            required={representingMode !== 'academy'}
+            error={errors.representing}
+            hint={representingHint}
+          >
+            {representingMode === 'academy' ? (
+              <Input
+                id={reprId}
+                name="representing"
+                value={values.representing}
+                invalid={Boolean(errors.representing)}
+                onChange={(event) => setValues((current) => ({ ...current, representing: event.target.value }))}
+                placeholder={representingPlaceholder}
+              />
+            ) : (
+              <SearchCombobox
+                id={reprId}
+                name="representing"
+                value={values.representing}
+                invalid={Boolean(errors.representing)}
+                onChange={(value) => setValues((current) => ({ ...current, representing: value }))}
+                options={representingOptions}
+                placeholder={representingPlaceholder}
+              />
+            )}
           </Field>
 
           <Field label="Gender" htmlFor={genderId} required error={errors.gender}>

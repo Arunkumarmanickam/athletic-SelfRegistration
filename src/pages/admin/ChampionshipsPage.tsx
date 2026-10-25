@@ -50,7 +50,7 @@ interface ChampionshipFormState {
   currency: string
   base_fee_rupees: string
   terms_text: string
-  level: 'state' | 'national'
+  level: 'district' | 'state' | 'national'
   nation: string
   state_name: string
   max_events_per_athlete: string
@@ -116,7 +116,12 @@ function formState(championship: AdminChampionship | null): ChampionshipFormStat
     currency: championship.currency,
     base_fee_rupees: paiseToRupees(championship.base_fee_paise),
     terms_text: championship.terms_text ?? '',
-    level: championship.level === 'national' ? 'national' : 'state',
+    level:
+      championship.level === 'national'
+        ? 'national'
+        : championship.level === 'district'
+          ? 'district'
+          : 'state',
     nation: championship.nation ?? 'India',
     state_name: championship.state_name ?? '',
     max_events_per_athlete: championship.max_events_per_athlete !== undefined && championship.max_events_per_athlete !== null ? String(championship.max_events_per_athlete) : '',
@@ -281,9 +286,11 @@ export function ChampionshipsPage() {
                       <span className="block text-xs text-slate-500">
                         {championship.level === 'national'
                           ? `National · ${championship.nation ?? 'Nation not set'}`
-                          : championship.state_name
-                            ? `State · ${championship.state_name}`
-                            : 'State'}
+                          : championship.level === 'district'
+                            ? `District · ${championship.state_name ?? 'State not set'}`
+                            : championship.state_name
+                              ? `State · ${championship.state_name}`
+                              : 'State'}
                         {' · '}
                         {championship.championship_categories.length} categories ·{' '}
                         {championship.championship_events.length} events
@@ -409,7 +416,7 @@ function ChampionshipEditor({
       setFormError('Every selected event needs a name.')
       return
     }
-    if (form.level === 'state' && form.state_name.trim().length < 1) {
+    if ((form.level === 'state' || form.level === 'district') && form.state_name.trim().length < 1) {
       setFormError('Please choose the state this championship belongs to.')
       return
     }
@@ -444,8 +451,8 @@ function ChampionshipEditor({
       },
       terms_text: form.terms_text,
       level: form.level,
-      nation: form.level === 'state' ? 'India' : form.nation.trim(),
-      state_name: form.level === 'state' ? form.state_name.trim() : null,
+      nation: form.level === 'national' ? form.nation.trim() : 'India',
+      state_name: form.level === 'national' ? null : form.state_name.trim(),
       max_events_per_athlete: form.max_events_per_athlete.trim() === '' ? null : Number(form.max_events_per_athlete.trim()),
     }
 
@@ -612,18 +619,31 @@ function ChampionshipEditor({
               <CardTitle>Fees &amp; numbering</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
-              <Field label="Level" htmlFor="c-level" hint="Decides what athletes pick under “representing”.">
-                <Select id="c-level" value={form.level} onChange={(e) => setField({ level: e.target.value as 'state' | 'national' })}>
+              <Field
+                label="Level"
+                htmlFor="c-level"
+                hint="Decides what athletes enter under “representing”."
+              >
+                <Select
+                  id="c-level"
+                  value={form.level}
+                  onChange={(e) => setField({ level: e.target.value as 'district' | 'state' | 'national' })}
+                >
+                  <option value="district">District</option>
                   <option value="state">State</option>
                   <option value="national">National</option>
                 </Select>
               </Field>
-              {form.level === 'state' ? (
+              {form.level === 'state' || form.level === 'district' ? (
                 <Field
                   label="State (India)"
                   htmlFor="c-state"
                   required
-                  hint="Athletes representing this meet pick a district of this state."
+                  hint={
+                    form.level === 'district'
+                      ? 'Athletes enter the academy or club they represent, or Individual.'
+                      : 'Athletes representing this meet pick a district of this state.'
+                  }
                 >
                   <SearchCombobox
                     id="c-state"

@@ -317,7 +317,9 @@ function buildChampionshipValues(
   }
   if ('level' in raw) {
     const level = str(raw.level).toLowerCase()
-    if (level !== 'state' && level !== 'national') return { values, error: 'Level must be State or National.' }
+    if (!['district', 'state', 'national'].includes(level)) {
+      return { values, error: 'Level must be District, State or National.' }
+    }
     values.level = level
   }
 
@@ -331,11 +333,13 @@ function buildChampionshipValues(
   }
 
   // The level decides what the registration form asks the athlete for, so the
-  // two location fields are kept in step here rather than in the UI: a state
-  // meet is always in India and names its state; a national meet names its
-  // nation and has no state of its own.
+  // two location fields are kept in step here rather than in the UI: district
+  // and state meets are always in India and name their state; a national meet
+  // names its nation and has no state of its own. At a district meet athletes
+  // type the academy/club they represent (or "Individual"), so no athlete
+  // district is required.
   const level = values.level ?? (str(raw.level) || undefined)
-  if (level === 'state') {
+  if (level === 'state' || level === 'district') {
     values.nation = 'India'
     const stateName = (values.state_name ?? '').trim()
     if (stateName) {
