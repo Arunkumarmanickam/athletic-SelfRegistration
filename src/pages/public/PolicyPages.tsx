@@ -76,7 +76,7 @@ export function PrivacyPage() {
       </ul>
 
       <h2>4. Payment Processing</h2>
-      <p>Online payments are processed through Cashfree, our payment gateway provider.</p>
+      <p>Your payment will be processed through a third-party payment gateway.</p>
       <p>
         Payment information is handled by the payment gateway in accordance with its applicable security practices and
         privacy policy. We receive transaction-related information, such as the payment reference, status, and payment
@@ -187,7 +187,7 @@ export function TermsPage() {
       <h2>Fees and payment</h2>
       <ul>
         <li>The fee shown is calculated by our server from the championship's current configuration and is the amount payable.</li>
-        <li>Payments are collected through Cashfree. A registration is not confirmed until the payment is verified by our server.</li>
+        <li>Your payment will be processed through a third-party payment gateway. A registration is not confirmed until the payment is verified by our server.</li>
         <li>Refunds, if any, are at the organiser's discretion and follow the championship's stated policy.</li>
       </ul>
 
