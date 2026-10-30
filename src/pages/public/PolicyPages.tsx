@@ -24,65 +24,143 @@ function PolicyShell({
 }
 
 export function PrivacyPage() {
-  const { config } = useConfig()
-  const organizer = config?.site?.organizer_name?.trim() || 'the championship organiser'
-  const email = config?.site?.support_email?.trim()
-  const phone = config?.site?.support_phone?.trim()
-
   return (
-    <PolicyShell title="Privacy policy">
+    <PolicyShell title="Privacy Policy" updated="29 October 2026">
+      <h2>1. Introduction</h2>
       <p>
-        This portal is operated by {organizer} to accept athlete registrations for athletics championships and to
-        process the associated registration fees. This policy explains what we collect, why, and how long we keep it.
+        This website is operated by Kishore Kumar S to facilitate online athlete registrations for athletics championships
+        and to process the associated registration fees.
+      </p>
+      <p>
+        This Privacy Policy explains what personal information we collect, how we use and protect it, and how long we
+        retain it. By using this website, you acknowledge that your information will be handled as described in this
+        policy.
       </p>
 
-      <h2>What we collect</h2>
+      <h2>2. Information We Collect</h2>
+      <p>We may collect the following information when you register through our website:</p>
       <ul>
-        <li>Athlete details you provide: full name, date of birth, gender, mobile number, and optionally email, address, district, representing body and emergency contact.</li>
-        <li>Optional photographs or supporting documents you upload, stored privately.</li>
-        <li>Registration records (championship, category, events, fees) and payment status.</li>
-        <li>Limited technical data such as the request IP address, used for fraud prevention and rate limiting.</li>
+        <li>
+          <strong>Athlete Information:</strong> Full name, date of birth, gender, mobile number, and, where provided,
+          email address, residential address, district, representing body, and emergency contact details.
+        </li>
+        <li>
+          <strong>Supporting Documents:</strong> Photographs and supporting documents uploaded by athletes, where required
+          for registration.
+        </li>
+        <li>
+          <strong>Registration Information:</strong> Championship details, age category, selected events, registration
+          fees, and registration status.
+        </li>
+        <li>
+          <strong>Payment Information:</strong> Payment reference, transaction status, payment method, and other limited
+          transaction details required to confirm registration.
+        </li>
+        <li>
+          <strong>Technical Information:</strong> Limited technical information, such as IP address and request data,
+          where necessary for security, fraud prevention, and rate limiting.
+        </li>
       </ul>
 
-      <h2>What we never store</h2>
+      <h2>3. How We Use Your Information</h2>
+      <p>We use the information collected for the following purposes:</p>
       <ul>
-        <li>We never store passwords or verification details in plain text — only salted hashes.</li>
-        <li>We never store your card or bank details. Card data is handled entirely by Cashfree; we only receive a payment reference and status.</li>
+        <li>To process and manage athlete registrations.</li>
+        <li>To determine the appropriate age category and registered events based on the information provided.</li>
+        <li>To verify registration details when athletes retrieve their saved information or retry a payment.</li>
+        <li>To process registration fee payments and confirm successful transactions.</li>
+        <li>To generate registration confirmations and receipts, where applicable.</li>
+        <li>To communicate with athletes about their registrations when necessary.</li>
+        <li>To prevent fraudulent transactions and unauthorised access.</li>
+        <li>To comply with applicable legal, accounting, and regulatory requirements.</li>
       </ul>
 
-      <h2>Why we use it</h2>
+      <h2>4. Payment Processing</h2>
+      <p>Online payments are processed through Cashfree, our payment gateway provider.</p>
+      <p>
+        Payment information is handled by the payment gateway in accordance with its applicable security practices and
+        privacy policy. We receive transaction-related information, such as the payment reference, status, and payment
+        method, to verify payments and manage registrations.
+      </p>
+      <p>We do not store complete card details or banking credentials on our website.</p>
+      <p>
+        The payment gateway may independently collect and process information as described in its own privacy policy.
+      </p>
+
+      <h2>5. Data Protection and Access</h2>
+      <p>
+        We take reasonable measures to protect the personal information collected through this website against
+        unauthorised access, disclosure, alteration, or loss.
+      </p>
+      <p>
+        Access to athlete registration and payment records is restricted to authorised championship administrators
+        through an access-controlled administrative dashboard.
+      </p>
+      <p>We do not sell athletes' personal information to third parties.</p>
+      <p>
+        Information may be shared with service providers, including our payment gateway, when necessary to operate the
+        registration service, process payments, maintain security, or meet legal obligations.
+      </p>
+
+      <h2>6. Data Retention</h2>
+      <p>
+        We retain personal information for as long as reasonably necessary to administer the championship, maintain
+        registration records, resolve payment disputes, and meet applicable legal and accounting requirements.
+      </p>
+      <p>
+        When information is no longer required for these purposes, we will take appropriate steps to delete or anonymise
+        it, subject to applicable legal obligations.
+      </p>
+
+      <h2>7. Your Privacy Rights</h2>
+      <p>Subject to applicable law, you may request to:</p>
       <ul>
-        <li>To register and place you in the correct age category and events.</li>
-        <li>To verify your identity when you retrieve your details or retry a payment.</li>
-        <li>To collect the registration fee and issue a receipt.</li>
-        <li>To comply with legal, accounting and anti-fraud obligations.</li>
+        <li>Access the personal information associated with your registration.</li>
+        <li>Correct inaccurate or incomplete information.</li>
+        <li>Request deletion of personal information that is no longer required to be retained.</li>
+        <li>Obtain information about how your personal information is used.</li>
       </ul>
-
-      <h2>Payment processing</h2>
       <p>
-        Payments are processed by Cashfree. We share only the amount and a reference with Cashfree; we receive back a
-        payment reference, status and method. Cashfree's own privacy policy governs their processing.
+        Requests may be subject to identity verification and applicable legal or record-retention requirements.
+      </p>
+      <p>To submit a privacy-related request, please contact us using the details provided below.</p>
+
+      <h2>8. Cookies and Technical Data</h2>
+      <p>
+        Our website may use essential technical storage or similar technologies required for website functionality,
+        security, session management, and fraud prevention.
+      </p>
+      <p>
+        Any additional cookies or tracking technologies, if used, will be handled in accordance with applicable
+        requirements.
       </p>
 
-      <h2>Who can see your data</h2>
+      <h2>9. Third-Party Services</h2>
       <p>
-        Only authorised championship administrators can view athlete and payment records, over a secured, role-based
-        dashboard. Your data is never sold. Access to the underlying database is denied to public clients by design.
+        Our website uses third-party services where necessary to provide registration and payment functionality. These
+        services may process information in accordance with their own privacy policies and terms.
       </p>
+      <p>We are not responsible for the independent privacy practices of third-party service providers.</p>
 
-      <h2>Retention</h2>
+      <h2>10. Changes to This Policy</h2>
       <p>
-        Registration and payment records are retained as long as needed for the championship, for any dispute window,
-        and to meet accounting and legal requirements {organizer} is subject to. Where records are no longer required,
-        they are deleted or anonymised.
+        We may update this Privacy Policy from time to time to reflect changes in our registration process, website
+        functionality, or applicable legal requirements.
       </p>
+      <p>The updated policy will be published on this page with a revised date.</p>
 
-      <h2>Your choices</h2>
+      <h2>11. Contact Information</h2>
+      <p>For questions, requests, or concerns regarding this Privacy Policy or the handling of your personal information, please contact:</p>
       <p>
-        You may ask to access, correct or delete your personal data, subject to legal and accounting retention
-        requirements. To make a request, contact {organizer}
-        {email ? ` at ${email}` : ''}
-        {phone ? ` or ${phone}` : ''}.
+        Operator: Kishore Kumar S
+        <br />
+        Email: <a className="text-orange-700 underline" href="mailto:kijomech@gmail.com">kijomech@gmail.com</a>
+        <br />
+        Phone: <a className="text-orange-700 underline" href="tel:+919600663369">9600663369</a>
+      </p>
+      <p>
+        Please include sufficient information to help us identify your registration when submitting a
+        registration-related request. Avoid sending unnecessary sensitive personal information by email.
       </p>
     </PolicyShell>
   )
