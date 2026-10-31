@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import type { ChampionshipEvent } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { formatMoney } from '@/lib/format'
@@ -32,30 +32,31 @@ export function EventMultiSelect({
 }: EventMultiSelectProps) {
   const [search, setSearch] = useState('')
 
-  const decorated = useMemo(
-    () =>
-      events.map((event) => {
-        const genderOk = event.gender === 'any' || event.gender === gender
-        // Prefer the list for the athlete's gender, falling back to the legacy
-        // shared list only when neither gender-specific list is configured.
-        const genderList =
-          gender === 'male'
-            ? event.male_category_ids
-            : gender === 'female'
-              ? event.female_category_ids
-              : null
-        const applicable = genderList ?? event.category_ids
-        const categoryOk =
-          !applicable || applicable.length === 0 || applicable.includes(categoryId)
-        const reason = !genderOk
-          ? 'Not open to your gender'
-          : !categoryOk
-            ? 'Not offered in your category'
+  const decorated = useMemo(() => {
+    const items = events.map((event) => {
+      const genderOk = event.gender === 'any' || event.gender === gender
+      // Prefer the list for the athlete's gender, falling back to the legacy
+      // shared list only when neither gender-specific list is configured.
+      const genderList =
+        gender === 'male'
+          ? event.male_category_ids
+          : gender === 'female'
+            ? event.female_category_ids
             : null
-        return { event, eligible: !reason, reason }
-      }),
-    [events, gender, categoryId],
-  )
+      const applicable = genderList ?? event.category_ids
+      const categoryOk =
+        !applicable || applicable.length === 0 || applicable.includes(categoryId)
+      const reason = !genderOk
+        ? 'Not open to your gender'
+        : !categoryOk
+          ? 'Not offered in your category'
+          : null
+      return { event, eligible: !reason, reason }
+    })
+    // Registrable events first; the stable sort keeps the programme order
+    // within each group so the list only moves when eligibility changes.
+    return items.sort((a, b) => Number(b.eligible) - Number(a.eligible))
+  }, [events, gender, categoryId])
 
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -137,7 +138,7 @@ export function EventMultiSelect({
           <p className="px-3 py-6 text-center text-sm text-slate-500">No events match your search.</p>
         )}
         <ul className="divide-y divide-slate-100 p-1">
-          {visible.map(({ event, eligible, reason }) => {
+          {visible.map(({ event, eligible, reason }, index) => {
             const checked = selectedIds.includes(event.id)
             // A blocked box is disabled (and labelled) instead of silently
             // swallowing the click, so the athlete understands the cap.
@@ -149,30 +150,63 @@ export function EventMultiSelect({
               event.gender !== 'any' ? (event.gender === 'male' ? 'Men' : 'Women') : null,
               note,
             ].filter((value): value is string => Boolean(value))
+            const previous = index > 0 ? visible[index - 1] : null
+            const showIneligibleHeader = !eligible && (!previous || previous.eligible)
             return (
-              <li key={event.id}>
-                <label
-                  className={cn(
-                    'flex items-start gap-3 rounded-md px-3 py-2.5 text-sm transition-colors',
-                    disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-slate-50',
-                    checked && eligible && 'bg-orange-50/70',
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 h-4.5 w-4.5 rounded border-slate-300 text-orange-600 focus:ring-orange-500 disabled:cursor-not-allowed"
-                    checked={checked}
-                    disabled={disabled}
-                    onChange={() => onToggle(event.id)}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-medium text-slate-800">{event.name}</span>
-                    {meta.length > 0 && (
-                      <span className="block text-xs text-slate-500">{meta.join(' · ')}</span>
+              <Fragment key={event.id}>
+                {showIneligibleHeader && (
+                  <li className="flex items-center gap-2 px-3 pb-1 pt-3">
+                    <span className="h-px flex-1 bg-slate-200" />
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                      Not eligible for your selection
+                    </span>
+                    <span className="h-px flex-1 bg-slate-200" />
+                  </li>
+                )}
+                <li>
+                  <label
+                    className={cn(
+                      'flex items-start gap-3 rounded-md px-3 py-2.5 text-sm transition-colors',
+                      !eligible
+                        ? 'cursor-not-allowed bg-amber-50/50'
+                        : blocked
+                          ? 'cursor-not-allowed opacity-60'
+                          : 'cursor-pointer hover:bg-slate-50',
+                      checked && eligible && 'bg-orange-50/70',
                     )}
-                  </span>
-                </label>
-              </li>
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4.5 w-4.5 rounded border-slate-300 text-orange-600 focus:ring-orange-500 disabled:cursor-not-allowed"
+                      checked={checked}
+                      disabled={disabled}
+                      onChange={() => onToggle(event.id)}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className={cn('font-medium', eligible ? 'text-slate-800' : 'text-slate-500')}>
+                          {event.name}
+                        </span>
+                        {!eligible && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                            Not eligible
+                          </span>
+                        )}
+                      </span>
+                      {meta.length > 0 && (
+                        <span
+                          className={cn(
+                            'mt-0.5 block text-xs',
+                            eligible ? 'text-slate-500' : 'text-amber-700',
+                          )}
+                        >
+                          {meta.join(' · ')}
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                </li>
+              </Fragment>
             )
           })}
         </ul>
