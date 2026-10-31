@@ -769,7 +769,8 @@ Deno.serve(
       if (!GENDERS.includes(gender)) return errorJson(req, 'INVALID_FIELDS', 'Invalid gender eligibility.', 400)
       if (feePaise < 0) return errorJson(req, 'INVALID_FIELDS', 'Event fee must be zero or more.', 400)
 
-      const payload = {
+      const sortOrder = toInt(body.sort_order)
+      const payload: Record<string, unknown> = {
         championship_id: championshipId,
         name,
         gender,
@@ -778,10 +779,21 @@ Deno.serve(
         female_category_ids: femaleCategoryIds,
         fee_paise: feePaise,
         is_active: body.is_active === false ? false : true,
-        sort_order: toInt(body.sort_order) ?? 0,
       }
+      // Editing an event must not move it to the top of the programme.
+      if (sortOrder !== null) payload.sort_order = sortOrder
 
       if (action === 'event_create') {
+        if (sortOrder === null) {
+          const { data: last } = await supabase
+            .from('championship_events')
+            .select('sort_order')
+            .eq('championship_id', championshipId)
+            .order('sort_order', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          payload.sort_order = ((last?.sort_order as number | null) ?? 0) + 1
+        }
         const { data: created, error: insertError } = await supabase
           .from('championship_events')
           .insert(payload)
