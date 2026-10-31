@@ -23,7 +23,12 @@ export interface ChampionshipEvent {
   id: string
   name: string
   gender: CategoryGender
+  /** Legacy shared list. Used when neither gender-specific list is set. */
   category_ids: string[] | null
+  /** Age categories open to men. Null/empty means every category. */
+  male_category_ids: string[] | null
+  /** Age categories open to women. Null/empty means every category. */
+  female_category_ids: string[] | null
   fee_paise: number
   is_active: boolean
   sort_order: number
@@ -35,7 +40,10 @@ export interface ChampionshipEvent {
  * restriction until the organiser adds one after creating the championship).
  */
 export type DefaultCategory = ChampionshipCategory
-export type DefaultEvent = Omit<ChampionshipEvent, 'category_ids'>
+export type DefaultEvent = Omit<
+  ChampionshipEvent,
+  'category_ids' | 'male_category_ids' | 'female_category_ids'
+>
 
 export interface FormConfig {
   require_email?: boolean

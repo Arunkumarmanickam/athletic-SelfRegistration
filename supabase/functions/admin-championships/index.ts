@@ -193,6 +193,8 @@ function defaultEventRows(
       name: event.name,
       gender: event.gender ?? 'any',
       category_ids: null,
+      male_category_ids: null,
+      female_category_ids: null,
       fee_paise: event.fee_paise ?? 0,
       is_active: true,
       sort_order: event.sort_order ?? 0,
@@ -396,7 +398,7 @@ Deno.serve(
       const { data: championships, error } = await supabase
         .from('championships')
         .select(
-          'id, slug, name, description, location, starts_on, ends_on, registration_opens_at, registration_closes_at, status, currency, base_fee_paise, form_config, terms_text, level, nation, state_name, max_events_per_athlete, created_at, updated_at, championship_categories (id, name, gender, min_age, max_age, fee_paise, is_active, sort_order), championship_events (id, name, gender, category_ids, fee_paise, is_active, sort_order)',
+          'id, slug, name, description, location, starts_on, ends_on, registration_opens_at, registration_closes_at, status, currency, base_fee_paise, form_config, terms_text, level, nation, state_name, max_events_per_athlete, created_at, updated_at, championship_categories (id, name, gender, min_age, max_age, fee_paise, is_active, sort_order), championship_events (id, name, gender, category_ids, male_category_ids, female_category_ids, fee_paise, is_active, sort_order)',
         )
         .order('created_at', { ascending: false })
       if (error) {
@@ -551,7 +553,13 @@ Deno.serve(
           ? parsedCategories.rows.map((row) => ({ ...row, championship_id: created.id }))
           : defaultCategoryRows(created.id, defaults.categories)
         const eventRows = hasEventList
-          ? parsedEvents.rows.map((row) => ({ ...row, championship_id: created.id, category_ids: null }))
+          ? parsedEvents.rows.map((row) => ({
+              ...row,
+              championship_id: created.id,
+              category_ids: null,
+              male_category_ids: null,
+              female_category_ids: null,
+            }))
           : defaultEventRows(created.id, defaults.events)
         await insertCollections(supabase, categoryRows, eventRows)
         categoriesAdded = categoryRows.length
@@ -744,6 +752,16 @@ Deno.serve(
       if (Array.isArray(categoryIdsRaw) && categoryIdsRaw.length > 0) {
         categoryIds = categoryIdsRaw.map((v) => str(v)).filter(Boolean)
       }
+      const maleCategoryIdsRaw = body.male_category_ids
+      let maleCategoryIds: string[] | null = null
+      if (Array.isArray(maleCategoryIdsRaw) && maleCategoryIdsRaw.length > 0) {
+        maleCategoryIds = maleCategoryIdsRaw.map((v) => str(v)).filter(Boolean)
+      }
+      const femaleCategoryIdsRaw = body.female_category_ids
+      let femaleCategoryIds: string[] | null = null
+      if (Array.isArray(femaleCategoryIdsRaw) && femaleCategoryIdsRaw.length > 0) {
+        femaleCategoryIds = femaleCategoryIdsRaw.map((v) => str(v)).filter(Boolean)
+      }
 
       if (!championshipId || name.length < 1) {
         return errorJson(req, 'INVALID_FIELDS', 'An event name is required.', 400)
@@ -756,6 +774,8 @@ Deno.serve(
         name,
         gender,
         category_ids: categoryIds,
+        male_category_ids: maleCategoryIds,
+        female_category_ids: femaleCategoryIds,
         fee_paise: feePaise,
         is_active: body.is_active === false ? false : true,
         sort_order: toInt(body.sort_order) ?? 0,

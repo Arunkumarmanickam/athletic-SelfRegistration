@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Alert, Badge, Card, CardContent, CardHeader, CardTitle, Separator, Spinner } from '@/components/ui/display'
 import { Button } from '@/components/ui/button'
 import { Field, Input } from '@/components/ui/input'
@@ -996,7 +996,28 @@ function CategoriesEditor({ championship, onChanged }: { championship: AdminCham
 // Events
 // ---------------------------------------------------------------------------
 
-const EMPTY_EVENT = { name: '', gender: 'any', fee_rupees: '0', category_ids: [] as string[], is_active: true }
+const EMPTY_EVENT = {
+  name: '',
+  gender: 'any',
+  fee_rupees: '0',
+  male_category_ids: [] as string[],
+  female_category_ids: [] as string[],
+  is_active: true,
+}
+
+/** Short "30+ – 85+" style summary of a category-id list. */
+function summarizeCategories(ids: string[] | null | undefined, ordered: ChampionshipCategory[]): string {
+  if (!ids || ids.length === 0) return 'all categories'
+  const picked = ordered.filter((category) => ids.includes(category.id))
+  if (picked.length === 0) return 'all categories'
+  if (picked.length === ordered.length) return 'all categories'
+  const first = ordered.indexOf(picked[0])
+  const last = ordered.indexOf(picked[picked.length - 1])
+  if (picked.length === last - first + 1) {
+    return picked.length === 1 ? picked[0].name : `${picked[0].name} – ${picked[picked.length - 1].name}`
+  }
+  return picked.map((category) => category.name).join(', ')
+}
 
 function EventsEditor({ championship, onChanged }: { championship: AdminChampionship; onChanged: () => void }) {
   const toast = useToast()
@@ -1005,19 +1026,17 @@ function EventsEditor({ championship, onChanged }: { championship: AdminChampion
   const [busy, setBusy] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<ChampionshipEvent | null>(null)
 
-  const categoryNames = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const category of championship.championship_categories) map.set(category.id, category.name)
-    return map
-  }, [championship.championship_categories])
-
   const startEdit = (event: ChampionshipEvent) => {
+    // Seed the per-gender lists from the legacy shared list when they have
+    // never been configured, so old restrictions stay visible and intact.
+    const legacy = event.category_ids ?? []
     setEditingId(event.id)
     setDraft({
       name: event.name,
       gender: event.gender,
       fee_rupees: paiseToRupees(event.fee_paise),
-      category_ids: event.category_ids ?? [],
+      male_category_ids: event.male_category_ids ?? legacy,
+      female_category_ids: event.female_category_ids ?? legacy,
       is_active: event.is_active,
     })
   }
@@ -1027,12 +1046,15 @@ function EventsEditor({ championship, onChanged }: { championship: AdminChampion
     setDraft(EMPTY_EVENT)
   }
 
-  const toggleCategory = (id: string) => {
+  const toggleCategory = (
+    field: 'male_category_ids' | 'female_category_ids',
+    id: string,
+  ) => {
     setDraft((current) => ({
       ...current,
-      category_ids: current.category_ids.includes(id)
-        ? current.category_ids.filter((item) => item !== id)
-        : [...current.category_ids, id],
+      [field]: current[field].includes(id)
+        ? current[field].filter((item) => item !== id)
+        : [...current[field], id],
     }))
   }
 
@@ -1046,7 +1068,10 @@ function EventsEditor({ championship, onChanged }: { championship: AdminChampion
       name: draft.name.trim(),
       gender: draft.gender,
       fee_paise: rupeesToPaise(draft.fee_rupees),
-      category_ids: draft.category_ids,
+      // The per-gender lists are authoritative from now on.
+      category_ids: null,
+      male_category_ids: draft.male_category_ids,
+      female_category_ids: draft.female_category_ids,
       is_active: draft.is_active,
     }
     setBusy(true)
@@ -1093,9 +1118,22 @@ function EventsEditor({ championship, onChanged }: { championship: AdminChampion
                   </p>
                   <p className="text-xs text-slate-500">
                     {genderLabel(event.gender)} · {formatMoney(event.fee_paise, championship.currency)}
-                    {event.category_ids && event.category_ids.length > 0
-                      ? ` · ${event.category_ids.map((id) => categoryNames.get(id) ?? '?').join(', ')}`
-                      : ' · all categories'}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Men:{' '}
+                    {event.gender === 'female'
+                      ? '—'
+                      : summarizeCategories(
+                          event.male_category_ids ?? event.category_ids,
+                          championship.championship_categories,
+                        )}
+                    {' · '}Women:{' '}
+                    {event.gender === 'male'
+                      ? '—'
+                      : summarizeCategories(
+                          event.female_category_ids ?? event.category_ids,
+                          championship.championship_categories,
+                        )}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-1">
@@ -1134,23 +1172,43 @@ function EventsEditor({ championship, onChanged }: { championship: AdminChampion
                 />
               </Field>
             </div>
-            <div>
-              <p className="mb-1 text-sm font-medium text-slate-800">Restrict to categories</p>
-              {championship.championship_categories.length === 0 ? (
-                <p className="text-xs text-slate-500">Add categories first, or leave blank to offer to all categories.</p>
-              ) : (
-                <div className="grid gap-1.5">
-                  {championship.championship_categories.map((category) => (
-                    <Checkbox
-                      key={category.id}
-                      label={category.name}
-                      checked={draft.category_ids.includes(category.id)}
-                      onChange={() => toggleCategory(category.id)}
-                    />
-                  ))}
-                </div>
-              )}
-              <p className="mt-1 text-xs text-slate-500">Leave all unchecked to offer this event to every category.</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <p className="mb-1 text-sm font-medium text-slate-800">Men's age categories</p>
+                {championship.championship_categories.length === 0 ? (
+                  <p className="text-xs text-slate-500">Add categories first.</p>
+                ) : (
+                  <div className="grid max-h-56 gap-1.5 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                    {championship.championship_categories.map((category) => (
+                      <Checkbox
+                        key={category.id}
+                        label={category.name}
+                        checked={draft.male_category_ids.includes(category.id)}
+                        onChange={() => toggleCategory('male_category_ids', category.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+                <p className="mt-1 text-xs text-slate-500">Leave all unchecked to offer it to every men's category.</p>
+              </div>
+              <div>
+                <p className="mb-1 text-sm font-medium text-slate-800">Women's age categories</p>
+                {championship.championship_categories.length === 0 ? (
+                  <p className="text-xs text-slate-500">Add categories first.</p>
+                ) : (
+                  <div className="grid max-h-56 gap-1.5 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                    {championship.championship_categories.map((category) => (
+                      <Checkbox
+                        key={category.id}
+                        label={category.name}
+                        checked={draft.female_category_ids.includes(category.id)}
+                        onChange={() => toggleCategory('female_category_ids', category.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+                <p className="mt-1 text-xs text-slate-500">Leave all unchecked to offer it to every women's category.</p>
+              </div>
             </div>
             <Checkbox
               label="Active (selectable by athletes)"

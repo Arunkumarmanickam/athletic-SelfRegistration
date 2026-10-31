@@ -36,8 +36,17 @@ export function EventMultiSelect({
     () =>
       events.map((event) => {
         const genderOk = event.gender === 'any' || event.gender === gender
+        // Prefer the list for the athlete's gender, falling back to the legacy
+        // shared list only when neither gender-specific list is configured.
+        const genderList =
+          gender === 'male'
+            ? event.male_category_ids
+            : gender === 'female'
+              ? event.female_category_ids
+              : null
+        const applicable = genderList ?? event.category_ids
         const categoryOk =
-          !event.category_ids || event.category_ids.length === 0 || event.category_ids.includes(categoryId)
+          !applicable || applicable.length === 0 || applicable.includes(categoryId)
         const reason = !genderOk
           ? 'Not open to your gender'
           : !categoryOk
