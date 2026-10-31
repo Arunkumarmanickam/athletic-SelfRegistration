@@ -116,7 +116,30 @@ supabase secrets set RESEND_API_KEY=re_xxxxxxxx \
 
 ---
 
-## 🟢 8. Handoff — transfer project to the client (end of project)
+## 🟡 8. Pending client assets — branding
+
+**Blocked:** waiting for the client to send the logo file and confirm the exact association name.
+
+- [ ] **Logo:** replace the placeholder `AR` mark with the association's logo in the
+      public header/footer, admin header, admin login page, and receipt fallback
+      (`src/components/layout/PublicLayout.tsx`,
+      `src/components/layout/AdminLayout.tsx`,
+      `src/pages/admin/AdminLoginPage.tsx`,
+      `src/components/registration/ReceiptInvoice.tsx`). Update
+      `public/favicon.svg` too if they provide a matching icon.
+- [ ] **Hero name:** set `site.organizer_name` in **Admin → Settings** to the
+      exact name the client wants shown. It feeds the home-page hero label,
+      footer copyright, policy contact block, and other organiser references.
+      Do not guess the name.
+- [ ] **Verify:** rebuild/redeploy, then check the desktop and mobile header,
+      hero, footer, admin login, and a sample receipt.
+
+**Request from client:** logo file (SVG or transparent PNG, ideally square) and
+the exact display name, plus any approved short form.
+
+---
+
+## 🟢 9. Handoff — transfer project to the client (end of project)
 
 Supabase supports official **Project Transfers**; the project ref, URLs and
 API keys stay identical, so **no code or Vercel changes** are needed — only
