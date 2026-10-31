@@ -144,6 +144,11 @@ export function EventMultiSelect({
             const blocked = !checked && atLimit
             const disabled = !eligible || blocked
             const note = reason ?? (blocked ? `Maximum ${maxSelected} events already selected` : null)
+            const meta = [
+              event.fee_paise > 0 ? `Additional fee ${formatMoney(event.fee_paise)}` : null,
+              event.gender !== 'any' ? (event.gender === 'male' ? 'Men' : 'Women') : null,
+              note,
+            ].filter((value): value is string => Boolean(value))
             return (
               <li key={event.id}>
                 <label
@@ -162,11 +167,9 @@ export function EventMultiSelect({
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block font-medium text-slate-800">{event.name}</span>
-                    <span className="block text-xs text-slate-500">
-                      {event.fee_paise > 0 ? formatMoney(event.fee_paise) : 'No additional fee'}
-                      {event.gender !== 'any' && ` · ${event.gender === 'male' ? 'Men' : 'Women'}`}
-                      {note && ` · ${note}`}
-                    </span>
+                    {meta.length > 0 && (
+                      <span className="block text-xs text-slate-500">{meta.join(' · ')}</span>
+                    )}
                   </span>
                 </label>
               </li>
