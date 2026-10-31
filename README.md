@@ -4,58 +4,192 @@ A production-ready athlete registration portal for CDMAA championships. Built wi
 
 ## Features
 
-- **Draft-based flow** - Athletes are only created on successful payment. Nothing permanent is saved until verification.
-- **Cashfree UPI-only payments** - Server-side order creation, verification via Cashfree API, redirect callback handling.
-- **Application Number** - Generated before payment (`APP-YYYY-XXXXXX`), trackable independently of registration/bib.
-- **Aadhaar verification** - Front side upload required before payment (validated, not stored).
-- **Status tracking** - Lookup by Application Number + mobile, or Registration/Bib + mobile.
-- **Admin panel** - Manage championships, registrations, athletes, payments, exports.
-- **Unpaid application tracking** - Admins can review pending, failed, abandoned, and not-started submissions under **Registrations → Unpaid applications**. These rows show full athlete details but no Athlete ID or bib.
-- **Receipts** - Auto-generated PDF receipt on successful payment.
+- **Draft-based flow** — Athletes are only created on successful payment. Nothing permanent is saved until verification.
+- **Cashfree UPI-only payments** — Server-side order creation, verification via the Cashfree API, and redirect callback handling.
+- **Application Number** — Generated before payment (`APP-YYYY-XXXXXX`) and trackable independently of the registration/bib.
+- **Aadhaar verification** — Front-side upload required before payment (validated, not stored).
+- **Status tracking** — Lookup by Application Number + mobile, or Registration/Bib + mobile.
+- **Championship configuration** — Per-championship age categories, events, fees, registration windows, and a per-athlete event cap.
+- **Per-gender event eligibility** — Each event can expose different age categories to men and women.
+- **Live event eligibility in the form** — The event picker marks events the athlete cannot enter and shows why.
+- **Admin panel** — Manage championships, events, categories, registrations, athletes, payments, and exports.
+- **Unpaid application tracking** — Admins can review pending, failed, abandoned, and not-started submissions under **Registrations → Unpaid applications**. These rows show full athlete details but no Athlete ID or bib.
+- **Receipts** — Auto-generated PDF receipt on successful payment.
 
 ## Tech Stack
 
 - **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS + React Router
-- **Backend:** Supabase (Postgres, RLS, Edge Functions - Deno)
+- **Backend:** Supabase (Postgres, RLS, Edge Functions — Deno)
 - **Payments:** Cashfree JS SDK v3
 - **Storage/Auth:** Supabase
 
 ## Setup
 
 ### 1. Install dependencies
+
 ```bash
 npm install
 ```
 
 ### 2. Environment variables
-Create `.env` in root:
+
+Copy `.env.example` to `.env` and fill in real values. See that file for the full annotated list.
+
+Frontend (compiled into the browser bundle):
+
 ```env
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_PUBLIC_KEY
+VITE_SITE_URL=http://localhost:5173
 ```
 
-### 3. Supabase setup
-- Run migrations from `supabase/migrations/`
-- Deploy Edge Functions from `supabase/functions/`
-- Set secrets: `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`, `CASHFREE_ENV` (`sandbox`|`production`), `SITE_URL`
+Server-only (set as Supabase Edge Function secrets, never in frontend code):
 
-### 4. Run dev server
+```env
+SUPABASE_SERVICE_ROLE_KEY=...
+CASHFREE_APP_ID=...
+CASHFREE_SECRET_KEY=...
+CASHFREE_ENV=sandbox            # sandbox | production
+SITE_URL=http://localhost:5173  # public site URL used after payment
+ALLOWED_ORIGINS=http://localhost:5173
+BOOTSTRAP_ADMIN_SECRET=...      # one-time, only for the first admin
+RESEND_API_KEY=                 # optional email receipts
+NOTIFICATION_FROM_EMAIL=Registrations <registrations@example.com>
+```
+
+`CASHFREE_ENV` defaults to `sandbox`. Keep it on sandbox until the live merchant account is connected. `SITE_URL` and `ALLOWED_ORIGINS` must be updated to the production domain when deploying.
+
+### 3. Supabase setup
+
+```bash
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push
+supabase functions deploy
+```
+
+Then set the server-only secrets:
+
+```bash
+supabase secrets set \
+  SUPABASE_SERVICE_ROLE_KEY=... \
+  CASHFREE_APP_ID=... \
+  CASHFREE_SECRET_KEY=... \
+  CASHFREE_ENV=sandbox \
+  SITE_URL=http://localhost:5173 \
+  ALLOWED_ORIGINS=http://localhost:5173
+```
+
+- Migrations live in `supabase/migrations/` and are applied in filename order.
+- Edge Functions live in `supabase/functions/` (one folder per function).
+- The first (owner) administrator is created with `BOOTSTRAP_ADMIN_SECRET` via `npm run create-admin -- --email owner@example.org --name "Owner"`, then that secret should be removed.
+- Additional admins are created from the admin panel.
+
+### 4. Run the dev server
+
 ```bash
 npm run dev
 ```
 
 ### 5. Build
+
 ```bash
 npm run build
 ```
 
+The build runs `tsc --noEmit` before Vite, so type errors fail the build.
+
 ## Registration Flow
 
-1. Select championship → Fill personal details + events + Aadhaar upload
-2. Draft created with Application Number → Redirect to payment
-3. Pay via Cashfree UPI → Redirect to `/payment-callback` (verified server-side)
-4. On success → Draft promoted via `promote_draft()`, registration/bib/athlete ID issued → Receipt shown
-5. On pending/failed → Track via Application Number on Status page; admins can follow up under Registrations → Unpaid applications
+1. Select a championship → fill personal details, age category, events, and upload the Aadhaar front side.
+2. A draft is created with an Application Number → redirect to payment.
+3. Pay via Cashfree UPI → redirect to `/payment-callback` (verified server-side).
+4. On success → the draft is promoted via `promote_draft()`, and the registration, bib, and Athlete ID are issued → receipt shown.
+5. On pending/failed → track via Application Number on the Status page; admins can follow up under **Registrations → Unpaid applications**.
+
+## Championships & Events
+
+Each championship owns its own age categories and events. Nothing is hard-coded per championship; the configuration lives in the database and is editable from **Admin → Championships**.
+
+### Per-gender age eligibility
+
+Every event has two eligibility lists:
+
+- `male_category_ids` — age categories open to men.
+- `female_category_ids` — age categories open to women.
+
+Rules:
+
+| Configuration | Effect |
+| --- | --- |
+| List is `null` or empty | The event is open to every category for that gender. |
+| List has entries | Only the listed categories are eligible for that gender. |
+| Both lists are `null` | Falls back to the legacy shared `category_ids` list. |
+
+The event's `gender` field (`any`, `male`, `female`) is applied first, then the gender-specific category list. The server re-checks both rules in `create_registration_draft()`, so a crafted request cannot bypass the UI.
+
+Age ranges use the **lower bound of each bracket**. For example, `30+ to 85+` includes every bracket from `30+` through `85–89`, and `90+` includes `90–94` (up to the championship's highest category).
+
+### Event picker behaviour
+
+- Events are sorted with eligible events first; ineligible events are grouped below a **“Not eligible for your selection”** divider.
+- Ineligible events are disabled, shown with an amber background and a **“Not eligible”** badge, and explain the reason (“Not open to your gender” or “Not offered in your category”).
+- An event fee is shown only when the event actually has a fee configured. Events without an event fee show no fee text.
+- When the championship has a per-athlete event cap, the picker enforces it and explains how to swap a selected event.
+
+### Admin event management
+
+Open **Admin → Championships → Events** for the selected championship.
+
+The editor supports:
+
+- Event name, gender (`Any`, `Men`, `Women`), and fee (₹).
+- Separate **Men's age categories** and **Women's age categories** checklists. Leaving a checklist completely unchecked means “all categories for that gender”.
+- An **Active** flag. Inactive events remain in the admin list (marked `(inactive)`) but are not selectable by athletes.
+- Editing an event preserves its existing order; changing a name or eligibility list does not reset `sort_order`.
+- Deleting an event is blocked once registrations reference it — deactivate it instead.
+
+### `state-meet-2026` programme
+
+The live championship is `state-meet-2026` (44th Coimbatore District Masters Athletic Championship — 2026).
+
+- **Status:** open for registration.
+- **Event date:** 22 November 2026.
+- **Registration window:** 20 October 2026 16:30 UTC → 19 November 2026 13:02 UTC.
+- **Age categories:** 15 brackets, `30+` through `100+`.
+- **Event cap:** 3 events per athlete.
+- **Base fee:** ₹500 (category and event fees are added on top).
+
+The programme has **19 active events**:
+
+`100m`, `200m`, `400m`, `800m`, `1500m`, `5000m`, `5k Walking`, `110m Hurdles`, `100m Hurdles`, `80m Hurdles`, `400m Hurdles`, `300m Hurdles`, `Long Jump`, `Triple Jump`, `High Jump`, `Shot Put`, `Discus Throw`, `Javelin Throw`, `Hammer Throw`.
+
+It also has **3 inactive extras** — `3000m`, `3000m Race Walk`, and `10000m`. They are not part of the current programme but can be enabled from the admin Events editor if needed.
+
+`110m Hurdles` is men-only. `100m Hurdles` is open to both genders. All other events use the per-gender ranges below (shown as the first and last eligible bracket):
+
+| Event | Men | Women |
+| --- | --- | --- |
+| 100m | 30+ – 85+ | 30+ – 90+ |
+| 200m | 30+ – 85+ | 30+ – 80+ |
+| 400m | 30+ – 80+ | 30+ – 60+ |
+| 800m | 30+ – 80+ | 30+ – 60+ |
+| 1500m | 30+ – 80+ | 30+ – 60+ |
+| 5000m | 30+ – 80+ | 30+ – 60+ |
+| 5k Walking | 30+ – 80+ | 30+ – 60+ |
+| 110m Hurdles | 30+ – 45+ | — |
+| 100m Hurdles | 50+ – 65+ | 30+ – 35+ |
+| 80m Hurdles | 70+ – 75+ | 40+ – 60+ |
+| 400m Hurdles | 30+ – 55+ | 30+ – 45+ |
+| 300m Hurdles | 60+ – 75+ | 50+ – 65+ |
+| Long Jump | 30+ – 85+ | 30+ – 80+ |
+| Triple Jump | 30+ – 75+ | 30+ – 80+ |
+| High Jump | 30+ – 75+ | 30+ – 80+ |
+| Shot Put | 30+ – 85+ | 30+ – 80+ |
+| Discus Throw | 30+ – 85+ | 30+ – 80+ |
+| Javelin Throw | 30+ – 85+ | 30+ – 80+ |
+| Hammer Throw | 30+ – 85+ | 30+ – 80+ |
+
+These ranges apply only to `state-meet-2026`. The standard defaults (`default_categories`, `default_events`) and other championships are unchanged.
 
 ## Admin: Unpaid Applications
 
@@ -70,25 +204,67 @@ Open **Registrations → Unpaid applications** (`/admin/registrations?tab=applic
 
 This view is read-only. An application never has an Athlete ID, registration number, or bib number. `promote_draft()` creates those only after Cashfree reports the order as `PAID`, the amount matches, and the server verifies the payment. Terminal Cashfree failures are recorded by `payment-callback`; a checkout that never completes remains pending until the draft expires.
 
-The Overview dashboard's registration counters still reflect confirmed registration rows. Use the **Unpaid applications** tab for unpaid attempts.
+The Overview dashboard's registration counters reflect confirmed registration rows only. Use the **Unpaid applications** tab for unpaid attempts.
 
-## TODO
+## Database & Migrations
 
-- [ ] **Webhooks**: Add Cashfree webhook to auto-promote payments if user leaves before callback redirect
-- [ ] **Email notifications**: Configure SMTP/provider for confirmation emails
-- [ ] **Testing**: End-to-end testing for all payment states (success/pending/failed)
-- [ ] **Production config**: Switch Cashfree from sandbox to production with live credentials
-- [ ] **Admin improvements**: Add bulk actions and enhanced reporting
-- [ ] **Mobile optimization**: Further UI tweaks for mobile payment flows
+Migrations are applied in filename order. Recent ones relevant to the current championship setup:
+
+- `20261020000001_remove_relay_events.sql` — removes relay events.
+- `20261020000003_registration_drafts.sql` — draft storage and expiry.
+- `20261020000004_draft_functions.sql` — draft creation and promotion functions.
+- `20261025000001_application_numbers.sql` — application number sequence and generation.
+- `20261025000002_district_level.sql` — level-aware required fields and draft validation.
+- `20261101000001_event_gender_categories.sql` — per-gender event eligibility, server-side validation, and the `state-meet-2026` event programme.
+- `20261101000002_state_meet_100m_hurdles.sql` — opens `100m Hurdles` to both genders.
+
+The `state-meet-2026` programme migration is data-only for that championship. It does not alter the standard defaults or other championships.
+
+## Operations
+
+- **Resetting test data:** the October 2026 cleanup was a one-off manual operation, not a migration. It removed athletes, registrations, drafts, payments, audit logs, sessions, tokens, and rate-limit rows, and reset `id_sequences` and `application_number_seq`. Admin accounts and championship configuration were kept. The next real application starts at `APP-2026-000001`, and the next athlete ID/bib starts at `000001`.
+- **Audit logs:** cleared during that reset. New admin actions continue to be recorded.
+- **Registration:** intentionally left open for `state-meet-2026`.
+
+## Deployment
+
+- Frontend is deployed on Vercel from the `main` branch; `vercel.json` contains the SPA rewrite.
+- A push to `main` triggers a production build automatically. A README-only change does not alter the frontend bundle.
+- Edge Functions are deployed separately:
+
+```bash
+supabase functions deploy public-config
+supabase functions deploy admin-championships
+# ...or deploy every function
+supabase functions deploy
+```
+
+- Secrets take effect immediately and do not require a function redeploy.
+- `VITE_*` values are baked in at build time. After changing one in Vercel, trigger a new deployment.
 
 ## Project Structure
 
 ```
 src/                    # Frontend React app
+  components/           # UI and registration components
+  pages/                # Public and admin pages
+  lib/                  # API clients, types, formatting
 supabase/functions/     # Edge Functions (Deno)
 supabase/migrations/    # Database migrations
+scripts/                # Admin bootstrap helpers
 ```
+
+## TODO
+
+See `TODO.md` for the full handoff and production checklist. Open items include:
+
+- [ ] **Cashfree webhook**: auto-promote payments if the athlete leaves before the callback redirect
+- [ ] **Email notifications**: configure Resend for confirmation emails
+- [ ] **Testing**: end-to-end coverage for all payment states (success/pending/failed)
+- [ ] **Production config**: switch Cashfree from sandbox to production with live credentials
+- [ ] **Admin improvements**: bulk actions and enhanced reporting
+- [ ] **Mobile optimization**: further UI tweaks for mobile payment flows
 
 ## License
 
-Private - CDMAA Internal Use Only
+Private — CDMAA Internal Use Only
