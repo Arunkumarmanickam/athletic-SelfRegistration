@@ -151,7 +151,7 @@ export function ReturningPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
-      <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Retrieve your details</h1>
+      <h1 className="font-display text-2xl font-bold tracking-tight text-brand-900 sm:text-3xl">Retrieve your details</h1>
 
       {!loaded && (
         <Card className="mt-6">
@@ -162,7 +162,7 @@ export function ReturningPage() {
             {identityError && <Alert tone="danger" title="Verification unsuccessful">{identityError}</Alert>}
 
             <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Verification method">
-              <label className={`cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium ${method === 'athlete_id' ? 'border-orange-400 bg-orange-50 text-orange-800' : 'border-slate-300 text-slate-700'}`}>
+              <label className={`cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium ${method === 'athlete_id' ? 'border-accent-400 bg-accent-50 text-accent-800' : 'border-slate-300 text-slate-700'}`}>
                 <input
                   type="radio"
                   name="verify_method"
@@ -172,7 +172,7 @@ export function ReturningPage() {
                 />
                 I have my Athlete ID
               </label>
-              <label className={`cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium ${method === 'mobile' ? 'border-orange-400 bg-orange-50 text-orange-800' : 'border-slate-300 text-slate-700'}`}>
+              <label className={`cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium ${method === 'mobile' ? 'border-accent-400 bg-accent-50 text-accent-800' : 'border-slate-300 text-slate-700'}`}>
                 <input
                   type="radio"
                   name="verify_method"

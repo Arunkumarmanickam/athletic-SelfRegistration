@@ -339,7 +339,7 @@ export function ApplicationDetailPage() {
                 Administrators cannot mark this application as paid or assign a bib manually. Only a verified payment
                 or the existing Payments reconcile flow can do that.
               </p>
-              <Link to="/admin/registrations" className="inline-block text-sm font-medium text-orange-700 hover:underline">
+              <Link to="/admin/registrations" className="inline-block text-sm font-medium text-accent-700 hover:underline">
                 View paid registrations
               </Link>
             </CardContent>

@@ -140,7 +140,9 @@ export function StatusPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
-      <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Check registration status</h1>
+      <h1 className="font-display text-2xl font-bold tracking-tight text-brand-900 sm:text-3xl">
+        Check registration status
+      </h1>
       <p className="mt-2 text-sm text-slate-600">
         You can check by Application Number (issued before payment) or by Registration ID / Bib Number (issued only after successful payment).
       </p>
@@ -288,7 +290,7 @@ export function StatusPage() {
             <CardContent>
               <p className="text-sm text-slate-600">
                 An entry only appears here once its payment has succeeded — that is when your bib number and Athlete ID are issued. If you left the payment step unfinished, simply{' '}
-                <Link to="/register" className="font-semibold text-orange-700 underline-offset-2 hover:underline">
+                <Link to="/register" className="font-semibold text-accent-700 underline-offset-2 hover:underline">
                   register again
                 </Link>{' '}
                 and complete the payment. Nothing was registered the first time, so nothing is duplicated.

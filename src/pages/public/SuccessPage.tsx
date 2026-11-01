@@ -77,8 +77,8 @@ export function SuccessPage() {
     <div className="mx-auto w-full max-w-3xl px-4 py-8 print:max-w-none print:px-0 print:py-0">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print-hide">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-600">Payment received</p>
-          <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">Your receipt</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent-600">Payment received</p>
+          <h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-brand-900 sm:text-3xl">Your receipt</h1>
         </div>
       </div>
 

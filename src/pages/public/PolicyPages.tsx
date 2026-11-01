@@ -14,7 +14,7 @@ function PolicyShell({
 }) {
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
-      <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">{title}</h1>
+      <h1 className="font-display text-2xl font-bold tracking-tight text-brand-900 sm:text-3xl">{title}</h1>
       {updated && <p className="mt-2 text-sm text-slate-500">Last updated: {updated}</p>}
       <div className="mt-6 space-y-4 text-sm leading-relaxed text-slate-700 [&_h2]:mt-8 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-slate-900 [&_li]:ml-5 [&_li]:list-disc">
         {children}
@@ -154,9 +154,9 @@ export function PrivacyPage() {
       <p>
         Operator: Kishore Kumar S
         <br />
-        Email: <a className="text-orange-700 underline" href="mailto:kijomech@gmail.com">kijomech@gmail.com</a>
+        Email: <a className="text-accent-700 underline" href="mailto:kijomech@gmail.com">kijomech@gmail.com</a>
         <br />
-        Phone: <a className="text-orange-700 underline" href="tel:+919600663369">9600663369</a>
+        Phone: <a className="text-accent-700 underline" href="tel:+919600663369">9600663369</a>
       </p>
       <p>
         Please include sufficient information to help us identify your registration when submitting a
@@ -212,7 +212,7 @@ export function ContactPage() {
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
-      <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Contact the organiser</h1>
+      <h1 className="font-display text-2xl font-bold tracking-tight text-brand-900 sm:text-3xl">Contact the organiser</h1>
       <p className="mt-2 text-sm text-slate-600">
         For anything to do with your registration, payment or eligibility, please reach out to the organising team.
       </p>
@@ -227,7 +227,7 @@ export function ContactPage() {
               <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Email</dt>
               <dd className="text-slate-800">
                 {site.support_email?.trim() ? (
-                  <a className="text-orange-700 underline" href={`mailto:${site.support_email}`}>
+                  <a className="text-accent-700 underline" href={`mailto:${site.support_email}`}>
                     {site.support_email}
                   </a>
                 ) : (

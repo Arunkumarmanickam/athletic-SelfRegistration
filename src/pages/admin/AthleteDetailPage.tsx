@@ -241,7 +241,7 @@ export function AthleteDetailPage() {
                           <td className="px-3 py-2.5">
                             <Link
                               to={`/admin/registrations/${registration.id}`}
-                              className="text-sm font-medium text-orange-700 hover:underline"
+                              className="text-sm font-medium text-accent-700 hover:underline"
                             >
                               View
                             </Link>

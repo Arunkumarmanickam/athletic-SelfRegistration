@@ -316,7 +316,7 @@ export function ApplicationsPanel({ championships }: { championships: Championsh
                       <Link
                         to={`/admin/applications/${row.id}`}
                         onClick={(event) => event.stopPropagation()}
-                        className="text-sm font-medium text-orange-700 hover:underline"
+                        className="text-sm font-medium text-accent-700 hover:underline"
                       >
                         View
                       </Link>

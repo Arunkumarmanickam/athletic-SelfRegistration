@@ -155,7 +155,7 @@ export function RegistrationsPage() {
           aria-selected={tab === 'registrations'}
           onClick={() => setTab('registrations')}
           className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-            tab === 'registrations' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+            tab === 'registrations' ? 'bg-brand-700 text-white' : 'text-slate-700 hover:bg-slate-100'
           }`}
         >
           Registrations
@@ -166,7 +166,7 @@ export function RegistrationsPage() {
           aria-selected={tab === 'applications'}
           onClick={() => setTab('applications')}
           className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-            tab === 'applications' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+            tab === 'applications' ? 'bg-brand-700 text-white' : 'text-slate-700 hover:bg-slate-100'
           }`}
         >
           Unpaid applications
@@ -365,7 +365,7 @@ export function RegistrationsPage() {
                       <Link
                         to={`/admin/registrations/${row.id}`}
                         onClick={(event) => event.stopPropagation()}
-                        className="text-sm font-medium text-orange-700 hover:underline"
+                        className="text-sm font-medium text-accent-700 hover:underline"
                       >
                         View
                       </Link>

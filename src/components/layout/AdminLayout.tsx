@@ -119,7 +119,7 @@ export function AdminLayout() {
                   className={({ isActive }) =>
                     cn(
                       'block rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                      isActive ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-white hover:text-slate-900',
+                      isActive ? 'bg-brand-700 text-white' : 'text-slate-700 hover:bg-white hover:text-slate-900',
                     )
                   }
                 >

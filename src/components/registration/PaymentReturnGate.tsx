@@ -48,7 +48,7 @@ export function PaymentReturnGate({ children }: { children: React.ReactNode }) {
   if (busy) {
     return (
       <div className="mx-auto w-full max-w-xl px-4 py-20 text-center">
-        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-orange-600" />
+        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-accent-600" />
         <h1 className="mt-5 text-lg font-semibold text-slate-900">Confirming your payment…</h1>
         <p className="mt-2 text-sm text-slate-600">
           Your bank has returned to us. Please wait a moment — do not close this page.

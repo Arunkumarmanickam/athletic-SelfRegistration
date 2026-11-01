@@ -1,4 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
+import { ArrowRight, CalendarDays, Clock, MapPin } from 'lucide-react'
 import { Alert, Card, EmptyState, Spinner } from '@/components/ui/display'
 import { Button } from '@/components/ui/button'
 import { RegistrationForm } from '@/components/registration/RegistrationForm'
@@ -7,24 +8,40 @@ import { formatDate } from '@/lib/format'
 import type { Championship } from '@/lib/types'
 
 function ChampionshipHeader({ championship }: { championship: Championship }) {
+  const dates = championship.starts_on
+    ? `${formatDate(championship.starts_on)}${
+        championship.ends_on && championship.ends_on !== championship.starts_on
+          ? ` – ${formatDate(championship.ends_on)}`
+          : ''
+      }`
+    : null
+
   return (
     <div className="mb-6 border-b border-slate-200 pb-5">
-      <p className="text-sm font-semibold uppercase tracking-wide text-orange-600">Registration</p>
-      <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">{championship.name}</h1>
-      <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
-        {championship.location && <span>{championship.location}</span>}
-        {championship.starts_on && (
-          <span>
-            {formatDate(championship.starts_on)}
-            {championship.ends_on && championship.ends_on !== championship.starts_on
-              ? ` – ${formatDate(championship.ends_on)}`
-              : ''}
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent-600">Registration</p>
+      <h1 className="mt-1 text-balance font-display text-2xl font-bold tracking-tight text-brand-900 sm:text-3xl">
+        {championship.name}
+      </h1>
+      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-600">
+        {championship.location && (
+          <span className="inline-flex items-center gap-1.5">
+            <MapPin className="h-4 w-4 text-brand-500" aria-hidden="true" />
+            {championship.location}
+          </span>
+        )}
+        {dates && (
+          <span className="inline-flex items-center gap-1.5">
+            <CalendarDays className="h-4 w-4 text-brand-500" aria-hidden="true" />
+            {dates}
           </span>
         )}
         {championship.registration_closes_at && (
-          <span className="text-amber-700">Entry closes {formatDate(championship.registration_closes_at)}</span>
+          <span className="inline-flex items-center gap-1.5 font-medium text-accent-700">
+            <Clock className="h-4 w-4" aria-hidden="true" />
+            Entry closes {formatDate(championship.registration_closes_at)}
+          </span>
         )}
-      </p>
+      </div>
     </div>
   )
 }
@@ -116,22 +133,27 @@ export function RegisterPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-12">
-      <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Choose a championship</h1>
+      <h1 className="font-display text-2xl font-bold tracking-tight text-brand-900 sm:text-3xl">
+        Choose a championship
+      </h1>
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         {championships.map((championship) => (
-          <Card key={championship.id} className="flex flex-col">
+          <Card key={championship.id} className="flex flex-col transition hover:shadow-md">
             <div className="flex flex-1 flex-col p-5">
-              <h2 className="text-base font-semibold text-slate-900">{championship.name}</h2>
-              <p className="mt-1 text-sm text-slate-600">
+              <h2 className="font-display text-base font-bold text-brand-900">{championship.name}</h2>
+              <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-600">
+                <MapPin className="h-4 w-4 shrink-0 text-brand-500" aria-hidden="true" />
                 {championship.location || 'Location to be announced'}
               </p>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                <CalendarDays className="h-3.5 w-3.5 shrink-0 text-brand-500" aria-hidden="true" />
                 {championship.starts_on ? formatDate(championship.starts_on) : 'Dates to be announced'}
               </p>
               <div className="mt-4">
                 <Link to={`/register/${championship.slug}`}>
                   <Button variant="accent" className="w-full">
                     Start registration
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Button>
                 </Link>
               </div>

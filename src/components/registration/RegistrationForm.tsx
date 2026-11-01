@@ -46,10 +46,37 @@ const AADHAAR_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const AADHAAR_MAX_BYTES = 5 * 1024 * 1024
 
 const fileInputClass =
-  'block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-orange-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-orange-700'
+  'block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-accent-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-accent-700'
 
 export interface RegistrationFormProps {
   championship: Championship
+}
+
+function FormSection({
+  step,
+  title,
+  description,
+  children,
+}: {
+  step: string
+  title: string
+  description?: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="space-y-4 border-t border-slate-100 pt-6 first:border-0 first:pt-0">
+      <div className="flex items-start gap-3">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-700 ring-1 ring-inset ring-brand-100">
+          {step}
+        </span>
+        <div>
+          <h3 className="font-display text-base font-bold text-brand-900">{title}</h3>
+          {description && <p className="mt-0.5 text-sm text-slate-600">{description}</p>}
+        </div>
+      </div>
+      <div className="space-y-5">{children}</div>
+    </section>
+  )
 }
 
 /**
@@ -388,9 +415,9 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
                   {formatMoney(draft.fee_paise, draft.currency)}
                 </dd>
               </div>
-              <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
-                <dt className="text-xs font-medium uppercase tracking-wide text-orange-600">Bib number</dt>
-                <dd className="mt-1 text-sm font-semibold text-orange-800">Issued after payment</dd>
+              <div className="rounded-lg border border-accent-200 bg-accent-50 px-4 py-3">
+                <dt className="text-xs font-medium uppercase tracking-wide text-accent-600">Bib number</dt>
+                <dd className="mt-1 text-sm font-semibold text-accent-800">Issued after payment</dd>
               </div>
             </dl>
 
@@ -551,248 +578,281 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
         <CardHeader>
           <CardTitle>Registration form</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-5">
-          <Field label="Full name" htmlFor={nameId} required error={errors.full_name}>
-            <Input
-              id={nameId}
-              name="full_name"
-              autoComplete="name"
-              value={values.full_name}
-              invalid={Boolean(errors.full_name)}
-              onChange={(event) => setValues((current) => ({ ...current, full_name: event.target.value }))}
-              placeholder="As it should appear on results and the bib"
-            />
-          </Field>
-
-          <Field label="Aadhaar card — front side" htmlFor={aadhaarId} required error={errors.aadhaar}>
-            <div className="grid gap-4 sm:grid-cols-[minmax(0,300px)_minmax(0,1fr)] sm:items-start">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <AadhaarReference className="w-full" />
-                <p className="mt-2 text-center text-[11px] text-slate-500">Front side — for reference only</p>
-              </div>
-              <div className="space-y-3">
-                <input
-                  id={aadhaarId}
-                  name="aadhaar"
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className={fileInputClass}
-                  onChange={(event) => pickAadhaar(event.target.files?.[0] ?? null)}
-                />
-                {aadhaarFile && <p className="text-xs text-slate-500">Selected: {aadhaarFile.name}</p>}
-                <Alert tone="info" className="text-xs">
-                  Make sure that your Aadhar Card&apos;s Date of Birth is exactly the same as the date of birth entered
-                  below. The card is only checked to confirm your date of birth and is not stored.
-                </Alert>
-              </div>
-            </div>
-          </Field>
-
-          <Field
-            label="Date of birth"
-            htmlFor={dobId}
-            required
-            error={errors.date_of_birth}
-            hint="Used to place the athlete in the correct age category."
+        <CardContent className="space-y-6">
+          <FormSection
+            step="1"
+            title="Athlete details"
+            description="Your name, identity check, age category, and gender."
           >
-            <Input
-              id={dobId}
-              name="date_of_birth"
-              type="date"
-              max={new Date().toISOString().slice(0, 10)}
-              value={values.date_of_birth}
-              invalid={Boolean(errors.date_of_birth)}
-              onChange={(event) => setValues((current) => ({ ...current, date_of_birth: event.target.value }))}
-            />
-          </Field>
-
-          {values.date_of_birth && (
-            <div
-              className={cn(
-                'rounded-lg border px-4 py-3 text-sm',
-                eligibleCategory ? 'border-slate-200 bg-slate-50' : 'border-amber-300 bg-amber-50',
-              )}
-            >
-              <p className="text-slate-600">
-                Age on {formatDate(cutoff)}:{' '}
-                <span className="font-semibold text-slate-900">
-                  {age !== null && Number.isFinite(age) ? `${age} years` : '—'}
-                </span>
-              </p>
-              {values.gender && eligibleCategory && (
-                <p className="mt-1 text-slate-700">
-                  Your age category: <span className="font-semibold">{eligibleCategory.name}</span> (
-                  {eligibleCategory.min_age}–{eligibleCategory.max_age} years)
-                </p>
-              )}
-              {values.gender && !eligibleCategory && (
-                <p className="mt-1 font-medium text-amber-800">
-                  No age category in this championship matches your date of birth and gender. Please check the date of
-                  birth.
-                </p>
-              )}
-              {!values.gender && <p className="mt-1 text-slate-500">Select your gender to see your age category.</p>}
-            </div>
-          )}
-
-          <Field
-            label={representingLabel}
-            htmlFor={reprId}
-            required={representingMode !== 'academy'}
-            error={errors.representing}
-            hint={representingHint}
-          >
-            {representingMode === 'academy' ? (
+            <Field label="Full name" htmlFor={nameId} required error={errors.full_name}>
               <Input
-                id={reprId}
-                name="representing"
-                value={values.representing}
-                invalid={Boolean(errors.representing)}
-                onChange={(event) => setValues((current) => ({ ...current, representing: event.target.value }))}
-                placeholder={representingPlaceholder}
+                id={nameId}
+                name="full_name"
+                autoComplete="name"
+                value={values.full_name}
+                invalid={Boolean(errors.full_name)}
+                onChange={(event) => setValues((current) => ({ ...current, full_name: event.target.value }))}
+                placeholder="As it should appear on results and the bib"
               />
-            ) : (
-              <SearchCombobox
-                id={reprId}
-                name="representing"
-                value={values.representing}
-                invalid={Boolean(errors.representing)}
-                onChange={(value) => setValues((current) => ({ ...current, representing: value }))}
-                options={representingOptions}
-                placeholder={representingPlaceholder}
-              />
-            )}
-          </Field>
+            </Field>
 
-          <Field label="Gender" htmlFor={genderId} required error={errors.gender}>
-            <div id={genderId} role="radiogroup" aria-label="Gender" className="flex flex-wrap gap-6 pt-1">
-              {[
-                { value: 'male', label: 'Men' },
-                { value: 'female', label: 'Women' },
-              ].map((option) => (
-                <label key={option.value} className="flex items-center gap-2 text-sm font-medium text-slate-800">
+            <Field label="Aadhaar card — front side" htmlFor={aadhaarId} required error={errors.aadhaar}>
+              <div className="grid gap-4 sm:grid-cols-[minmax(0,300px)_minmax(0,1fr)] sm:items-start">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <AadhaarReference className="w-full" />
+                  <p className="mt-2 text-center text-[11px] text-slate-500">Front side — for reference only</p>
+                </div>
+                <div className="space-y-3">
                   <input
-                    type="radio"
-                    name="gender"
-                    className="h-4 w-4 border-slate-300 text-orange-600 focus:ring-orange-500"
-                    value={option.value}
-                    checked={values.gender === option.value}
-                    onChange={() => setValues((current) => ({ ...current, gender: option.value }))}
+                    id={aadhaarId}
+                    name="aadhaar"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className={fileInputClass}
+                    onChange={(event) => pickAadhaar(event.target.files?.[0] ?? null)}
                   />
-                  {option.label}
-                </label>
-              ))}
-            </div>
-          </Field>
-
-          <div>
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <span className="text-sm font-medium text-slate-800">
-                Events <span className="text-red-600">*</span>
-              </span>
-              <span className="text-xs text-slate-500">
-                {values.event_ids.length} selected
-                {maxEvents !== null ? ` · maximum ${maxEvents}` : ''}
-                {maxEvents !== null && values.event_ids.length >= maxEvents ? ' · untick one to change' : ''}
-              </span>
-            </div>
-            <div className="mt-2">
-              <EventMultiSelect
-                events={championship.championship_events ?? []}
-                selectedIds={values.event_ids}
-                onToggle={toggleEvent}
-                gender={values.gender}
-                categoryId={eligibleCategory?.id ?? ''}
-                invalid={Boolean(errors.event_ids)}
-                maxSelected={maxEvents}
-              />
-            </div>
-            {errors.event_ids && (
-              <p className="mt-1 text-xs font-medium text-red-600" role="alert">
-                {errors.event_ids}
-              </p>
-            )}
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Country code" htmlFor={countryId} required error={errors.mobile_country_code}>
-              <Select
-                id={countryId}
-                name="mobile_country_code"
-                value={values.mobile_country_code}
-                invalid={Boolean(errors.mobile_country_code)}
-                onChange={(event) => setValues((current) => ({ ...current, mobile_country_code: event.target.value }))}
-              >
-                {COUNTRY_CODES.map((option) => (
-                  <option key={option.code} value={option.code}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
+                  {aadhaarFile && <p className="text-xs text-slate-500">Selected: {aadhaarFile.name}</p>}
+                  <Alert tone="info" className="text-xs">
+                    Make sure that your Aadhar Card&apos;s Date of Birth is exactly the same as the date of birth entered
+                    below. The card is only checked to confirm your date of birth and is not stored.
+                  </Alert>
+                </div>
+              </div>
             </Field>
-            <Field label="Mobile number" htmlFor={mobileId} required error={errors.mobile_number}>
+
+            <Field
+              label="Date of birth"
+              htmlFor={dobId}
+              required
+              error={errors.date_of_birth}
+              hint="Used to place the athlete in the correct age category."
+            >
               <Input
-                id={mobileId}
-                name="mobile_number"
-                type="tel"
-                inputMode="numeric"
-                autoComplete="tel"
-                value={values.mobile_number}
-                invalid={Boolean(errors.mobile_number)}
-                onChange={(event) =>
-                  setValues((current) => ({ ...current, mobile_number: event.target.value.replace(/[^\d]/g, '') }))
-                }
-                placeholder="9876543210"
+                id={dobId}
+                name="date_of_birth"
+                type="date"
+                max={new Date().toISOString().slice(0, 10)}
+                value={values.date_of_birth}
+                invalid={Boolean(errors.date_of_birth)}
+                onChange={(event) => setValues((current) => ({ ...current, date_of_birth: event.target.value }))}
               />
             </Field>
-          </div>
 
-          <Field
-            label="Email"
-            htmlFor={emailId}
-            error={errors.email}
-            hint="Optional. Used on your payment receipt and the Cashfree checkout."
+            {values.date_of_birth && (
+              <div
+                className={cn(
+                  'rounded-lg border px-4 py-3 text-sm',
+                  eligibleCategory ? 'border-slate-200 bg-slate-50' : 'border-amber-300 bg-amber-50',
+                )}
+              >
+                <p className="text-slate-600">
+                  Age on {formatDate(cutoff)}:{' '}
+                  <span className="font-semibold text-slate-900">
+                    {age !== null && Number.isFinite(age) ? `${age} years` : '—'}
+                  </span>
+                </p>
+                {values.gender && eligibleCategory && (
+                  <p className="mt-1 text-slate-700">
+                    Your age category: <span className="font-semibold">{eligibleCategory.name}</span> (
+                    {eligibleCategory.min_age}–{eligibleCategory.max_age} years)
+                  </p>
+                )}
+                {values.gender && !eligibleCategory && (
+                  <p className="mt-1 font-medium text-amber-800">
+                    No age category in this championship matches your date of birth and gender. Please check the date of
+                    birth.
+                  </p>
+                )}
+                {!values.gender && <p className="mt-1 text-slate-500">Select your gender to see your age category.</p>}
+              </div>
+            )}
+
+            <Field
+              label={representingLabel}
+              htmlFor={reprId}
+              required={representingMode !== 'academy'}
+              error={errors.representing}
+              hint={representingHint}
+            >
+              {representingMode === 'academy' ? (
+                <Input
+                  id={reprId}
+                  name="representing"
+                  value={values.representing}
+                  invalid={Boolean(errors.representing)}
+                  onChange={(event) => setValues((current) => ({ ...current, representing: event.target.value }))}
+                  placeholder={representingPlaceholder}
+                />
+              ) : (
+                <SearchCombobox
+                  id={reprId}
+                  name="representing"
+                  value={values.representing}
+                  invalid={Boolean(errors.representing)}
+                  onChange={(value) => setValues((current) => ({ ...current, representing: value }))}
+                  options={representingOptions}
+                  placeholder={representingPlaceholder}
+                />
+              )}
+            </Field>
+
+            <Field label="Gender" htmlFor={genderId} required error={errors.gender}>
+              <div id={genderId} role="radiogroup" aria-label="Gender" className="flex flex-wrap gap-6 pt-1">
+                {[
+                  { value: 'male', label: 'Men' },
+                  { value: 'female', label: 'Women' },
+                ].map((option) => (
+                  <label key={option.value} className="flex items-center gap-2 text-sm font-medium text-slate-800">
+                    <input
+                      type="radio"
+                      name="gender"
+                      className="h-4 w-4 border-slate-300 text-brand-700 focus:ring-brand-500"
+                      value={option.value}
+                      checked={values.gender === option.value}
+                      onChange={() => setValues((current) => ({ ...current, gender: option.value }))}
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
+            </Field>
+
+          </FormSection>
+
+          <FormSection
+            step="2"
+            title="Your events"
+            description="Choose the events you want to compete in. Only eligible events are selectable."
           >
-            <Input
-              id={emailId}
-              name="email"
-              type="email"
-              autoComplete="email"
-              value={values.email}
-              invalid={Boolean(errors.email)}
-              onChange={(event) => setValues((current) => ({ ...current, email: event.target.value }))}
-              placeholder="name@example.com"
-            />
-          </Field>
-
-          <FeeSummary championship={championship} category={eligibleCategory} events={selectedEvents} />
-
-
-          {championship.terms_text && (
-            <div className="space-y-2">
-              <Checkbox
-                label="I accept the terms and conditions"
-                checked={values.accept_terms}
-                onChange={(event) =>
-                  setValues((current) => ({ ...current, accept_terms: event.target.checked }))
-                }
-              />
-              {errors.accept_terms && (
-                <p className="text-xs font-medium text-red-600" role="alert">
-                  {errors.accept_terms}
+            <div>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="text-sm font-medium text-slate-800">
+                  Events <span className="text-red-600">*</span>
+                </span>
+                <span className="text-xs text-slate-500">
+                  {values.event_ids.length} selected
+                  {maxEvents !== null ? ` · maximum ${maxEvents}` : ''}
+                  {maxEvents !== null && values.event_ids.length >= maxEvents ? ' · untick one to change' : ''}
+                </span>
+              </div>
+              <div className="mt-2">
+                <EventMultiSelect
+                  events={championship.championship_events ?? []}
+                  selectedIds={values.event_ids}
+                  onToggle={toggleEvent}
+                  gender={values.gender}
+                  categoryId={eligibleCategory?.id ?? ''}
+                  invalid={Boolean(errors.event_ids)}
+                  maxSelected={maxEvents}
+                />
+              </div>
+              {errors.event_ids && (
+                <p className="mt-1 text-xs font-medium text-red-600" role="alert">
+                  {errors.event_ids}
                 </p>
               )}
-              <div className="max-h-32 overflow-y-auto whitespace-pre-line rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                {championship.terms_text}
-              </div>
             </div>
-          )}
+          </FormSection>
 
-          <div className="flex justify-end">
-            <Button variant="accent" onClick={() => void handleSubmit()} loading={submitting} disabled={submitting}>
-              Save &amp; continue to payment
-            </Button>
-          </div>
+          <FormSection
+            step="3"
+            title="Contact details"
+            description="We use these only for registration updates and your receipt."
+          >
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field label="Country code" htmlFor={countryId} required error={errors.mobile_country_code}>
+                <Select
+                  id={countryId}
+                  name="mobile_country_code"
+                  value={values.mobile_country_code}
+                  invalid={Boolean(errors.mobile_country_code)}
+                  onChange={(event) => setValues((current) => ({ ...current, mobile_country_code: event.target.value }))}
+                >
+                  {COUNTRY_CODES.map((option) => (
+                    <option key={option.code} value={option.code}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Mobile number" htmlFor={mobileId} required error={errors.mobile_number}>
+                <Input
+                  id={mobileId}
+                  name="mobile_number"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  value={values.mobile_number}
+                  invalid={Boolean(errors.mobile_number)}
+                  onChange={(event) =>
+                    setValues((current) => ({ ...current, mobile_number: event.target.value.replace(/[^\d]/g, '') }))
+                  }
+                  placeholder="9876543210"
+                />
+              </Field>
+            </div>
+
+            <Field
+              label="Email"
+              htmlFor={emailId}
+              error={errors.email}
+              hint="Optional. Used on your payment receipt and the Cashfree checkout."
+            >
+              <Input
+                id={emailId}
+                name="email"
+                type="email"
+                autoComplete="email"
+                value={values.email}
+                invalid={Boolean(errors.email)}
+                onChange={(event) => setValues((current) => ({ ...current, email: event.target.value }))}
+                placeholder="name@example.com"
+              />
+            </Field>
+          </FormSection>
+
+          <FormSection
+            step="4"
+            title="Review and pay"
+            description="Check the fee breakdown, accept the terms, and continue to secure payment."
+          >
+            <div className="rounded-xl border border-brand-100 bg-brand-50/60 p-4">
+              <FeeSummary championship={championship} category={eligibleCategory} events={selectedEvents} />
+            </div>
+
+            {championship.terms_text && (
+              <div className="space-y-2">
+                <Checkbox
+                  label="I accept the terms and conditions"
+                  checked={values.accept_terms}
+                  onChange={(event) =>
+                    setValues((current) => ({ ...current, accept_terms: event.target.checked }))
+                  }
+                />
+                {errors.accept_terms && (
+                  <p className="text-xs font-medium text-red-600" role="alert">
+                    {errors.accept_terms}
+                  </p>
+                )}
+                <div className="max-h-32 overflow-y-auto whitespace-pre-line rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                  {championship.terms_text}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <Button
+                variant="accent"
+                size="lg"
+                className="w-full sm:w-auto"
+                onClick={() => void handleSubmit()}
+                loading={submitting}
+                disabled={submitting}
+              >
+                Save &amp; continue to payment
+              </Button>
+            </div>
+          </FormSection>
         </CardContent>
       </Card>
     </div>

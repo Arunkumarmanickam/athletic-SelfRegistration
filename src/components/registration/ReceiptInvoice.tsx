@@ -66,7 +66,7 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
 
   return (
     <article className="print-sheet overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm print:rounded-none print:border-0 print:shadow-none">
-      <div className="h-1.5 bg-orange-500" />
+      <div className="h-1.5 bg-accent-500" />
       <div className="px-6 py-4 sm:px-8 sm:py-5">
         {/* Organiser + receipt identity */}
         <header className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
@@ -82,7 +82,7 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
           </div>
 
           <div className="min-w-0 text-left sm:max-w-[52%] sm:text-right">
-            <p className="text-[9px] font-semibold uppercase leading-tight tracking-[0.12em] break-words text-orange-600">
+            <p className="text-[9px] font-semibold uppercase leading-tight tracking-[0.12em] break-words text-accent-600">
               Payment receipt / invoice
             </p>
             <p className="mt-1.5 font-mono text-xl font-bold tracking-tight break-all text-slate-900">
@@ -172,7 +172,7 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
                 <span>Tax / processing fee</span>
                 <span className="tabular-nums">{formatMoney(0, currency)}</span>
               </div>
-              <div className="mt-1 flex justify-between rounded-md bg-slate-900 px-3 py-2 text-sm font-bold text-white">
+              <div className="mt-1 flex justify-between rounded-md bg-brand-900 px-3 py-2 text-sm font-bold text-white">
                 <span>Total {paid ? 'paid' : 'due'}</span>
                 <span className="tabular-nums">{formatMoney(registration.fee_paise, currency)}</span>
               </div>
