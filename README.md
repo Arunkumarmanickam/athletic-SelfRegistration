@@ -249,6 +249,7 @@ src/                    # Frontend React app
   components/           # UI and registration components
   pages/                # Public and admin pages
   lib/                  # API clients, types, formatting
+public/brand/           # Association logo assets (header, login, receipt)
 supabase/functions/     # Edge Functions (Deno)
 supabase/migrations/    # Database migrations
 scripts/                # Admin bootstrap helpers

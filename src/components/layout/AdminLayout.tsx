@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { AssociationLogo } from '@/components/AssociationLogo'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/display'
 import { useAdminAuth } from '@/context/AdminAuthContext'
@@ -67,12 +68,7 @@ export function AdminLayout() {
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-3">
             <Link to="/admin" className="flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-xs font-bold text-orange-400"
-              >
-                AR
-              </span>
+              <AssociationLogo className="h-9 w-auto shrink-0" />
               <span className="hidden text-sm font-bold text-slate-900 sm:inline">Admin dashboard</span>
             </Link>
           </div>

@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
+import { AssociationLogo } from '@/components/AssociationLogo'
 import { Button } from '@/components/ui/button'
 import { useConfig } from '@/context/ConfigContext'
 
@@ -15,12 +16,7 @@ const NAV_LINKS = [
 function Brand() {
   return (
     <Link to="/" className="flex items-center gap-2.5">
-      <span
-        aria-hidden="true"
-        className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-sm font-bold text-orange-400"
-      >
-        AR
-      </span>
+      <AssociationLogo className="h-10 w-auto shrink-0 sm:h-11" />
       <span className="leading-tight">
         <span className="block text-sm font-bold text-slate-900">Athlete Registration</span>
         <span className="block text-xs text-slate-500">Championship portal</span>

@@ -5,6 +5,9 @@ node_modules/
 dist/
 .vercel/
 
+# Client-provided source assets (web-optimised copies live in public/brand)
+client's updates/
+
 # Environment files — never commit real credentials
 .env
 .env.local

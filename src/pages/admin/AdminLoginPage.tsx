@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { Alert, Card, CardContent, CardHeader, CardTitle, Spinner } from '@/components/ui/display'
+import { AssociationLogo } from '@/components/AssociationLogo'
 import { Button } from '@/components/ui/button'
 import { Field, Input, useFieldId } from '@/components/ui/input'
 import { useAdminAuth } from '@/context/AdminAuthContext'
@@ -112,12 +113,9 @@ export function AdminLoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-12">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <span
-            aria-hidden="true"
-            className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-900 text-base font-bold text-orange-400"
-          >
-            AR
-          </span>
+          <div className="mx-auto w-fit rounded-xl bg-white px-3 py-2 shadow-sm">
+            <AssociationLogo variant="full" className="h-20 w-auto" />
+          </div>
           <h1 className="mt-4 text-2xl font-bold text-slate-900">Administrator sign-in</h1>
           <p className="mt-1 text-sm text-slate-600">
             Restricted area for championship organisers. There is no public administrator registration.

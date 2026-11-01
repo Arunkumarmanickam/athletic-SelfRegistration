@@ -1,4 +1,5 @@
 import type { Confirmation, PublicConfig } from '@/lib/types'
+import { AssociationLogo } from '@/components/AssociationLogo'
 import { formatDate, formatDateTime, formatMoney, representingText, titleCase } from '@/lib/format'
 import { amountInWords } from '@/lib/amountWords'
 
@@ -70,13 +71,7 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
         {/* Organiser + receipt identity */}
         <header className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-sm font-bold tracking-wide text-orange-400">
-              {organizer
-                .split(/\s+/)
-                .slice(0, 2)
-                .map((word) => word[0]?.toUpperCase() ?? '')
-                .join('') || 'AR'}
-            </span>
+            <AssociationLogo className="h-11 w-auto shrink-0" />
             <div className="min-w-0">
               <p className="text-lg font-bold leading-tight break-words text-slate-900">{organizer}</p>
               {site?.address && (
