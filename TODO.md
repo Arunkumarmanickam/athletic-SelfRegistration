@@ -116,10 +116,10 @@ supabase secrets set RESEND_API_KEY=re_xxxxxxxx \
 
 ---
 
-## 🟡 8. Pending client assets — branding
+## 🟢 8. Branding
 
-**Partially blocked:** the logo has been received and integrated; the exact
-association name is still pending.
+**Complete:** the logo and exact association name have been received and
+configured.
 
 - [x] **Logo:** received `client's updates/CDMAA_logo.png` on 1 Nov 2026 and
       replaced the placeholder `AR` mark. Web assets are
@@ -127,18 +127,16 @@ association name is still pending.
       `public/brand/cdmaa-logo.png` (full). Used in the public header/footer,
       admin header, admin login page, and receipt
       (`src/components/AssociationLogo.tsx`).
+- [x] **Header text:** changed to “Coimbatore District Masters Athletic
+      Association” and “Self Registration Portal”
+      (`src/lib/brand.ts`).
+- [x] **Hero name:** set `site.organizer_name` to
+      “Coimbatore District Masters Athletic Association” via
+      `20261101000003_site_organizer_name.sql`.
 - [ ] **Favicon:** create a square icon from the emblem if the client approves
       it; the existing `public/favicon.svg` is unchanged for now.
-- [ ] **Hero name:** set `site.organizer_name` in **Admin → Settings** to the
-      exact name the client wants shown. It feeds the home-page hero label,
-      footer copyright, policy contact block, and other organiser references.
-      Do not guess the name.
-- [ ] **Verify:** after the exact name is set, rebuild/redeploy, then check the
-      desktop and mobile header, hero, footer, admin login, and a sample
-      receipt.
-
-**Request from client:** the exact display name and any approved short form.
-(Logo received.)
+- [ ] **Verify:** after the next deploy, check the desktop and mobile header,
+      hero, footer, admin login, and a sample receipt.
 
 ---
 

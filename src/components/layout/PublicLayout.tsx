@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { AssociationLogo } from '@/components/AssociationLogo'
 import { Button } from '@/components/ui/button'
 import { useConfig } from '@/context/ConfigContext'
+import { ASSOCIATION_NAME, ASSOCIATION_TAGLINE } from '@/lib/brand'
 
 const NAV_LINKS = [
   { to: '/', label: 'Home', end: true },
@@ -15,11 +16,11 @@ const NAV_LINKS = [
 
 function Brand() {
   return (
-    <Link to="/" className="flex items-center gap-2.5">
-      <AssociationLogo className="h-10 w-auto shrink-0 sm:h-11" />
-      <span className="leading-tight">
-        <span className="block text-sm font-bold text-slate-900">Athlete Registration</span>
-        <span className="block text-xs text-slate-500">Championship portal</span>
+    <Link to="/" className="flex min-w-0 items-center gap-2.5">
+      <AssociationLogo className="h-10 w-auto shrink-0 sm:h-11" alt="" />
+      <span className="min-w-0 leading-tight">
+        <span className="block text-xs font-bold text-slate-900 sm:text-sm">{ASSOCIATION_NAME}</span>
+        <span className="block text-[11px] text-slate-500 sm:text-xs">{ASSOCIATION_TAGLINE}</span>
       </span>
     </Link>
   )

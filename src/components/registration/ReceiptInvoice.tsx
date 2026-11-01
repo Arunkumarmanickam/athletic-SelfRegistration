@@ -71,7 +71,7 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
         {/* Organiser + receipt identity */}
         <header className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
           <div className="flex min-w-0 items-start gap-3">
-            <AssociationLogo className="h-11 w-auto shrink-0" />
+            <AssociationLogo className="h-11 w-auto shrink-0" alt="" />
             <div className="min-w-0">
               <p className="text-lg font-bold leading-tight break-words text-slate-900">{organizer}</p>
               {site?.address && (

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle, Alert, Spinner, EmptyState, Badge } from '@/components/ui/display'
 import { Button } from '@/components/ui/button'
 import { useConfig } from '@/context/ConfigContext'
+import { ASSOCIATION_NAME } from '@/lib/brand'
 import { formatDate, formatMoney } from '@/lib/format'
 import type { Championship } from '@/lib/types'
 
@@ -69,7 +70,7 @@ export function HomePage() {
         <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-14 lg:grid-cols-2 lg:py-20">
           <div className="flex flex-col justify-center">
             <p className="text-sm font-semibold uppercase tracking-wide text-orange-600">
-              {config?.site?.organizer_name?.trim() || 'Athletics championships'}
+              {config?.site?.organizer_name?.trim() || ASSOCIATION_NAME}
             </p>
             <h1 className="mt-3 text-3xl font-bold leading-tight text-slate-900 sm:text-4xl lg:text-5xl">
               Register for your championship in minutes

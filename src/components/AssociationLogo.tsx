@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { ASSOCIATION_NAME } from '@/lib/brand'
 
 const LOGO_SRC = {
   mark: '/brand/cdmaa-mark.png',
@@ -19,7 +20,7 @@ export interface AssociationLogoProps {
 export function AssociationLogo({
   variant = 'mark',
   className,
-  alt = 'Association logo',
+  alt = `${ASSOCIATION_NAME} logo`,
 }: AssociationLogoProps) {
   return (
     <img

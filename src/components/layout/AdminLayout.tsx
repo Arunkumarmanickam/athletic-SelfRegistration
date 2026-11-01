@@ -68,7 +68,7 @@ export function AdminLayout() {
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-3">
             <Link to="/admin" className="flex items-center gap-2">
-              <AssociationLogo className="h-9 w-auto shrink-0" />
+              <AssociationLogo className="h-9 w-auto shrink-0" alt="" />
               <span className="hidden text-sm font-bold text-slate-900 sm:inline">Admin dashboard</span>
             </Link>
           </div>
