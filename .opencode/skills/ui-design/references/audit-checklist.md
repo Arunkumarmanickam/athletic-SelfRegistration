@@ -4,7 +4,8 @@ Run through this before marking a UI change complete.
 
 ## Global
 
-- [ ] Header shows the full association name and "Self Registration Portal".
+- [ ] Header shows the full association name, "Self Registration Portal", and
+      `Regd. No. 256/97 · Coimbatore`.
 - [ ] Logo is sharp, transparent, and decorative where text names the group.
 - [ ] One `h1` per page; heading order is sequential.
 - [ ] Footer has organiser, contact details, policies, and copyright.

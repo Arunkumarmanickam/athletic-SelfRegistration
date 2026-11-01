@@ -13,7 +13,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, Alert, Spinner, EmptyState, Badge } from '@/components/ui/display'
 import { Button } from '@/components/ui/button'
 import { useConfig } from '@/context/ConfigContext'
-import { ASSOCIATION_NAME } from '@/lib/brand'
+import { ASSOCIATION_LOCATION, ASSOCIATION_NAME, ASSOCIATION_REGISTERED_NO } from '@/lib/brand'
 import { cn } from '@/lib/utils'
 import { formatDate, formatMoney, type BadgeTone } from '@/lib/format'
 import type { Championship } from '@/lib/types'
@@ -244,11 +244,11 @@ export function HomePage() {
               </li>
               <li className="inline-flex items-center gap-1.5">
                 <BadgeCheck className="h-4 w-4 text-accent-300" aria-hidden="true" />
-                Regd. No. 256/97
+                {ASSOCIATION_REGISTERED_NO}
               </li>
               <li className="inline-flex items-center gap-1.5">
                 <MapPin className="h-4 w-4 text-accent-300" aria-hidden="true" />
-                Coimbatore
+                {ASSOCIATION_LOCATION}
               </li>
             </ul>
 

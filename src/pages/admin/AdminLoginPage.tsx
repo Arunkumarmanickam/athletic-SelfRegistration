@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Field, Input, useFieldId } from '@/components/ui/input'
 import { useAdminAuth } from '@/context/AdminAuthContext'
 import { ApiError, adminBootstrap } from '@/lib/api'
+import { ASSOCIATION_CREDENTIALS, ASSOCIATION_NAME, ASSOCIATION_TAGLINE } from '@/lib/brand'
 import { isSupabaseConfigured } from '@/lib/env'
 
 export function AdminLoginPage() {
@@ -113,8 +114,13 @@ export function AdminLoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-12">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <div className="mx-auto w-fit rounded-xl bg-white px-3 py-2 shadow-sm">
-            <AssociationLogo variant="full" className="h-20 w-auto" />
+          <div className="mx-auto w-fit rounded-xl bg-white px-6 py-4 shadow-sm">
+            <AssociationLogo className="mx-auto h-16 w-auto" alt="" />
+            <p className="mt-3 text-sm font-bold leading-tight text-brand-900">{ASSOCIATION_NAME}</p>
+            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-accent-600">
+              {ASSOCIATION_TAGLINE}
+            </p>
+            <p className="mt-0.5 text-[11px] text-slate-500">{ASSOCIATION_CREDENTIALS}</p>
           </div>
           <h1 className="mt-4 text-2xl font-bold text-slate-900">Administrator sign-in</h1>
           <p className="mt-1 text-sm text-slate-600">

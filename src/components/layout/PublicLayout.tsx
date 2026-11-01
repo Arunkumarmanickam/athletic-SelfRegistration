@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { AssociationLogo } from '@/components/AssociationLogo'
 import { Button } from '@/components/ui/button'
 import { useConfig } from '@/context/ConfigContext'
-import { ASSOCIATION_NAME, ASSOCIATION_TAGLINE } from '@/lib/brand'
+import { ASSOCIATION_CREDENTIALS, ASSOCIATION_NAME, ASSOCIATION_TAGLINE } from '@/lib/brand'
 
 const NAV_LINKS = [
   { to: '/', label: 'Home', end: true },
@@ -20,8 +20,13 @@ function Brand() {
     <Link to="/" className="flex min-w-0 items-center gap-2.5">
       <AssociationLogo className="h-9 w-auto shrink-0 sm:h-11" alt="" />
       <span className="min-w-0 leading-tight">
-        <span className="block text-xs font-bold text-brand-900 sm:text-sm">{ASSOCIATION_NAME}</span>
-        <span className="block text-[11px] text-slate-500 sm:text-xs">{ASSOCIATION_TAGLINE}</span>
+        <span className="block text-xs font-bold text-brand-900 sm:whitespace-nowrap sm:text-sm">
+          {ASSOCIATION_NAME}
+        </span>
+        <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-accent-600 sm:text-[11px]">
+          {ASSOCIATION_TAGLINE}
+        </span>
+        <span className="block text-[10px] text-slate-500 sm:text-[11px]">{ASSOCIATION_CREDENTIALS}</span>
       </span>
     </Link>
   )
@@ -212,7 +217,7 @@ export function PublicLayout() {
             <p>
               © {new Date().getFullYear()} {organizer}. All rights reserved.
             </p>
-            <p>Regd. No. 256/97 · Coimbatore · Secure payments</p>
+            <p>{ASSOCIATION_CREDENTIALS} · Secure payments</p>
           </div>
         </div>
       </footer>

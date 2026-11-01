@@ -1,5 +1,6 @@
 import type { Confirmation, PublicConfig } from '@/lib/types'
 import { AssociationLogo } from '@/components/AssociationLogo'
+import { ASSOCIATION_CREDENTIALS } from '@/lib/brand'
 import { formatDate, formatDateTime, formatMoney, representingText, titleCase } from '@/lib/format'
 import { amountInWords } from '@/lib/amountWords'
 
@@ -74,6 +75,7 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
             <AssociationLogo className="h-11 w-auto shrink-0" alt="" />
             <div className="min-w-0">
               <p className="text-lg font-bold leading-tight break-words text-slate-900">{organizer}</p>
+              <p className="mt-0.5 text-[11px] font-medium text-slate-600">{ASSOCIATION_CREDENTIALS}</p>
               {site?.address && (
                 <p className="mt-1 max-w-xs text-xs leading-relaxed break-words text-slate-500">{site.address}</p>
               )}

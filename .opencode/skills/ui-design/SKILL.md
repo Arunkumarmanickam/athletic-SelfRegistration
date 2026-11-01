@@ -23,6 +23,10 @@ confidence. Optimise for trust, clarity, and completing registration.
 - Names come from `src/lib/brand.ts`. Never hardcode the association name.
 - Logo: `src/components/AssociationLogo.tsx`. Use `alt=""` when adjacent text
   already names the association.
+- The brand lockup mirrors the client's logo: emblem, association name,
+  "Self Registration Portal", then `Regd. No. 256/97 · Coimbatore`
+  (`ASSOCIATION_CREDENTIALS`). Keep all three text lines together; they are the
+  association's official identification, not decoration.
 
 ## Typography
 

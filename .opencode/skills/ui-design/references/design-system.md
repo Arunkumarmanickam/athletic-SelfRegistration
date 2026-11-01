@@ -33,6 +33,17 @@ Defined in `src/index.css` under `@theme`. Tailwind generates utilities such as
 Neutrals stay on Tailwind `slate`. Status stays on `emerald` / `amber` /
 `sky` / `red` so it is never confused with the brand accent.
 
+## Brand lockup
+
+Emblem plus three text lines, matching the client's logo:
+
+1. `ASSOCIATION_NAME` — 12px/14px bold, `text-brand-900`, single line from
+   `sm` up (`sm:whitespace-nowrap`).
+2. `ASSOCIATION_TAGLINE` — 10px/11px semibold uppercase,
+   `tracking-[0.12em]`, `text-accent-600`.
+3. `ASSOCIATION_CREDENTIALS` (`Regd. No. 256/97 · Coimbatore`) — 10px/11px,
+   `text-slate-500`.
+
 ## Typography
 
 - Body: `font-sans` (Inter), base 16px on public pages.
