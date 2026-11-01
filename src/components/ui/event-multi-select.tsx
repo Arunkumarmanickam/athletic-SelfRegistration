@@ -105,7 +105,7 @@ export function EventMultiSelect({
           <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-3 py-2 backdrop-blur">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Your selection</span>
-              <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-bold text-orange-700">
+              <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-bold text-brand-700">
                 {selectedEvents.length}
                 {maxSelected != null ? ` / ${maxSelected}` : ''}
               </span>
@@ -121,10 +121,10 @@ export function EventMultiSelect({
                   <button
                     type="button"
                     onClick={() => onToggle(event.id)}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-medium text-orange-800 ring-1 ring-inset ring-orange-200 transition-colors hover:bg-orange-100"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-accent-50 px-2.5 py-1 text-xs font-medium text-accent-800 ring-1 ring-inset ring-accent-200 transition-colors hover:bg-accent-100"
                   >
                     {event.name}
-                    <span aria-hidden="true" className="text-sm leading-none text-orange-500">
+                    <span aria-hidden="true" className="text-sm leading-none text-accent-500">
                       &times;
                     </span>
                     <span className="sr-only">Remove {event.name}</span>
@@ -172,12 +172,12 @@ export function EventMultiSelect({
                         : blocked
                           ? 'cursor-not-allowed opacity-60'
                           : 'cursor-pointer hover:bg-slate-50',
-                      checked && eligible && 'bg-orange-50/70',
+                      checked && eligible && 'bg-brand-50/70',
                     )}
                   >
                     <input
                       type="checkbox"
-                      className="mt-0.5 h-4.5 w-4.5 rounded border-slate-300 text-orange-600 focus:ring-orange-500 disabled:cursor-not-allowed"
+                      className="mt-0.5 h-4.5 w-4.5 rounded border-slate-300 text-brand-700 focus:ring-brand-500 disabled:cursor-not-allowed"
                       checked={checked}
                       disabled={disabled}
                       onChange={() => onToggle(event.id)}

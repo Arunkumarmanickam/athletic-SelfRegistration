@@ -172,7 +172,7 @@ export function SearchCombobox({
                 onClick={() => choose(option)}
                 className={cn(
                   'cursor-pointer px-3 py-2',
-                  index === active ? 'bg-orange-50 text-slate-900' : 'text-slate-700',
+                  index === active ? 'bg-brand-50 text-slate-900' : 'text-slate-700',
                 )}
               >
                 {option}

@@ -36,7 +36,7 @@ const TONE_CLASSES: Record<BadgeTone, string> = {
   warning: 'bg-amber-50 text-amber-800 ring-amber-200',
   danger: 'bg-red-50 text-red-700 ring-red-200',
   info: 'bg-sky-50 text-sky-700 ring-sky-200',
-  accent: 'bg-orange-50 text-orange-700 ring-orange-200',
+  accent: 'bg-accent-50 text-accent-700 ring-accent-200',
 }
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
@@ -62,7 +62,7 @@ const ALERT_CLASSES: Record<BadgeTone, string> = {
   warning: 'border-amber-200 bg-amber-50 text-amber-900',
   danger: 'border-red-200 bg-red-50 text-red-900',
   info: 'border-sky-200 bg-sky-50 text-sky-900',
-  accent: 'border-orange-200 bg-orange-50 text-orange-900',
+  accent: 'border-accent-200 bg-accent-50 text-accent-900',
 }
 
 export interface AlertProps extends React.HTMLAttributes<HTMLDivElement> {

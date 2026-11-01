@@ -13,7 +13,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       className={cn(
         'h-11 w-full rounded-lg border bg-white px-3 text-sm text-slate-900 shadow-sm transition-colors',
         'placeholder:text-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100',
-        invalid ? 'border-red-400 focus:border-red-500' : 'border-slate-300 focus:border-slate-500',
+        invalid ? 'border-red-400 focus:border-red-500' : 'border-slate-300 focus:border-brand-500',
         className,
       )}
       {...props}
@@ -39,7 +39,7 @@ export function Field({ label, htmlFor, required, hint, error, children, classNa
       <label htmlFor={htmlFor} className="block text-sm font-medium text-slate-800">
         {label}
         {required && (
-          <span className="ml-0.5 text-orange-600" aria-hidden="true">
+          <span className="ml-0.5 text-accent-600" aria-hidden="true">
             *
           </span>
         )}

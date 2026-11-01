@@ -13,7 +13,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
       className={cn(
         'min-h-24 w-full rounded-lg border bg-white px-3 py-2 text-sm text-slate-900 shadow-sm',
         'placeholder:text-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100',
-        invalid ? 'border-red-400' : 'border-slate-300 focus:border-slate-500',
+        invalid ? 'border-red-400' : 'border-slate-300 focus:border-brand-500',
         className,
       )}
       {...props}
@@ -34,7 +34,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
       className={cn(
         'h-11 w-full rounded-lg border bg-white px-3 text-sm text-slate-900 shadow-sm',
         'disabled:cursor-not-allowed disabled:bg-slate-100',
-        invalid ? 'border-red-400' : 'border-slate-300 focus:border-slate-500',
+        invalid ? 'border-red-400' : 'border-slate-300 focus:border-brand-500',
         className,
       )}
       {...props}
@@ -56,7 +56,7 @@ export function Checkbox({ label, error, className, ...props }: CheckboxProps) {
       <label className="flex cursor-pointer items-start gap-3 text-sm text-slate-700">
         <input
           type="checkbox"
-          className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+          className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300 text-brand-700 focus:ring-brand-500"
           {...props}
         />
         <span>{label}</span>
