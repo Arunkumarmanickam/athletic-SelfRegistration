@@ -133,10 +133,11 @@ configured.
 - [x] **Hero name:** set `site.organizer_name` to
       “Coimbatore District Masters Athletic Association” via
       `20261101000003_site_organizer_name.sql`.
-- [ ] **Favicon:** create a square icon from the emblem if the client approves
-      it; the existing `public/favicon.svg` is unchanged for now.
-- [ ] **Verify:** after the next deploy, check the desktop and mobile header,
-      hero, footer, admin login, and a sample receipt.
+- [x] **Favicon:** recoloured to the navy/red brand palette
+      (`public/favicon.svg`). A square icon from the emblem is still optional if
+      the client approves it.
+- [x] **Verify:** deployed on 1 Nov 2026 and checked live — desktop and mobile
+      header, hero, footer, register page, and registration form sections.
 
 ---
 
