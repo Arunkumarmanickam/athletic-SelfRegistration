@@ -1,11 +1,11 @@
 # CDMAA Athletic Self Registration
 
-A production-ready athlete registration portal for CDMAA championships. Built with React, TypeScript, Vite, Tailwind CSS, Supabase (Postgres, Auth, Edge Functions), and Cashfree (UPI-only) payments.
+A production-ready athlete registration portal for CDMAA championships. Built with React, TypeScript, Vite, Tailwind CSS, Supabase (Postgres, Auth, Edge Functions), and PhonePe Payment Gateway (Standard Checkout).
 
 ## Features
 
 - **Draft-based flow** — Athletes are only created on successful payment. Nothing permanent is saved until verification.
-- **Cashfree UPI-only payments** — Server-side order creation, verification via the Cashfree API, and redirect callback handling.
+- **PhonePe payments** — Server-side order creation, hosted checkout, order-status verification, and redirect callback handling.
 - **Application Number** — Generated before payment (`APP-YYYY-XXXXXX`) and trackable independently of the registration/bib.
 - **Status tracking** — Lookup by Application Number + mobile, or Registration/Bib + mobile.
 - **Championship configuration** — Per-championship age categories, events, fees, registration windows, and a per-athlete event cap.
@@ -19,7 +19,7 @@ A production-ready athlete registration portal for CDMAA championships. Built wi
 
 - **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS + React Router
 - **Backend:** Supabase (Postgres, RLS, Edge Functions — Deno)
-- **Payments:** Cashfree JS SDK v3
+- **Payments:** PhonePe Payment Gateway — Standard Checkout (hosted redirect)
 - **Storage/Auth:** Supabase
 
 ## Setup
@@ -46,9 +46,12 @@ Server-only (set as Supabase Edge Function secrets, never in frontend code):
 
 ```env
 SUPABASE_SERVICE_ROLE_KEY=...
-CASHFREE_APP_ID=...
-CASHFREE_SECRET_KEY=...
-CASHFREE_ENV=sandbox            # sandbox | production
+PHONEPE_CLIENT_ID=...
+PHONEPE_CLIENT_SECRET=...
+PHONEPE_CLIENT_VERSION=...
+PHONEPE_ENV=sandbox             # sandbox | production
+PHONEPE_WEBHOOK_USERNAME=...    # optional webhook auth (see below)
+PHONEPE_WEBHOOK_PASSWORD=...
 SITE_URL=http://localhost:5173  # public site URL used after payment
 ALLOWED_ORIGINS=http://localhost:5173
 BOOTSTRAP_ADMIN_SECRET=...      # one-time, only for the first admin
@@ -56,7 +59,7 @@ RESEND_API_KEY=                 # optional email receipts
 NOTIFICATION_FROM_EMAIL=Registrations <registrations@example.com>
 ```
 
-`CASHFREE_ENV` defaults to `sandbox`. Keep it on sandbox until the live merchant account is connected. `SITE_URL` and `ALLOWED_ORIGINS` must be updated to the production domain when deploying.
+`PHONEPE_ENV` defaults to `sandbox`. Keep it on sandbox until the live merchant account is connected. `SITE_URL` and `ALLOWED_ORIGINS` must be updated to the production domain when deploying.
 
 ### 3. Supabase setup
 
@@ -71,9 +74,10 @@ Then set the server-only secrets:
 ```bash
 supabase secrets set \
   SUPABASE_SERVICE_ROLE_KEY=... \
-  CASHFREE_APP_ID=... \
-  CASHFREE_SECRET_KEY=... \
-  CASHFREE_ENV=sandbox \
+  PHONEPE_CLIENT_ID=... \
+  PHONEPE_CLIENT_SECRET=... \
+  PHONEPE_CLIENT_VERSION=... \
+  PHONEPE_ENV=sandbox \
   SITE_URL=http://localhost:5173 \
   ALLOWED_ORIGINS=http://localhost:5173
 ```
@@ -101,9 +105,44 @@ The build runs `tsc --noEmit` before Vite, so type errors fail the build.
 
 1. Select a championship → fill personal details, age category, events, and contact details.
 2. A draft is created with an Application Number → redirect to payment.
-3. Pay via Cashfree UPI → redirect to `/payment-callback` (verified server-side).
+3. Pay on PhonePe's hosted checkout → the browser returns to `payment-callback` (verified server-side).
 4. On success → the draft is promoted via `promote_draft()`, and the registration, bib, and Athlete ID are issued → receipt shown.
 5. On pending/failed → track via Application Number on the Status page; admins can follow up under **Registrations → Unpaid applications**.
+
+## Payments (PhonePe)
+
+The portal uses **PhonePe Payment Gateway — Standard Checkout**. The server creates the order, the browser is redirected to PhonePe's hosted checkout, and the payment is only confirmed by asking PhonePe for the order status.
+
+**Flow**
+
+1. `register` stages a draft (no order, no athlete profile, no bib).
+2. `payment-retry` calls PhonePe `POST /checkout/v2/pay` with the server-calculated fee (amount in paise, 30-minute expiry) and returns the hosted `redirectUrl`.
+3. The browser navigates to that URL (`src/lib/phonepe.ts` re-checks the host is `phonepe.com`).
+4. PhonePe returns the browser to `payment-callback?order_id=<merchantOrderId>`.
+5. `payment-callback` calls `GET /checkout/v2/order/{merchantOrderId}/status?details=true`. Only a `COMPLETED` order with a matching amount is captured; `markPaymentCaptured()` promotes the draft.
+6. `payment-webhook` handles the same events out-of-band, so a payment still completes if the athlete closes the tab before the redirect.
+
+**Credentials**
+
+| Variable | Where to get it |
+| --- | --- |
+| `PHONEPE_CLIENT_ID` | PhonePe dashboard → Developer settings |
+| `PHONEPE_CLIENT_SECRET` | PhonePe dashboard → Developer settings |
+| `PHONEPE_CLIENT_VERSION` | PhonePe dashboard → Developer settings |
+| `PHONEPE_ENV` | `sandbox` or `production` |
+
+Secrets never reach the browser. Never commit them or paste them into chat/issues.
+
+**Webhook (recommended)**
+
+- URL: `https://<project-ref>.supabase.co/functions/v1/payment-webhook`
+- Auth: PhonePe's SHA scheme. Set the same username/password in the PhonePe dashboard and in `PHONEPE_WEBHOOK_USERNAME` / `PHONEPE_WEBHOOK_PASSWORD`.
+- Events: `checkout.order.completed`, `checkout.order.failed`, `pg.refund.completed`, `pg.refund.failed`.
+- Without these two secrets the webhook returns `503`; the browser callback still works.
+
+**Database names**
+
+The `payment_orders` / `payments` columns are still named `razorpay_order_id` and `razorpay_payment_id`. They now hold the PhonePe **merchant order id** and **transaction id** respectively; the names are kept to avoid a destructive migration.
 
 ## Championships & Events
 
@@ -201,7 +240,7 @@ Open **Registrations → Unpaid applications** (`/admin/registrations?tab=applic
 | Abandoned | The application link expired without a verified payment. |
 | Not paid | The form was saved but no payment attempt was started. |
 
-This view is read-only. An application never has an Athlete ID, registration number, or bib number. `promote_draft()` creates those only after Cashfree reports the order as `PAID`, the amount matches, and the server verifies the payment. Terminal Cashfree failures are recorded by `payment-callback`; a checkout that never completes remains pending until the draft expires.
+This view is read-only. An application never has an Athlete ID, registration number, or bib number. `promote_draft()` creates those only after PhonePe reports the order as `COMPLETED`, the amount matches, and the server verifies the payment. Terminal PhonePe failures are recorded by `payment-callback`; a checkout that never completes remains pending until the draft expires.
 
 The Overview dashboard's registration counters reflect confirmed registration rows only. Use the **Unpaid applications** tab for unpaid attempts.
 
@@ -258,10 +297,10 @@ scripts/                # Admin bootstrap helpers
 
 See `TODO.md` for the full handoff and production checklist. Open items include:
 
-- [ ] **Cashfree webhook**: auto-promote payments if the athlete leaves before the callback redirect
+- [ ] **PhonePe webhook**: configure the SHA username/password so payments auto-promote when the athlete leaves before the callback redirect
 - [ ] **Email notifications**: configure Resend for confirmation emails
 - [ ] **Testing**: end-to-end coverage for all payment states (success/pending/failed)
-- [ ] **Production config**: switch Cashfree from sandbox to production with live credentials
+- [ ] **Production config**: switch PhonePe from sandbox to production with live credentials
 - [ ] **Admin improvements**: bulk actions and enhanced reporting
 - [ ] **Mobile optimization**: further UI tweaks for mobile payment flows
 

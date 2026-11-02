@@ -22,7 +22,7 @@ import {
 } from '../_shared/helpers.ts'
 import { normalizeMobile } from '../_shared/athlete-lookup.ts'
 import { newDraftToken } from '../_shared/draft.ts'
-import { cashfreeConfigured } from '../_shared/cashfree.ts'
+import { phonepeConfigured } from '../_shared/phonepe.ts'
 
 interface PersonalInput {
   full_name: string
@@ -177,8 +177,8 @@ Deno.serve(
       expires_at: (result.expires_at as string | null) ?? null,
     }
 
-    // Prefill the Razorpay checkout with what the athlete just typed, so the
-    // gateway does not ask for the same name/email/phone again.
+    // Prefill the checkout with what the athlete just typed, so the gateway
+    // does not ask for the same name/email/phone again.
     const prefill = {
       name: personal.full_name ?? '',
       email: personal.email ?? '',
@@ -188,7 +188,7 @@ Deno.serve(
     // Honest behaviour: no order is created at registration time. The client
     // calls payment-retry (or starts a fresh attempt) once the athlete is ready
     // to pay.
-    if (!cashfreeConfigured()) {
+    if (!phonepeConfigured()) {
       return json(
         req,
         {

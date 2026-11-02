@@ -8,48 +8,78 @@ involved.)
 
 ---
 
-## 🔴 1. Razorpay payments (skipped for now)
+## 🔴 1. PhonePe payments (Standard Checkout)
 
-**Status:** not configured. Registering works, but athletes cannot pay.
+**Status:** code is complete; production is waiting on the client's PhonePe
+merchant credentials. Until they are set, the app reports
+`payments_configured: false` instead of pretending payments work.
 
-### 1a. Get test keys
-1. Create/sign in at <https://dashboard.razorpay.com> and stay in **Test mode**.
-2. **Settings → API Keys → Generate Key Pair**.
-3. Copy the **Key ID** (`rzp_test_…`) and **Key Secret**.
+### 1a. Get credentials
+1. Sign in to the PhonePe Business dashboard for the association's merchant
+   account.
+2. Open **Developer settings** (or **Payment Gateway → API keys**).
+3. Copy the **Client ID**, **Client Secret** and **Client Version**.
+4. Sandbox credentials are separate from live ones. Use the sandbox set first.
 
 ### 1b. Set them as Supabase secrets
 ```bash
-supabase login --token <sbp_TOKEN>
 supabase link --project-ref urlkpbvvtossdzsjcmie
 
-# generate a webhook secret once, then reuse the same value on Razorpay
 supabase secrets set \
-  RAZORPAY_KEY_ID=rzp_test_xxxxxxxxxxxx \
-  RAZORPAY_KEY_SECRET=xxxxxxxxxxxxxxxx \
-  RAZORPAY_WEBHOOK_SECRET=<long-random-string>
+  PHONEPE_CLIENT_ID=<client id> \
+  PHONEPE_CLIENT_SECRET=<client secret> \
+  PHONEPE_CLIENT_VERSION=<client version> \
+  PHONEPE_ENV=sandbox
 ```
 
-### 1c. Add the webhook
-**Settings → Webhooks → Add webhook**
-- URL: `https://urlkpbvvtossdzsjcmie.supabase.co/functions/v1/payment-webhook`
-- Secret: **the same value** as `RAZORPAY_WEBHOOK_SECRET`
-- Events: at minimum `payment.captured`, `payment.failed`
-  (add `payment.authorized`, `refund.processed` if offered)
+Never commit these values, paste them into chat, or put them in Vercel frontend
+variables. They are server-side only.
 
-### 1d. Verify
+### 1c. Add the webhook (recommended)
+**PhonePe dashboard → Webhooks → Add webhook**
+- URL: `https://urlkpbvvtossdzsjcmie.supabase.co/functions/v1/payment-webhook`
+- Auth: **SHA256** with a username and password you choose
+- Events: `checkout.order.completed`, `checkout.order.failed`,
+  `pg.refund.completed`, `pg.refund.failed`
+
+```bash
+supabase secrets set \
+  PHONEPE_WEBHOOK_USERNAME=<chosen username> \
+  PHONEPE_WEBHOOK_PASSWORD=<long random password>
+```
+
+The webhook is optional: the browser callback already verifies every payment.
+It only adds recovery when the athlete closes the tab before returning.
+
+### 1d. Deploy the payment functions
+```bash
+supabase functions deploy payment-retry
+supabase functions deploy payment-callback
+supabase functions deploy verify-payment
+supabase functions deploy payment-webhook
+supabase functions deploy register
+supabase functions deploy public-config
+```
+
+### 1e. Verify
 - Reload `/admin` → Overview should show payments as configured.
 - The public home page should stop showing the "payments not configured" notice.
-- Run a test payment with Razorpay test cards:
-  <https://razorpay.com/docs/payments/payments/test-card-details/>
+- Run a sandbox payment and confirm:
+  - PhonePe's hosted page opens (UPI / card / net banking as enabled),
+  - the browser returns to `/registration/success` with a receipt,
+  - the registration gets an Athlete ID and bib,
+  - **Payments** in the admin shows a captured row with a PhonePe
+    transaction ID.
 
-### 1e. Going live (real money)
-1. Complete Razorpay **merchant/account approval**.
-2. Switch to **live** keys, update `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET`.
-3. Update the webhook URL/secret for live events.
-4. Re-test with a real (small) payment.
+### 1f. Going live (real money)
+1. Complete PhonePe **merchant/account approval**.
+2. Set the **production** Client ID/Secret/Version.
+3. Set `PHONEPE_ENV=production`.
+4. Update the webhook username/password for live events.
+5. Re-test with a real (small) payment.
 
-> ⚠️ **Live payments will not work until approval is complete and live keys
-> are configured.** Do not accept real money before that.
+> ⚠️ **Live payments will not work until approval is complete and production
+> credentials are configured.** Do not accept real money before that.
 
 ---
 
@@ -74,7 +104,7 @@ supabase secrets set RESEND_API_KEY=re_xxxxxxxx \
 - [ ] Set `VITE_SITE_URL` to the real domain in Vercel (`https://www.cdmaa.in`).
 - [ ] Re-run the **test checklist** in `README.md`.
 - [ ] Review the privacy / terms / retention copy with your organisation.
-- [ ] Razorpay live keys (item 1) — if accepting real money.
+- [ ] PhonePe production credentials (item 1) — if accepting real money.
 - [ ] Move the repo **private** if the source should not be public.
 
 ---
@@ -99,7 +129,7 @@ supabase secrets set RESEND_API_KEY=re_xxxxxxxx \
 ## 🟢 6. Credentials to delete
 
 - [ ] Supabase CLI token (`sbp_…`) — delete at
-      <https://supabase.com/dashboard/account/tokens> once Razorpay secrets are set
+      <https://supabase.com/dashboard/account/tokens> once PhonePe secrets are set
 - [ ] GitHub tokens (`ghp_…` / `github_pat_…`) — delete at
       <https://github.com/settings/tokens>
 - [ ] Remove the bootstrap secret — **done** ✅
@@ -174,7 +204,7 @@ ownership/billing changes.
 - [ ] `.env` values (Supabase URL, anon key, site URL) — send securely
 - [ ] Rotate personal tokens **before** handoff (see §6): Vercel `vcp_…`,
       GitHub `github_pat_…`, Supabase `sbp_…`
-- [ ] Razorpay account (if configured by then) must be the client's own —
+- [ ] PhonePe merchant account (if configured by then) must be the client's own —
       their merchant account, their webhook, their secrets
 
 ### Storage note (free plan)

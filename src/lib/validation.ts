@@ -37,7 +37,7 @@ export interface RegistrationFormValues {
   event_ids: string[]
   mobile_country_code: string
   mobile_number: string
-  /** Optional. Used for the payment receipt and the Cashfree checkout. */
+  /** Optional. Used for the payment receipt and the PhonePe checkout. */
   email: string
   accept_terms: boolean
 }

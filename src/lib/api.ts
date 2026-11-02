@@ -129,11 +129,7 @@ export const retrieveProfile = (athleteSessionToken: string) =>
 
 export const register = (body: Record<string, unknown>) => invoke<RegisterResponse>('register', body)
 
-export const verifyPayment = (body: {
-  razorpayOrderId: string
-  razorpayPaymentId: string
-  razorpaySignature: string
-}) =>
+export const verifyPayment = (body: { orderId: string }) =>
   invoke<{ ok: boolean; status: string; already_verified?: boolean; confirmation: Confirmation }>(
     'verify-payment',
     body,
@@ -143,15 +139,6 @@ export const retryPayment = (body: { draftToken: string }) => invoke<RegisterRes
 
 export const lookupApplicationStatus = (body: { applicationNumber: string; mobileE164: string }) =>
   invoke<any>('lookup-application-status', body)
-
-/**
- * Public URL of the redirect callback Edge Function.
- *
- * Cashfree returns via GET to the return_url. This points the browser at the
- * function, which verifies the payment with Cashfree and then redirects back.
- */
-export const paymentCallbackUrl = () =>
-  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/payment-callback`
 
 /** Exchanges a single-use receipt token (from a redirect return) for the receipt. */
 export const fetchReceiptByToken = (token: string) =>

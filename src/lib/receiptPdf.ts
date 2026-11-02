@@ -303,7 +303,7 @@ export async function buildReceiptPdf(
         ['Status', titleCase(capturedPayment.status)],
         ['Method', capturedPayment.method ? titleCase(capturedPayment.method) : '—'],
         ['Verified on', capturedPayment.verified_at ? formatDateTime(capturedPayment.verified_at) : '—'],
-        ['Cashfree payment ID', capturedPayment.razorpay_payment_id ?? '—'],
+        ['PhonePe transaction ID', capturedPayment.razorpay_payment_id ?? '—'],
         ['Order reference', capturedPayment.razorpay_order_id],
         ['Registered on', formatDateTime(registration.registered_at)],
         ['Confirmed on', registration.confirmed_at ? formatDateTime(registration.confirmed_at) : 'Not confirmed yet'],

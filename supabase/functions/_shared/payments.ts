@@ -1,5 +1,5 @@
-// Payment state transitions shared by the checkout verification endpoint and
-// the Razorpay webhook. All transitions are idempotent and only ever move a
+// Payment state transitions shared by the checkout verification endpoints and
+// the payment webhook. All transitions are idempotent and only ever move a
 // registration to "paid" when a verified payment exists.
 //
 // A payment order is placed against a registration DRAFT, not a registration:

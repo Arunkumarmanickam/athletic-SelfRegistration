@@ -1,16 +1,24 @@
-// Cashfree return callback.
+// PhonePe return callback.
 //
-// Cashfree sends the athlete's browser back to `order_meta.return_url` with the
-// order id, as a GET (unlike Razorpay, which POSTs a signed payload). It is
-// also safe to POST here, so form/webhook-style callers still work.
+// PhonePe sends the athlete's browser back to the `redirectUrl` supplied when
+// the order was created (a GET). Our redirect URL carries the merchant order id
+// in its query string, so the order can be recovered here. It is also safe to
+// POST here, so form/webhook-style callers still work.
 //
-// This function is the trusted server: it asks Cashfree for the order status,
+// This function is the trusted server: it asks PhonePe for the order status,
 // records the capture, mints a single-use receipt token and redirects the
 // browser to the receipt page. The browser never decides whether a payment
 // succeeded.
 import { handler } from '../_shared/handler.ts'
 import { serviceClient } from '../_shared/supabase.ts'
-import { cashfreePaidPayment, fetchCashfreeOrder, fetchCashfreePayments } from '../_shared/cashfree.ts'
+import {
+  fetchPhonePeOrder,
+  phonepeFailureReason,
+  phonepeOrderAmountPaise,
+  phonepeOrderExpired,
+  phonepeOrderPaid,
+  phonepePaidPayment,
+} from '../_shared/phonepe.ts'
 import { markPaymentCaptured, markPaymentFailed, notifyConfirmedRegistration } from '../_shared/payments.ts'
 
 const RECEIPT_TOKEN_TTL_MINUTES = 30
@@ -37,8 +45,9 @@ Deno.serve(
   handler(async (req) => {
     const url = new URL(req.url)
 
-    // Cashfree returns the order id on the query string. Accept a form/JSON
-    // body too, so the endpoint keeps working for POST-based callers.
+    // PhonePe redirects to the exact URL supplied at order creation, so the
+    // merchant order id arrives on the query string. Accept a form/JSON body
+    // too, so the endpoint keeps working for POST-based callers.
     const params = new URLSearchParams(url.search)
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       const raw = await req.text()
@@ -57,7 +66,12 @@ Deno.serve(
       for (const [key, value] of bodyParams) if (!params.has(key)) params.set(key, value)
     }
 
-    const orderId = params.get('order_id') ?? params.get('orderId') ?? params.get('razorpay_order_id') ?? ''
+    const orderId =
+      params.get('order_id') ??
+      params.get('orderId') ??
+      params.get('merchantOrderId') ??
+      params.get('razorpay_order_id') ??
+      ''
 
     // A stray hit with nothing to verify should land on the status page rather
     // than show an error page.
@@ -103,41 +117,42 @@ Deno.serve(
     // Idempotent: a re-return (the athlete refreshing, or a retry) simply shows
     // the existing receipt again.
     if (order.status !== 'captured') {
-      const remote = await fetchCashfreeOrder(orderId)
+      const remote = await fetchPhonePeOrder(orderId)
       if (!remote) {
         console.error('payment-callback: gateway lookup failed', { orderId })
         return failure('We could not confirm this payment. Please contact the organiser.', appNoForRedirect, mobileForRedirect)
       }
 
-      const orderStatus = (remote.order_status ?? '').toUpperCase()
-      if (orderStatus !== 'PAID') {
-        // Record only terminal failures here. A still-active order with no
-        // failed attempt remains pending so the athlete can retry it, and a
-        // failed order can still be captured later if the gateway confirms it.
-        if (orderStatus === 'EXPIRED' || orderStatus === 'TERMINATED') {
+      if (!phonepeOrderPaid(remote)) {
+        // Record only terminal failures here. A still-pending order remains
+        // open so the athlete can retry it, and a failed order can still be
+        // captured later if the gateway confirms it.
+        const reason = phonepeFailureReason(remote)
+        const expired = phonepeOrderExpired(remote)
+        if ((remote.state ?? '').toUpperCase() === 'FAILED' || expired) {
           await markPaymentFailed(supabase, {
             orderId,
-            reason: orderStatus === 'EXPIRED' ? 'Payment order expired before payment' : 'Payment order was terminated',
+            reason: expired && (remote.state ?? '').toUpperCase() !== 'FAILED'
+              ? 'Payment order expired before payment'
+              : reason,
           })
-        } else {
-          const attempts = await fetchCashfreePayments(orderId)
-          const latestStatus = (attempts[0]?.payment_status ?? '').toUpperCase()
-          if (latestStatus === 'FAILED') {
-            await markPaymentFailed(supabase, {
-              orderId,
-              reason: 'Payment failed at the gateway',
-            })
-          }
         }
-        return failure(`Payment is not completed yet. Please try again or contact the organiser.`, appNoForRedirect, mobileForRedirect)
+        return failure(
+          `Payment is not completed yet (status: ${remote.state ?? 'unknown'}). Please try again or contact the organiser.`,
+          appNoForRedirect,
+          mobileForRedirect,
+        )
       }
 
-      if (Math.round(Number(remote.order_amount) * 100) !== Number(order.amount_paise)) {
+      const remoteAmount = phonepeOrderAmountPaise(remote)
+      if (remoteAmount !== null && remoteAmount !== Number(order.amount_paise)) {
+        console.error('payment-callback: order amount mismatch', { orderId, remoteAmount, expected: order.amount_paise })
         return failure('The paid amount does not match the registration fee. Please contact the organiser.', appNoForRedirect, mobileForRedirect)
       }
 
-      const paid = await cashfreePaidPayment(remote)
+      const paid = phonepePaidPayment(remote)
       if (paid?.amountPaise != null && paid.amountPaise !== Number(order.amount_paise)) {
+        console.error('payment-callback: payment amount mismatch', { orderId, paidAmount: paid.amountPaise })
         return failure('The paid amount does not match the registration fee. Please contact the organiser.', appNoForRedirect, mobileForRedirect)
       }
 

@@ -381,8 +381,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
                 }
                 order={{
                   razorpay_order_id: paymentWithOrder.razorpay_order_id,
-                  razorpay_key_id: paymentWithOrder.razorpay_key_id,
-                  cashfree_mode: paymentWithOrder.cashfree_mode,
+                  redirect_url: paymentWithOrder.redirect_url,
                   amount_paise: paymentWithOrder.amount_paise,
                   currency: paymentWithOrder.currency,
                   application_number: (result.draft as any)?.application_number || (result as any)?.application_number,
@@ -671,7 +670,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
               label="Email"
               htmlFor={emailId}
               error={errors.email}
-              hint="Optional. Used on your payment receipt and the Cashfree checkout."
+              hint="Optional. Used on your payment receipt and the PhonePe checkout."
             >
               <Input
                 id={emailId}

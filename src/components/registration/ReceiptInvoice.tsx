@@ -197,7 +197,7 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
                 label="Verified on"
                 value={capturedPayment.verified_at ? formatDateTime(capturedPayment.verified_at) : '—'}
               />
-              <Detail label="Cashfree payment ID" value={capturedPayment.razorpay_payment_id ?? '—'} />
+              <Detail label="PhonePe transaction ID" value={capturedPayment.razorpay_payment_id ?? '—'} />
               <Detail label="Order reference" value={capturedPayment.razorpay_order_id} />
               <Detail label="Registered on" value={formatDateTime(registration.registered_at)} />
               <Detail

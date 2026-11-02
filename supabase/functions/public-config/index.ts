@@ -5,7 +5,7 @@ import { handler } from '../_shared/handler.ts'
 import { json } from '../_shared/responses.ts'
 import { serviceClient } from '../_shared/supabase.ts'
 import { clientIp, enforceRateLimit } from '../_shared/helpers.ts'
-import { cashfreeConfigured } from '../_shared/cashfree.ts'
+import { phonepeConfigured } from '../_shared/phonepe.ts'
 
 Deno.serve(
   handler(async (req) => {
@@ -45,7 +45,7 @@ Deno.serve(
     return json(req, {
       site: settings.site ?? {},
       athlete_id_format: settings.athlete_id_format ?? null,
-      payments_configured: cashfreeConfigured(),
+      payments_configured: phonepeConfigured(),
       championships: openChampionships,
     })
   }),

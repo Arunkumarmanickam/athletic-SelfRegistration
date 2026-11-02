@@ -1,27 +1,38 @@
-// Verifies a Cashfree payment server-side.
+// Verifies a PhonePe payment server-side.
 //
-// Cashfree's checkout has no signed `handler` response: the browser is
-// redirected back to `payment-callback`, which calls this same verification.
-// This endpoint remains available so a client can confirm an order explicitly.
+// PhonePe's hosted checkout has no signed `handler` response: the browser is
+// redirected back to `payment-callback`, which calls the same verification
+// logic. This endpoint remains available so a client can confirm an order
+// explicitly.
 //
 // A frontend "success" message is never trusted. Confirmation requires:
 //   1. the order recorded in our database,
-//   2. Cashfree reporting the order as PAID,
+//   2. PhonePe reporting the order as COMPLETED,
 //   3. a matching server-side amount, and
-//   4. a SUCCESS payment for that order (when Cashfree exposes it).
+//   4. a COMPLETED payment attempt for that order (when PhonePe exposes it).
 import { handler } from '../_shared/handler.ts'
 import { json, errorJson } from '../_shared/responses.ts'
 import { serviceClient } from '../_shared/supabase.ts'
 import { clientIp, enforceRateLimit, readJson, str } from '../_shared/helpers.ts'
-import { cashfreePaidPayment, fetchCashfreeOrder } from '../_shared/cashfree.ts'
+import {
+  fetchPhonePeOrder,
+  phonepeOrderAmountPaise,
+  phonepeOrderPaid,
+  phonepePaidPayment,
+} from '../_shared/phonepe.ts'
 import { loadConfirmation, markPaymentCaptured, notifyConfirmedRegistration } from '../_shared/payments.ts'
 
 Deno.serve(
   handler(async (req) => {
     const body = await readJson(req)
-    // `razorpayOrderId` is accepted for compatibility with older clients; it
-    // now carries the Cashfree order id.
-    const orderId = str(body.cashfreeOrderId) || str(body.orderId) || str(body.razorpayOrderId)
+    // Older field names are accepted for compatibility; all of them now carry
+    // the PhonePe merchant order id.
+    const orderId =
+      str(body.orderId) ||
+      str(body.merchantOrderId) ||
+      str(body.phonepeOrderId) ||
+      str(body.razorpayOrderId) ||
+      str(body.cashfreeOrderId)
 
     const supabase = serviceClient()
     await enforceRateLimit(supabase, `verify-payment:${clientIp(req)}`, 60, 3600)
@@ -51,8 +62,8 @@ Deno.serve(
       }
     }
 
-    // Ask Cashfree about the order rather than trusting the browser.
-    const remote = await fetchCashfreeOrder(orderId)
+    // Ask PhonePe about the order rather than trusting the browser.
+    const remote = await fetchPhonePeOrder(orderId)
     if (!remote) {
       return errorJson(
         req,
@@ -62,20 +73,21 @@ Deno.serve(
       )
     }
 
-    if ((remote.order_status ?? '').toUpperCase() !== 'PAID') {
+    if (!phonepeOrderPaid(remote)) {
       return errorJson(
         req,
         'PAYMENT_NOT_COMPLETED',
-        `Payment is not completed yet (status: ${remote.order_status || 'unknown'}). Please retry or contact the organiser.`,
+        `Payment is not completed yet (status: ${remote.state || 'unknown'}). Please retry or contact the organiser.`,
         409,
       )
     }
 
-    if (Math.round(Number(remote.order_amount) * 100) !== Number(order.amount_paise)) {
+    const remoteAmount = phonepeOrderAmountPaise(remote)
+    if (remoteAmount !== null && remoteAmount !== Number(order.amount_paise)) {
       return errorJson(req, 'AMOUNT_MISMATCH', 'The paid amount does not match the registration fee.', 400)
     }
 
-    const paid = await cashfreePaidPayment(remote)
+    const paid = phonepePaidPayment(remote)
     if (paid?.amountPaise != null && paid.amountPaise !== Number(order.amount_paise)) {
       return errorJson(req, 'AMOUNT_MISMATCH', 'The paid amount does not match the registration fee.', 400)
     }

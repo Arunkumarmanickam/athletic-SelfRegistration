@@ -208,15 +208,15 @@ export interface RegisterResponse {
     | { configured: false }
     | {
         configured: true
-        /** Cashfree order id (field name kept for compatibility). */
+        gateway?: 'phonepe'
+        /** PhonePe merchant order id (field name kept for compatibility). */
         razorpay_order_id: string
-        /** Cashfree `payment_session_id` (field name kept for compatibility). */
-        razorpay_key_id: string
-        cashfree_mode?: 'sandbox' | 'production'
+        /** PhonePe hosted-checkout URL the browser is redirected to. */
+        redirect_url: string
         amount_paise: number
         currency: string
       }
-  /** Name/email/phone to prefill in the Cashfree checkout, from the draft. */
+  /** Name/email/phone the athlete already gave us, from the draft. */
   prefill?: { name?: string; email?: string; contact?: string }
   /** Bearer token for the pre-payment steps (payment order). */
   draft_token: string | null

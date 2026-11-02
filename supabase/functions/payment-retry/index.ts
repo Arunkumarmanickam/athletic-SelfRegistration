@@ -1,4 +1,4 @@
-// Creates a fresh Cashfree order for a pre-payment registration draft.
+// Creates a fresh PhonePe order for a pre-payment registration draft.
 //
 // Used when a previous checkout failed, was cancelled or was abandoned. The
 // draft token is the bearer credential, so a code alone cannot be used to probe
@@ -11,11 +11,10 @@ import { serviceClient } from '../_shared/supabase.ts'
 import { clientIp, enforceRateLimit, readJson, str } from '../_shared/helpers.ts'
 import { resolveDraft } from '../_shared/draft.ts'
 import {
-  cashfreeConfigured,
-  cashfreeMode,
-  cashfreeReturnUrl,
-  createCashfreeOrder,
-} from '../_shared/cashfree.ts'
+  createPhonePeOrder,
+  phonepeConfigured,
+  phonepeReturnUrl,
+} from '../_shared/phonepe.ts'
 
 Deno.serve(
   handler(async (req) => {
@@ -76,7 +75,7 @@ Deno.serve(
       return errorJson(req, 'DEADLINE_PASSED', 'The registration deadline has passed.', 409)
     }
 
-    if (!cashfreeConfigured()) {
+    if (!phonepeConfigured()) {
       return errorJson(
         req,
         'PAYMENTS_NOT_CONFIGURED',
@@ -91,24 +90,23 @@ Deno.serve(
       .eq('draft_id', draft.id)
     const attemptNumber = (count ?? 0) + 1
 
-    // Cashfree order ids must be unique and at most 50 characters; the draft id
-    // plus the attempt number satisfies both.
-    const orderId = `cdf${draft.id.replace(/-/g, '')}${attemptNumber}`
+    // PhonePe merchant order ids allow only letters, digits, "_" and "-", up to
+    // 63 characters. The draft id (32 hex chars) plus the attempt number stays
+    // well inside that; the random suffix keeps concurrent double-clicks from
+    // colliding on the same id.
+    const randomSuffix = crypto.randomUUID().replace(/-/g, '').slice(0, 8)
+    const orderId = `cdmaa_${draft.id.replace(/-/g, '')}_${attemptNumber}_${randomSuffix}`
 
-    let paymentSessionId: string
+    let redirectUrl: string
     try {
-      const order = await createCashfreeOrder({
-        orderId,
+      const order = await createPhonePeOrder({
+        merchantOrderId: orderId,
         amountPaise: Number(draft.fee_paise),
-        currency: draft.currency,
-        customerId: draft.id,
-        customerName: draft.personal?.full_name ?? null,
-        customerEmail: draft.personal?.email ?? null,
-        customerPhone: draft.personal?.mobile_e164 ?? null,
-        returnUrl: cashfreeReturnUrl(),
-        note: `Draft ${draft.id}, attempt ${attemptNumber}`,
+        redirectUrl: phonepeReturnUrl(orderId),
+        expireAfterSeconds: 1800,
+        message: `CDMAA registration ${String((draft as any).application_number ?? orderId)}`,
       })
-      paymentSessionId = order.payment_session_id
+      redirectUrl = String(order.redirectUrl)
     } catch (error) {
       console.error('retry order failed', error)
       return errorJson(req, 'ORDER_FAILED', 'Could not create a new payment order. Please try again.', 502)
@@ -153,12 +151,13 @@ Deno.serve(
       },
       payment: {
         configured: true,
+        gateway: 'phonepe',
         // Field names are kept for compatibility with the existing client and
-        // database columns: `razorpay_order_id` now holds the Cashfree order id,
-        // and `razorpay_key_id` holds the Cashfree payment_session_id.
+        // database columns: `razorpay_order_id` now holds the PhonePe merchant
+        // order id (our own reference, used for every status lookup).
         razorpay_order_id: orderId,
-        razorpay_key_id: paymentSessionId,
-        cashfree_mode: cashfreeMode(),
+        /** PhonePe hosted-checkout URL the browser is sent to. */
+        redirect_url: redirectUrl,
         amount_paise: Number(draft.fee_paise),
         currency: draft.currency,
       },

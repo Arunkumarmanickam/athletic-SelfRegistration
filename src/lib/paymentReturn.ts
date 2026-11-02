@@ -1,10 +1,10 @@
 // Recovers a payment that came back as a browser redirect.
 //
-// Card and in-app UPI return through checkout.js's handler callback, but net
-// banking (and several UPI/bank flows) send the browser away to the bank and
-// back. Cashfree returns via GET to the return_url — which points at the
-// `payment-callback` Edge Function. That function verifies the payment with
-// Cashfree server-side and redirects the browser here with one of:
+// PhonePe's hosted checkout sends the browser away from the site to pay (UPI,
+// card, net banking, wallet — whatever is enabled on the merchant account) and
+// then back. PhonePe returns via GET to the `redirectUrl` we created the order
+// with — the `payment-callback` Edge Function. That function verifies the
+// payment with PhonePe server-side and redirects the browser here with one of:
 //
 //   ?receipt=<single-use token>   payment captured, exchange for the receipt
 //   ?payment_callback=paid        captured, but the token could not be stored
