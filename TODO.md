@@ -10,9 +10,13 @@ involved.)
 
 ## 🔴 1. PhonePe payments (Standard Checkout)
 
-**Status:** code is complete; production is waiting on the client's PhonePe
-merchant credentials. Until they are set, the app reports
-`payments_configured: false` instead of pretending payments work.
+**Status:** live. The association's **production** credentials are set in
+Supabase, `PHONEPE_ENV=production`, and `public-config` reports
+`payments_configured: true`. Verified end to end with a real unpaid order:
+OAuth token issued, order created (redirect host `mercury-t2.phonepe.com`),
+and Order Status API returned `PENDING` — no money charged.
+
+Remaining: one real ₹600 checkout, and the optional webhook (1c).
 
 ### 1a. Get credentials
 1. Sign in to the PhonePe Business dashboard for the association's merchant
@@ -29,8 +33,20 @@ supabase secrets set \
   PHONEPE_CLIENT_ID=<client id> \
   PHONEPE_CLIENT_SECRET=<client secret> \
   PHONEPE_CLIENT_VERSION=<client version> \
-  PHONEPE_ENV=sandbox
+  PHONEPE_ENV=production
 ```
+
+`PHONEPE_ENV` is **not a credential** — it is a switch that tells the server
+which PhonePe servers to call:
+
+| `PHONEPE_ENV` | OAuth token URL | Payment / status API |
+| --- | --- | --- |
+| `sandbox` (default) | `api-preprod.phonepe.com/apis/pg-sandbox/v1/oauth/token` | `api-preprod.phonepe.com/apis/pg-sandbox` |
+| `production` | `api.phonepe.com/apis/identity-manager/v1/oauth/token` | `api.phonepe.com/apis/pg` |
+
+If it does not match the credentials, every payment fails at the OAuth step
+with `401`. The association's keys are production keys, so it must stay
+`production`.
 
 Never commit these values, paste them into chat, or put them in Vercel frontend
 variables. They are server-side only.
@@ -72,11 +88,11 @@ supabase functions deploy public-config
     transaction ID.
 
 ### 1f. Going live (real money)
-1. Complete PhonePe **merchant/account approval**.
-2. Set the **production** Client ID/Secret/Version.
-3. Set `PHONEPE_ENV=production`.
-4. Update the webhook username/password for live events.
-5. Re-test with a real (small) payment.
+1. [x] Complete PhonePe **merchant/account approval**.
+2. [x] Set the **production** Client ID/Secret/Version.
+3. [x] Set `PHONEPE_ENV=production`.
+4. [ ] Update the webhook username/password for live events (see 1c).
+5. [ ] Re-test with a real (small) payment.
 
 > ⚠️ **Live payments will not work until approval is complete and production
 > credentials are configured.** Do not accept real money before that.
@@ -104,7 +120,8 @@ supabase secrets set RESEND_API_KEY=re_xxxxxxxx \
 - [ ] Set `VITE_SITE_URL` to the real domain in Vercel (`https://www.cdmaa.in`).
 - [ ] Re-run the **test checklist** in `README.md`.
 - [ ] Review the privacy / terms / retention copy with your organisation.
-- [ ] PhonePe production credentials (item 1) — if accepting real money.
+- [ ] **PhonePe production credentials** — done ✅ (item 1); one real ₹600
+      checkout still recommended before entries open.
 - [ ] Move the repo **private** if the source should not be public.
 
 ---
@@ -129,10 +146,16 @@ supabase secrets set RESEND_API_KEY=re_xxxxxxxx \
 ## 🟢 6. Credentials to delete
 
 - [ ] Supabase CLI token (`sbp_…`) — delete at
-      <https://supabase.com/dashboard/account/tokens> once PhonePe secrets are set
+      <https://supabase.com/dashboard/account/tokens> — PhonePe secrets are now
+      set, so this is safe to do
 - [ ] GitHub tokens (`ghp_…` / `github_pat_…`) — delete at
       <https://github.com/settings/tokens>
 - [ ] Remove the bootstrap secret — **done** ✅
+- [x] Delete the retired gateway secrets — **done** ✅ `CASHFREE_APP_ID`,
+      `CASHFREE_SECRET_KEY`, `CASHFREE_ENV`, `RAZORPAY_KEY_ID`,
+      `RAZORPAY_KEY_SECRET` unset. Only `PHONEPE_*` remains for payments.
+- [ ] Rotate `PHONEPE_CLIENT_SECRET` — the current one was shared in chat, so
+      regenerate it in the PhonePe dashboard and set it again
 
 ---
 
