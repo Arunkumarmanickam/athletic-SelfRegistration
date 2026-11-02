@@ -211,12 +211,6 @@ export function ApplicationDetailPage() {
                     ['Fee', formatMoney(application.fee_paise, application.currency)],
                     ['Application started', formatDateTime(application.created_at)],
                     ['Application link expires', formatDateTime(application.expires_at)],
-                    [
-                      'Aadhaar',
-                      application.aadhaar_verified_at
-                        ? `Verified ${formatDateTime(application.aadhaar_verified_at)}`
-                        : 'Not verified',
-                    ],
                     ['Request IP', application.request_ip || '—'],
                   ] as [string, string][]
                 ).map(([label, value]) => (

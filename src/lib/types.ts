@@ -205,7 +205,7 @@ export interface RegisterResponse {
     expires_at: string | null
   }
   payment:
-    | { configured: false; aadhaar_required?: boolean }
+    | { configured: false }
     | {
         configured: true
         /** Cashfree order id (field name kept for compatibility). */
@@ -216,10 +216,9 @@ export interface RegisterResponse {
         amount_paise: number
         currency: string
       }
-    | { configured: false; aadhaar_required: true }
   /** Name/email/phone to prefill in the Cashfree checkout, from the draft. */
   prefill?: { name?: string; email?: string; contact?: string }
-  /** Bearer token for the pre-payment steps (Aadhaar upload, payment order). */
+  /** Bearer token for the pre-payment steps (payment order). */
   draft_token: string | null
   message?: string
 }

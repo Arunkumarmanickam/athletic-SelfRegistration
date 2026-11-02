@@ -211,7 +211,6 @@ export function StatusPage() {
                   ['Championship', appResult.application.championship?.name ?? '—'],
                   ['Category', appResult.application.category_name ?? '—'],
                   ['Fee', formatMoney(appResult.application.fee_paise, appResult.application.currency)],
-                  ['Aadhaar verified', appResult.application.aadhaar_verified ? 'Yes' : 'No'],
                   ['Applied on', formatDateTime(appResult.application.created_at)],
                   ['Expires at', formatDateTime(appResult.application.expires_at)],
                 ].map(([label, value]: any) => (

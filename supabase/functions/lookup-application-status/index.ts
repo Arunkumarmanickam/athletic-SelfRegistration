@@ -44,7 +44,7 @@ Deno.serve(
     // Look up draft
     const { data: draft } = await supabase
       .from('registration_drafts')
-      .select('id, application_number, championship_id, category_name, fee_paise, currency, personal, event_ids, expires_at, created_at, aadhaar_verified_at')
+      .select('id, application_number, championship_id, category_name, fee_paise, currency, personal, event_ids, expires_at, created_at')
       .eq('application_number', applicationNumber)
       .eq('personal->>mobile_e164', mobile)
       .maybeSingle()
@@ -86,7 +86,6 @@ Deno.serve(
         currency: (draft as any).currency,
         created_at: (draft as any).created_at,
         expires_at: (draft as any).expires_at,
-        aadhaar_verified: Boolean((draft as any).aadhaar_verified_at),
         payment_status: paymentStatus,
       },
       orders: orders ?? [],

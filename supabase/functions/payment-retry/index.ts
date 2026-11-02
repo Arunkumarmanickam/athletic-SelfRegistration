@@ -63,11 +63,6 @@ Deno.serve(
 
     await enforceRateLimit(supabase, `payment-retry:draft:${draft.id}`, 12, 3600)
 
-    // Mandatory Aadhaar upload must have been recorded before creating an order.
-    if (!draft.aadhaar_verified_at) {
-      return errorJson(req, 'AADHAAR_REQUIRED', 'Please upload your Aadhaar front before making payment.', 400)
-    }
-
     const { data: championship } = await supabase
       .from('championships')
       .select('id, name, status, registration_closes_at')

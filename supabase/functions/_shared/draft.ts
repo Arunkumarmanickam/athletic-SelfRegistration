@@ -2,8 +2,8 @@
 //
 // Before payment there is no athlete profile (and therefore no Athlete ID, no
 // bib and no athlete session). A draft is identified by its own single-use
-// bearer token, stored only as a SHA-256 hash. This is what the Aadhaar upload
-// and the payment order creation authenticate against.
+// bearer token, stored only as a SHA-256 hash. This is what the payment order
+// creation authenticates against.
 import { serviceClient } from './supabase.ts'
 import { randomToken } from './helpers.ts'
 

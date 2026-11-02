@@ -185,9 +185,9 @@ Deno.serve(
       contact: personal.mobile_e164 ?? '',
     }
 
-    // Honest behaviour: no order is created before the mandatory Aadhaar
-    // upload is recorded. payment-retry creates the order afterwards and
-    // refuses until the draft records an Aadhaar upload.
+    // Honest behaviour: no order is created at registration time. The client
+    // calls payment-retry (or starts a fresh attempt) once the athlete is ready
+    // to pay.
     if (!cashfreeConfigured()) {
       return json(
         req,
@@ -205,7 +205,7 @@ Deno.serve(
     return json(req, {
       ok: true,
       draft: draftPayload,
-      payment: { configured: false, aadhaar_required: true },
+      payment: { configured: false },
       prefill,
       draft_token: draftTokenPair.token,
       application_number: applicationNumber,

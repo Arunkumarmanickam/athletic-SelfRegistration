@@ -7,7 +7,6 @@ A production-ready athlete registration portal for CDMAA championships. Built wi
 - **Draft-based flow** — Athletes are only created on successful payment. Nothing permanent is saved until verification.
 - **Cashfree UPI-only payments** — Server-side order creation, verification via the Cashfree API, and redirect callback handling.
 - **Application Number** — Generated before payment (`APP-YYYY-XXXXXX`) and trackable independently of the registration/bib.
-- **Aadhaar verification** — Front-side upload required before payment (validated, not stored).
 - **Status tracking** — Lookup by Application Number + mobile, or Registration/Bib + mobile.
 - **Championship configuration** — Per-championship age categories, events, fees, registration windows, and a per-athlete event cap.
 - **Per-gender event eligibility** — Each event can expose different age categories to men and women.
@@ -100,7 +99,7 @@ The build runs `tsc --noEmit` before Vite, so type errors fail the build.
 
 ## Registration Flow
 
-1. Select a championship → fill personal details, age category, events, and upload the Aadhaar front side.
+1. Select a championship → fill personal details, age category, events, and contact details.
 2. A draft is created with an Application Number → redirect to payment.
 3. Pay via Cashfree UPI → redirect to `/payment-callback` (verified server-side).
 4. On success → the draft is promoted via `promote_draft()`, and the registration, bib, and Athlete ID are issued → receipt shown.

@@ -6,10 +6,9 @@ import { Field, Input, useFieldId } from '@/components/ui/input'
 import { Checkbox, Select } from '@/components/ui/form-controls'
 import { SearchCombobox } from '@/components/ui/search-combobox'
 import { EventMultiSelect } from '@/components/ui/event-multi-select'
-import { AadhaarReference } from './AadhaarReference'
 import { FeeSummary } from './FeeSummary'
 import { PaymentPanel } from './PaymentPanel'
-import { ApiError, register, uploadAadhaar } from '@/lib/api'
+import { ApiError, register } from '@/lib/api'
 import { useToast } from '@/context/ToastContext'
 import { useConfig } from '@/context/ConfigContext'
 import { clearDraft, loadDraft, saveDraft } from '@/lib/draft'
@@ -41,12 +40,6 @@ const EMPTY: RegistrationFormValues = {
   email: '',
   accept_terms: false,
 }
-
-const AADHAAR_TYPES = ['image/jpeg', 'image/png', 'image/webp']
-const AADHAAR_MAX_BYTES = 5 * 1024 * 1024
-
-const fileInputClass =
-  'block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-accent-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-accent-700'
 
 export interface RegistrationFormProps {
   championship: Championship
@@ -85,7 +78,7 @@ function FormSection({
  * Field order: name, date of birth (live age + category), representing
  * (academy/club for a district meet, district for a state meet, state for a
  * national one), gender, events,
- * mobile number, mandatory Aadhaar front upload, then save & payment.
+ * mobile number, then save & payment.
  *
  * The browser validates for fast feedback only — the Edge Function and Postgres
  * recompute eligibility and fees and enforce every rule again.
@@ -137,20 +130,14 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
   const countryId = useFieldId('mobile_country_code')
   const mobileId = useFieldId('mobile_number')
   const emailId = useFieldId('email')
-  const aadhaarId = useFieldId('aadhaar')
 
   const [values, setValues] = useState<RegistrationFormValues>(EMPTY)
-  const [aadhaarFile, setAadhaarFile] = useState<File | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const [result, setResult] = useState<RegisterResponse | null>(null)
   const [draftToken, setDraftToken] = useState<string | null>(null)
-  const [uploadPending, setUploadPending] = useState(false)
-  const [retryFile, setRetryFile] = useState<File | null>(null)
-  const [uploadError, setUploadError] = useState<string | null>(null)
-  const [uploading, setUploading] = useState(false)
   const [alreadyRegistered, setAlreadyRegistered] = useState(false)
 
   // ---- draft persistence ----------------------------------------------------
@@ -234,23 +221,6 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
     })
   }
 
-  const pickAadhaar = (file: File | null) => {
-    setErrors((current) => ({ ...current, aadhaar: '' }))
-    if (!file) {
-      setAadhaarFile(null)
-      return
-    }
-    if (!AADHAAR_TYPES.includes(file.type)) {
-      setErrors((current) => ({ ...current, aadhaar: 'Please upload a JPG, PNG or WEBP image.' }))
-      return
-    }
-    if (file.size > AADHAAR_MAX_BYTES) {
-      setErrors((current) => ({ ...current, aadhaar: 'The image must be 5 MB or smaller.' }))
-      return
-    }
-    setAadhaarFile(file)
-  }
-
   const mobileE164 = toE164(values.mobile_country_code, values.mobile_number)
 
   // At a district-level meet the academy/club is optional: an athlete who
@@ -269,7 +239,6 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
     if (maxEvents !== null && values.event_ids.length > maxEvents) {
       extra.event_ids = `You can select up to ${maxEvents} events.`
     }
-    if (!aadhaarFile) extra.aadhaar = 'Please upload the front side of your Aadhaar card.'
     if (championship.terms_text && !values.accept_terms) {
       extra.accept_terms = 'Please accept the terms and conditions.'
     }
@@ -314,25 +283,6 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
       document.documentElement.scrollTop = 0
       document.body.scrollTop = 0
-
-      // Mandatory Aadhaar front: uploaded against the draft, before payment.
-      // Nothing permanent has been created yet.
-      if (!response.draft_token) {
-        setUploadPending(true)
-        setUploadError('Your upload session could not be started. Please try the upload below again.')
-        return
-      }
-      try {
-        await uploadAadhaar({
-          draftToken: response.draft_token,
-          draftId: response.draft.id,
-          file: aadhaarFile!,
-        })
-        toast.info('Details received', 'Aadhaar upload received. Continue to payment to confirm your entry.')
-      } catch (err) {
-        setUploadPending(true)
-        setUploadError(err instanceof ApiError ? err.message : 'The Aadhaar upload failed. Please try again.')
-      }
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.code === 'ALREADY_REGISTERED') {
@@ -348,32 +298,6 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
     } finally {
       setSubmitting(false)
-    }
-  }
-
-  const retryUpload = async () => {
-    if (!result) return
-    if (!retryFile) {
-      setUploadError('Please choose the front side of your Aadhaar card first.')
-      return
-    }
-    if (!draftToken) {
-      setUploadError(
-        'Your session has expired. Please fill in your details again, or contact the organiser.',
-      )
-      return
-    }
-    setUploading(true)
-    setUploadError(null)
-    try {
-      await uploadAadhaar({ draftToken, draftId: result.draft.id, file: retryFile })
-      setUploadPending(false)
-      setRetryFile(null)
-      toast.success('Aadhaar uploaded', 'You can continue to payment.')
-    } catch (err) {
-      setUploadError(err instanceof ApiError ? err.message : 'The upload failed. Please try again.')
-    } finally {
-      setUploading(false)
     }
   }
 
@@ -428,91 +352,66 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
           </CardContent>
         </Card>
 
-        {uploadPending && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Aadhaar front upload required</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Alert tone="warning" title="Upload required before payment">
-                {uploadError ?? 'Please upload the front side of your Aadhaar card to continue to payment.'}
-              </Alert>
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className={fileInputClass}
-                onChange={(event) => setRetryFile(event.target.files?.[0] ?? null)}
-              />
-              {retryFile && <p className="text-xs text-slate-500">Selected: {retryFile.name}</p>}
-              <Button variant="accent" onClick={() => void retryUpload()} loading={uploading} disabled={uploading}>
-                Upload Aadhaar
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {!uploadPending && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Payment</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {result?.draft && (result.draft as any).application_number && (
-                <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Application Number</p>
-                  <p className="mt-1 font-mono text-lg font-bold text-blue-900">{(result.draft as any).application_number}</p>
-                  <p className="mt-1 text-xs text-blue-700">Save this number. You can use it to check payment status if you return to this site.</p>
-                </div>
-              )}
-              {paymentWithOrder ? (
-                <PaymentPanel
-                  championshipName={championship.name}
-                  organizerName={config?.site?.organizer_name}
-                  draftToken={draftToken}
-                  mobileE164={mobileE164}
-                  amountPaise={paymentWithOrder.amount_paise}
-                  currency={paymentWithOrder.currency}
-                  prefill={
-                    result.prefill ?? {
-                      name: values.full_name,
-                      email: values.email,
-                      contact: mobileE164,
-                    }
-                  }
-                  order={{
-                    razorpay_order_id: paymentWithOrder.razorpay_order_id,
-                    razorpay_key_id: paymentWithOrder.razorpay_key_id,
-                    cashfree_mode: paymentWithOrder.cashfree_mode,
-                    amount_paise: paymentWithOrder.amount_paise,
-                    currency: paymentWithOrder.currency,
-                    application_number: (result.draft as any)?.application_number || (result as any)?.application_number,
-                  } as any}
-                  onSuccess={handlePaymentSuccess}
-                />
-              ) : config?.payments_configured ? (
-                <PaymentPanel
-                  championshipName={championship.name}
-                  organizerName={config?.site?.organizer_name}
-                  draftToken={draftToken}
-                  mobileE164={mobileE164}
-                  amountPaise={draft.fee_paise}
-                  currency={draft.currency}
-                  prefill={{
+        <Card>
+          <CardHeader>
+            <CardTitle>Payment</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {result?.draft && (result.draft as any).application_number && (
+              <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Application Number</p>
+                <p className="mt-1 font-mono text-lg font-bold text-blue-900">{(result.draft as any).application_number}</p>
+                <p className="mt-1 text-xs text-blue-700">Save this number. You can use it to check payment status if you return to this site.</p>
+              </div>
+            )}
+            {paymentWithOrder ? (
+              <PaymentPanel
+                championshipName={championship.name}
+                organizerName={config?.site?.organizer_name}
+                draftToken={draftToken}
+                mobileE164={mobileE164}
+                amountPaise={paymentWithOrder.amount_paise}
+                currency={paymentWithOrder.currency}
+                prefill={
+                  result.prefill ?? {
                     name: values.full_name,
                     email: values.email,
                     contact: mobileE164,
-                  }}
-                  onSuccess={handlePaymentSuccess}
-                />
-              ) : (
-                <Alert tone="warning" title="Online payment is not configured yet">
-                  {result.message ??
-                    'Your details are saved, but this deployment has no online payment set up. Please contact the organiser to complete your payment.'}
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-        )}
+                  }
+                }
+                order={{
+                  razorpay_order_id: paymentWithOrder.razorpay_order_id,
+                  razorpay_key_id: paymentWithOrder.razorpay_key_id,
+                  cashfree_mode: paymentWithOrder.cashfree_mode,
+                  amount_paise: paymentWithOrder.amount_paise,
+                  currency: paymentWithOrder.currency,
+                  application_number: (result.draft as any)?.application_number || (result as any)?.application_number,
+                } as any}
+                onSuccess={handlePaymentSuccess}
+              />
+            ) : config?.payments_configured ? (
+              <PaymentPanel
+                championshipName={championship.name}
+                organizerName={config?.site?.organizer_name}
+                draftToken={draftToken}
+                mobileE164={mobileE164}
+                amountPaise={draft.fee_paise}
+                currency={draft.currency}
+                prefill={{
+                  name: values.full_name,
+                  email: values.email,
+                  contact: mobileE164,
+                }}
+                onSuccess={handlePaymentSuccess}
+              />
+            ) : (
+              <Alert tone="warning" title="Online payment is not configured yet">
+                {result.message ??
+                  'Your details are saved, but this deployment has no online payment set up. Please contact the organiser to complete your payment.'}
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
 
         <div className="flex flex-wrap gap-3">
           <Link to="/status">
@@ -582,7 +481,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
           <FormSection
             step="1"
             title="Athlete details"
-            description="Your name, identity check, age category, and gender."
+            description="Your name, age category, representation, and gender."
           >
             <Field label="Full name" htmlFor={nameId} required error={errors.full_name}>
               <Input
@@ -594,30 +493,6 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
                 onChange={(event) => setValues((current) => ({ ...current, full_name: event.target.value }))}
                 placeholder="As it should appear on results and the bib"
               />
-            </Field>
-
-            <Field label="Aadhaar card — front side" htmlFor={aadhaarId} required error={errors.aadhaar}>
-              <div className="grid gap-4 sm:grid-cols-[minmax(0,300px)_minmax(0,1fr)] sm:items-start">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <AadhaarReference className="w-full" />
-                  <p className="mt-2 text-center text-[11px] text-slate-500">Front side — for reference only</p>
-                </div>
-                <div className="space-y-3">
-                  <input
-                    id={aadhaarId}
-                    name="aadhaar"
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    className={fileInputClass}
-                    onChange={(event) => pickAadhaar(event.target.files?.[0] ?? null)}
-                  />
-                  {aadhaarFile && <p className="text-xs text-slate-500">Selected: {aadhaarFile.name}</p>}
-                  <Alert tone="info" className="text-xs">
-                    Make sure that your Aadhar Card&apos;s Date of Birth is exactly the same as the date of birth entered
-                    below. The card is only checked to confirm your date of birth and is not stored.
-                  </Alert>
-                </div>
-              </div>
             </Field>
 
             <Field
