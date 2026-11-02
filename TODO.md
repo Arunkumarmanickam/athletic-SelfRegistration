@@ -112,6 +112,8 @@ supabase secrets set RESEND_API_KEY=re_xxxxxxxx \
       categories, events, fees and deadlines — the app ships with none, by design
       (live: `state-meet-2026`, 15 categories, 22 events, cap 3)
 - [x] Run a full **test registration** end to end (IDs, bib, receipt, admin view)
+- [x] Remove **Aadhaar card collection** from registration (form, API, database
+      writes and the payment gate) — payment now proceeds without an upload.
 - [ ] Run the **test checklist** in `README.md`
 
 ---
@@ -130,6 +132,9 @@ configured.
 - [x] **Header text:** changed to “Coimbatore District Masters Athletic
       Association” and “Self Registration Portal”
       (`src/lib/brand.ts`).
+- [x] **Credentials line:** `Regd. No. 256/97 · Coimbatore`, as printed beneath
+      the emblem on the client's logo, shown in the header, footer, admin
+      sign-in, and receipt (`ASSOCIATION_CREDENTIALS`).
 - [x] **Hero name:** set `site.organizer_name` to
       “Coimbatore District Masters Athletic Association” via
       `20261101000003_site_organizer_name.sql`.
