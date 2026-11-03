@@ -124,18 +124,18 @@ The portal uses **PhonePe Payment Gateway — Standard Checkout**. The server cr
 
 **Payment methods shown at checkout**
 
-`createPhonePeOrder()` sends a `paymentModeConfig` (schema V2) that enables the UPI **INTENT** flow as well as **QR**:
+`createPhonePeOrder()` sends a `paymentModeConfig` (schema V2) that allows **UPI only**:
 
 ```json
 { "type": "UPI", "flows": ["INTENT", "QR"] }
 ```
 
-`INTENT` is what makes PhonePe's page show the installed UPI apps (PhonePe, GPay, Paytm, BHIM, …) with the amount pre-filled; `QR` is the fallback. Cards and net banking are requested as wildcards, so they appear only if enabled on the merchant account.
+Cards, net banking and wallets are not listed, so PhonePe does not offer them.
 
-Two things this cannot control:
+- **Mobile** — `INTENT` makes the page list the installed UPI apps (PhonePe, GPay, Paytm, BHIM, …) with the fee already filled in. Paying in the app returns the browser to `payment-callback`, which verifies the order server-side.
+- **Desktop** — there is no app to launch, so the same UPI rail is presented as a QR code to scan with a phone.
 
-- **A computer browser has no UPI app to open**, so PhonePe shows the QR code there even with `INTENT` enabled. Test the app list on a phone.
-- If PhonePe's account-level settings have UPI Intent switched off, the hosted page will still be QR-only. Ask PhonePe support / your account manager to enable UPI Intent for the merchant.
+If PhonePe's account-level settings have UPI Intent switched off, the hosted page falls back to QR-only; ask PhonePe to enable UPI Intent for the merchant.
 
 If the account rejects the mode configuration with `400`, `createPhonePeOrder()` retries once without it (logged as a warning) so a payment is never blocked by it.
 

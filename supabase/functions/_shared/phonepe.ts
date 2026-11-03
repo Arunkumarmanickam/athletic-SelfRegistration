@@ -150,22 +150,18 @@ function clampExpireAfter(seconds: number | undefined): number {
 /**
  * Checkout payment-mode configuration (schema V2).
  *
- * Asking for the UPI `INTENT` flow is what makes PhonePe's hosted page offer
- * the installed UPI apps (PhonePe, GPay, Paytm, BHIM, …) with the order amount
- * already filled in, instead of only a QR code. `QR` is kept as well so a
- * desktop browser — where there is no app to launch — still has a way to pay.
+ * UPI only — the association accepts no cards, net banking or wallets:
  *
- * Cards and net banking stay available as wildcards; if the merchant account
- * has them switched off PhonePe simply does not show them.
+ *   - `INTENT` makes PhonePe's page offer the installed UPI apps (PhonePe,
+ *     GPay, Paytm, BHIM, …) with the amount already filled in. Tapping one
+ *     opens that app and returns to our `redirectUrl` when the payment ends.
+ *   - `QR` is the same UPI rail for a computer, where there is no app to
+ *     launch, so a desktop browser gets the QR code instead.
  */
 function paymentModeConfig(): Record<string, unknown> {
   return {
     version: 'V2',
-    enabledPaymentModes: [
-      { type: 'UPI', flows: ['INTENT', 'QR'] },
-      { type: 'CARD' },
-      { type: 'NET_BANKING' },
-    ],
+    enabledPaymentModes: [{ type: 'UPI', flows: ['INTENT', 'QR'] }],
   }
 }
 
