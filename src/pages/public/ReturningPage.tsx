@@ -6,6 +6,8 @@ import { Field, Input, useFieldId } from '@/components/ui/input'
 import { Select } from '@/components/ui/form-controls'
 import { DocumentUpload } from '@/components/registration/DocumentUpload'
 import { ApiError, retrieveProfile, verifyAthlete } from '@/lib/api'
+import { athleteIdExample } from '@/lib/athleteId'
+import { useConfig } from '@/context/ConfigContext'
 import { COUNTRY_CODES } from '@/lib/constants'
 import { formatDate, formatMoney, genderLabel, registrationStatusTone, paymentStatusTone, titleCase, toE164 } from '@/lib/format'
 import type { AthleteProfile, AthleteRegistrationSummary } from '@/lib/types'
@@ -57,6 +59,8 @@ function RegistrationsList({ registrations }: { registrations: AthleteRegistrati
 }
 
 export function ReturningPage() {
+  const { config } = useConfig()
+  const idExample = athleteIdExample(config?.athlete_id_format)
   const [method, setMethod] = useState<'athlete_id' | 'mobile'>('athlete_id')
   const [athleteId, setAthleteId] = useState('')
   const [countryCode, setCountryCode] = useState('+91')
@@ -113,7 +117,7 @@ export function ReturningPage() {
     if (method === 'athlete_id') {
       const value = athleteId.trim()
       if (value.length < 4) {
-        setIdentityError('Please enter your Athlete ID (for example ATH-2026-000001).')
+        setIdentityError(`Please enter your Athlete ID (for example ${idExample}).`)
         return
       }
       payload.athleteId = value.toUpperCase()
@@ -186,13 +190,13 @@ export function ReturningPage() {
 
             <form onSubmit={handleVerify} className="space-y-5" noValidate>
               {method === 'athlete_id' ? (
-                <Field label="Athlete ID" htmlFor={idField} required hint="Example: ATH-2026-000001">
+                <Field label="Athlete ID" htmlFor={idField} required hint={`Example: ${idExample}`}>
                   <Input
                     id={idField}
                     value={athleteId}
                     onChange={(event) => setAthleteId(event.target.value)}
                     autoComplete="off"
-                    placeholder="ATH-2026-000001"
+                    placeholder={idExample}
                   />
                 </Field>
               ) : (

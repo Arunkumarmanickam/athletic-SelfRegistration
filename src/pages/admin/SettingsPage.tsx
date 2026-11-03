@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Field, Input } from '@/components/ui/input'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { ApiError, adminSettings } from '@/lib/api'
+import { athleteIdExample } from '@/lib/athleteId'
 import { splitPhones } from '@/lib/site'
 import { useAdminAuth } from '@/context/AdminAuthContext'
 import { useToast } from '@/context/ToastContext'
@@ -122,10 +123,7 @@ export function SettingsPage() {
     }
   }
 
-  const previewId = `${format.prefix.trim().toUpperCase() || 'ATH'}${String(1).padStart(
-    Math.min(12, Math.max(3, format.sequence_length || 6)),
-    '0',
-  )}`
+  const previewId = athleteIdExample(format)
 
   const setPhone = (index: number, value: string) => {
     setSite((current) => {
