@@ -25,6 +25,8 @@ export interface PaymentPanelProps {
   /** Draft bearer token: the only credential that exists before payment. */
   draftToken: string | null
   mobileE164: string
+  /** Shown under the pay button so a returning athlete can check status. */
+  applicationNumber?: string | null
   /** Server-calculated fee, used for display before/without an order. */
   amountPaise: number
   currency: string
@@ -45,7 +47,13 @@ type Stage = 'idle' | 'opening' | 'failed'
  * `payment-callback`, which verifies the order with PhonePe, promotes the draft
  * and redirects to the receipt.
  */
-export function PaymentPanel({ draftToken, amountPaise, currency, order }: PaymentPanelProps) {
+export function PaymentPanel({
+  draftToken,
+  amountPaise,
+  currency,
+  order,
+  applicationNumber,
+}: PaymentPanelProps) {
   const [currentOrder, setCurrentOrder] = useState<PaymentOrder | null>((order as any) ?? null)
   const [stage, setStage] = useState<Stage>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -112,23 +120,36 @@ export function PaymentPanel({ draftToken, amountPaise, currency, order }: Payme
 
   const busy = stage === 'opening'
 
-  const appNo = (order as any)?.application_number || currentOrder?.application_number
+  const appNo = currentOrder?.application_number ?? order?.application_number ?? applicationNumber
 
   return (
     <div className="space-y-4">
-      {appNo && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Application Number</p>
-          <p className="mt-1 font-mono text-lg font-bold text-blue-900">{appNo}</p>
-          <p className="mt-1 text-xs text-blue-700">Save this number to check your payment status if you return later.</p>
+      {/* Pay block first: on a phone this is the only thing the athlete needs
+          to see, so it sits at the top of the page rather than below the
+          summary. The button is full width on small screens. */}
+      <div className="rounded-xl border border-accent-200 bg-accent-50 p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-accent-700">Amount payable</p>
+            <p className="text-2xl font-bold text-slate-900">{amountLabel}</p>
+          </div>
+          <Badge tone="warning">Awaiting payment</Badge>
         </div>
-      )}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-        <div>
-          <p className="text-sm text-slate-600">Amount payable</p>
-          <p className="text-xl font-bold text-slate-900">{amountLabel}</p>
-        </div>
-        <Badge tone="warning">Awaiting payment</Badge>
+
+        <Button
+          variant="accent"
+          size="lg"
+          className="mt-4 w-full sm:w-auto"
+          onClick={() => (currentOrder ? startCheckout(currentOrder) : void handleRetry())}
+          loading={busy}
+          disabled={busy}
+        >
+          {stage === 'failed' ? 'Start a new payment attempt' : `Pay ${amountLabel} securely`}
+        </Button>
+
+        <p className="mt-2 text-xs text-accent-800">
+          Pay with any UPI app. On a computer, scan the QR code shown by PhonePe with your phone.
+        </p>
       </div>
 
       {error && (
@@ -137,17 +158,15 @@ export function PaymentPanel({ draftToken, amountPaise, currency, order }: Payme
         </Alert>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        {currentOrder ? (
-          <Button variant="accent" onClick={() => startCheckout(currentOrder)} loading={busy} disabled={busy}>
-            {stage === 'failed' ? 'Start a new payment attempt' : `Pay ${amountLabel} securely`}
-          </Button>
-        ) : (
-          <Button variant="accent" onClick={() => void handleRetry()} loading={busy} disabled={busy}>
-            Pay {amountLabel} securely
-          </Button>
-        )}
-      </div>
+      {appNo && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Application Number</p>
+          <p className="mt-1 font-mono text-lg font-bold text-blue-900">{appNo}</p>
+          <p className="mt-1 text-xs text-blue-700">
+            Save this number to check your payment status if you return later.
+          </p>
+        </div>
+      )}
 
       <p className="text-xs text-slate-500">
         Payments are processed securely by PhonePe. Your registration is only confirmed after the payment is verified on

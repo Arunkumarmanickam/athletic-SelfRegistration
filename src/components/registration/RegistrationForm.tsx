@@ -314,62 +314,25 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
 
     return (
       <div className="space-y-5">
-        <Card>
-          <CardHeader>
-            <CardTitle>Details saved</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Alert tone="warning" title="Not registered yet — payment is still pending">
-              Your details are saved but your entry is not confirmed. Your bib number and Athlete ID will be
-              issued once your payment succeeds.
-            </Alert>
+        <Alert tone="warning" title="Not registered yet — payment is still pending">
+          Your details are saved but your entry is not confirmed. Your bib number and Athlete ID will be issued once
+          your payment succeeds.
+        </Alert>
 
-            <dl className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Championship</dt>
-                <dd className="mt-1 text-sm font-semibold text-slate-900">{championship.name}</dd>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Age category</dt>
-                <dd className="mt-1 text-sm font-semibold text-slate-900">{draft.category_name ?? '—'}</dd>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Fee</dt>
-                <dd className="mt-1 text-lg font-semibold text-slate-900">
-                  {formatMoney(draft.fee_paise, draft.currency)}
-                </dd>
-              </div>
-              <div className="rounded-lg border border-accent-200 bg-accent-50 px-4 py-3">
-                <dt className="text-xs font-medium uppercase tracking-wide text-accent-600">Bib number</dt>
-                <dd className="mt-1 text-sm font-semibold text-accent-800">Issued after payment</dd>
-              </div>
-            </dl>
-
-            <p className="text-sm text-slate-600">
-              Complete the payment below to confirm your entry. Nothing is registered until the payment succeeds,
-              so you can simply close this page if you change your mind.
-            </p>
-          </CardContent>
-        </Card>
-
+        {/* Payment card comes before the summary so the pay button is the first
+            thing an athlete sees on a phone. */}
         <Card>
           <CardHeader>
             <CardTitle>Payment</CardTitle>
           </CardHeader>
           <CardContent>
-            {result?.draft && (result.draft as any).application_number && (
-              <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Application Number</p>
-                <p className="mt-1 font-mono text-lg font-bold text-blue-900">{(result.draft as any).application_number}</p>
-                <p className="mt-1 text-xs text-blue-700">Save this number. You can use it to check payment status if you return to this site.</p>
-              </div>
-            )}
             {paymentWithOrder ? (
               <PaymentPanel
                 championshipName={championship.name}
                 organizerName={config?.site?.organizer_name}
                 draftToken={draftToken}
                 mobileE164={mobileE164}
+                applicationNumber={(result.draft as any)?.application_number ?? null}
                 amountPaise={paymentWithOrder.amount_paise}
                 currency={paymentWithOrder.currency}
                 prefill={
@@ -394,6 +357,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
                 organizerName={config?.site?.organizer_name}
                 draftToken={draftToken}
                 mobileE164={mobileE164}
+                applicationNumber={(result.draft as any)?.application_number ?? null}
                 amountPaise={draft.fee_paise}
                 currency={draft.currency}
                 prefill={{
@@ -409,6 +373,39 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
                   'Your details are saved, but this deployment has no online payment set up. Please contact the organiser to complete your payment.'}
               </Alert>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Details saved</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <dl className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Championship</dt>
+                <dd className="mt-1 text-sm font-semibold text-slate-900">{championship.name}</dd>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Age category</dt>
+                <dd className="mt-1 text-sm font-semibold text-slate-900">{draft.category_name ?? '—'}</dd>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Fee</dt>
+                <dd className="mt-1 text-lg font-semibold text-slate-900">
+                  {formatMoney(draft.fee_paise, draft.currency)}
+                </dd>
+              </div>
+              <div className="rounded-lg border border-accent-200 bg-accent-50 px-4 py-3">
+                <dt className="text-xs font-medium uppercase tracking-wide text-accent-600">Bib number</dt>
+                <dd className="mt-1 text-sm font-semibold text-accent-800">Issued after payment</dd>
+              </div>
+            </dl>
+
+            <p className="text-sm text-slate-600">
+              Complete the payment above to confirm your entry. Nothing is registered until the payment succeeds, so you
+              can simply close this page if you change your mind.
+            </p>
           </CardContent>
         </Card>
 
