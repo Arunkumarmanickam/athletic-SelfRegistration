@@ -6,7 +6,9 @@ import { Field, Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/form-controls'
 import { ConfirmDialog } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/admin/PageHeader'
+import { ReceiptDownloadButton } from '@/components/registration/ReceiptDownload'
 import { ApiError, adminAthleteDetail, adminUpdateAthlete } from '@/lib/api'
+import { useConfig } from '@/context/ConfigContext'
 import { useToast } from '@/context/ToastContext'
 import { COUNTRY_CODES } from '@/lib/constants'
 import {
@@ -19,20 +21,65 @@ import {
   titleCase,
   toE164,
 } from '@/lib/format'
-import type { AthleteProfile } from '@/lib/types'
+import type {
+  AthleteProfile,
+  Confirmation,
+  ConfirmationPayment,
+  PaymentStatus,
+  RegistrationStatus,
+} from '@/lib/types'
 
 interface AthleteRegistration {
   id: string
   registration_code: string
-  status: string
-  payment_status: string
+  bib_number: string | null
+  status: RegistrationStatus
+  payment_status: PaymentStatus
   fee_paise: number
   currency: string
   registered_at: string
   confirmed_at: string | null
-  championships: { id: string; name: string } | null
+  championships: {
+    id: string
+    name: string
+    slug: string
+    starts_on: string | null
+    ends_on: string | null
+    location: string | null
+  } | null
   championship_categories: { name: string } | null
-  registration_events: { event_name: string }[] | null
+  registration_events: { event_name: string; fee_paise?: number }[] | null
+  payments?: ConfirmationPayment[]
+}
+
+/** Rebuilds the confirmation payload used by the public receipt. */
+function toConfirmation(profile: AthleteProfile, registration: AthleteRegistration): Confirmation {
+  return {
+    registration: {
+      id: registration.id,
+      registration_code: registration.registration_code,
+      bib_number: registration.bib_number,
+      status: registration.status,
+      payment_status: registration.payment_status,
+      fee_paise: registration.fee_paise,
+      currency: registration.currency,
+      registered_at: registration.registered_at,
+      confirmed_at: registration.confirmed_at,
+      championships: registration.championships,
+      championship_categories: registration.championship_categories,
+      athlete_profiles: {
+        athlete_id: profile.athlete_id,
+        full_name: profile.full_name,
+        email: profile.email,
+        mobile_e164: profile.mobile_e164,
+        state: profile.state,
+        district: profile.district,
+        representing: profile.representing,
+      },
+      registration_events: registration.registration_events,
+    },
+    payments: registration.payments ?? [],
+  }
 }
 
 interface EditState {
@@ -71,6 +118,7 @@ export function AthleteDetailPage() {
   const { athleteId = '' } = useParams<{ athleteId: string }>()
   const navigate = useNavigate()
   const toast = useToast()
+  const { config } = useConfig()
 
   const [profile, setProfile] = useState<AthleteProfile | null>(null)
   const [registrations, setRegistrations] = useState<AthleteRegistration[]>([])
@@ -196,7 +244,7 @@ export function AthleteDetailPage() {
                 <p className="px-5 py-6 text-sm text-slate-600">This athlete has no registrations yet.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[640px] border-collapse text-sm">
+                  <table className="w-full min-w-[760px] border-collapse text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                         <th className="px-3 py-2.5">Registration ID</th>
@@ -205,49 +253,67 @@ export function AthleteDetailPage() {
                         <th className="px-3 py-2.5">Payment</th>
                         <th className="px-3 py-2.5">Status</th>
                         <th className="px-3 py-2.5">Registered</th>
+                        <th className="px-3 py-2.5">Receipt</th>
                         <th className="px-3 py-2.5" />
                       </tr>
                     </thead>
                     <tbody>
-                      {registrations.map((registration) => (
-                        <tr key={registration.id} className="border-b border-slate-100">
-                          <td className="px-3 py-2.5 font-mono text-xs font-semibold text-slate-900">
-                            {registration.registration_code}
-                          </td>
-                          <td className="px-3 py-2.5 text-slate-700">
-                            {registration.championships?.name ?? '—'}
-                            {registration.championship_categories?.name && (
-                              <span className="block text-xs text-slate-500">
-                                {registration.championship_categories.name}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2.5 tabular-nums text-slate-700">
-                            {formatMoney(registration.fee_paise, registration.currency)}
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <Badge tone={paymentStatusTone(registration.payment_status)}>
-                              {titleCase(registration.payment_status)}
-                            </Badge>
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <Badge tone={registrationStatusTone(registration.status)}>
-                              {titleCase(registration.status)}
-                            </Badge>
-                          </td>
-                          <td className="px-3 py-2.5 text-xs text-slate-600">
-                            {formatDate(registration.registered_at)}
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <Link
-                              to={`/admin/registrations/${registration.id}`}
-                              className="text-sm font-medium text-accent-700 hover:underline"
-                            >
-                              View
-                            </Link>
-                          </td>
-                        </tr>
-                      ))}
+                      {registrations.map((registration) => {
+                        const paid =
+                          registration.payment_status === 'paid' ||
+                          (registration.payments ?? []).some((payment) => payment.status === 'captured')
+                        return (
+                          <tr key={registration.id} className="border-b border-slate-100">
+                            <td className="px-3 py-2.5 font-mono text-xs font-semibold text-slate-900">
+                              {registration.registration_code}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-700">
+                              {registration.championships?.name ?? '—'}
+                              {registration.championship_categories?.name && (
+                                <span className="block text-xs text-slate-500">
+                                  {registration.championship_categories.name}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 tabular-nums text-slate-700">
+                              {formatMoney(registration.fee_paise, registration.currency)}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <Badge tone={paymentStatusTone(registration.payment_status)}>
+                                {titleCase(registration.payment_status)}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <Badge tone={registrationStatusTone(registration.status)}>
+                                {titleCase(registration.status)}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2.5 text-xs text-slate-600">
+                              {formatDate(registration.registered_at)}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              {paid ? (
+                                <ReceiptDownloadButton
+                                  confirmation={toConfirmation(profile, registration)}
+                                  site={config?.site}
+                                  label="Receipt"
+                                  size="sm"
+                                />
+                              ) : (
+                                <span className="text-xs text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <Link
+                                to={`/admin/registrations/${registration.id}`}
+                                className="text-sm font-medium text-accent-700 hover:underline"
+                              >
+                                View
+                              </Link>
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -257,16 +323,32 @@ export function AthleteDetailPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Profile</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle>Athlete details</CardTitle>
+                <Badge tone="info">{profile.athlete_id}</Badge>
+              </div>
             </CardHeader>
             <CardContent>
               <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
                 {(
                   [
+                    ['Full name', profile.full_name],
+                    ['Date of birth', formatDate(profile.date_of_birth)],
+                    ['Gender', genderLabel(profile.gender)],
+                    ['Mobile', profile.mobile_e164],
+                    ['Email', profile.email || '—'],
+                    ['State', profile.state || '—'],
+                    ['District', profile.district || '—'],
+                    ['Address', profile.address || '—'],
+                    ['Representing', profile.representing || '—'],
+                    [
+                      'Emergency contact',
+                      profile.emergency_contact_name
+                        ? `${profile.emergency_contact_name}${profile.emergency_contact_phone ? ` · ${profile.emergency_contact_phone}` : ''}`
+                        : '—',
+                    ],
                     ['Created', formatDateTime((profile as unknown as { created_at?: string }).created_at)],
                     ['Last updated', formatDateTime((profile as unknown as { updated_at?: string }).updated_at)],
-                    ['Current mobile', profile.mobile_e164],
-                    ['Current gender', genderLabel(profile.gender)],
                   ] as [string, string][]
                 ).map(([label, value]) => (
                   <div key={label}>

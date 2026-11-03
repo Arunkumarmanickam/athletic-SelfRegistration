@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Download } from 'lucide-react'
 import { Alert, Badge, Card, CardContent, CardHeader, CardTitle, Spinner } from '@/components/ui/display'
 import { Button } from '@/components/ui/button'
 import { Field, Input, useFieldId } from '@/components/ui/input'
@@ -11,7 +10,7 @@ import { athleteIdExample } from '@/lib/athleteId'
 import { useConfig } from '@/context/ConfigContext'
 import { COUNTRY_CODES } from '@/lib/constants'
 import { formatDate, formatMoney, genderLabel, registrationStatusTone, paymentStatusTone, titleCase, toE164 } from '@/lib/format'
-import { downloadReceiptPdf } from '@/lib/receiptPdf'
+import { ReceiptDownloadButton } from '@/components/registration/ReceiptDownload'
 import type {
   AthleteProfile,
   AthleteRegistrationSummary,
@@ -54,43 +53,6 @@ function toConfirmation(
     },
     payments: registration.payments ?? [],
   }
-}
-
-function ReceiptDownloadButton({
-  confirmation,
-  site,
-}: {
-  confirmation: Confirmation
-  site?: PublicConfig['site']
-}) {
-  const [downloading, setDownloading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const handleDownload = async () => {
-    setDownloading(true)
-    setError(null)
-    try {
-      await downloadReceiptPdf(confirmation, site)
-    } catch {
-      setError('We could not create the receipt. Please try again, or contact the organiser.')
-    } finally {
-      setDownloading(false)
-    }
-  }
-
-  return (
-    <div className="flex flex-col items-end gap-1">
-      <Button variant="outline" onClick={handleDownload} loading={downloading}>
-        {!downloading && <Download aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />}
-        Download receipt
-      </Button>
-      {error && (
-        <p role="alert" className="text-right text-xs text-red-600">
-          {error}
-        </p>
-      )}
-    </div>
-  )
 }
 
 function RegistrationsList({
@@ -146,8 +108,12 @@ function RegistrationsList({
               </div>
             </dl>
             {paid && (
-              <div className="mt-3 border-t border-slate-100 pt-3">
-                <ReceiptDownloadButton confirmation={toConfirmation(profile, registration)} site={site} />
+              <div className="mt-3 flex justify-end border-t border-slate-100 pt-3">
+                <ReceiptDownloadButton
+                  confirmation={toConfirmation(profile, registration)}
+                  site={site}
+                  align="end"
+                />
               </div>
             )}
           </li>

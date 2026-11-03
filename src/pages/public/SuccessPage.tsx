@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/display'
 import { Button } from '@/components/ui/button'
 import { useConfig } from '@/context/ConfigContext'
 import { ReceiptInvoice } from '@/components/registration/ReceiptInvoice'
+import { ReceiptDownloadButton } from '@/components/registration/ReceiptDownload'
 import { loadConfirmation } from '@/lib/receipt'
-import { downloadReceiptPdf } from '@/lib/receiptPdf'
 
 /**
  * Invoice-style receipt shown after a payment is verified on the server.
@@ -15,36 +15,14 @@ import { downloadReceiptPdf } from '@/lib/receiptPdf'
  * clears it. If the record is missing (for example the athlete opened this URL
  * directly) we send them to the status page instead of inventing data.
  *
- * The PDF is generated in the browser and downloaded automatically once per
- * registration (tracked per tab), so the athlete keeps a copy on their phone
- * without having to find the print dialog. The on-screen invoice stays
- * printable as a fallback.
+ * The receipt is downloaded automatically as a JPEG once per registration
+ * (tracked per tab), so the athlete keeps a copy on their phone without having
+ * to find the print dialog. The same button stays on screen for a retry, and
+ * the on-screen invoice remains printable as a fallback.
  */
 export function SuccessPage() {
   const { config } = useConfig()
   const confirmation = useMemo(() => loadConfirmation(), [])
-  const autoDownloaded = useRef(false)
-
-  useEffect(() => {
-    if (!confirmation) return
-    const key = `arp:receipt-downloaded:v1:${confirmation.registration.registration_code}`
-    const attempt = () => {
-      if (autoDownloaded.current) return
-      autoDownloaded.current = true
-      try {
-        if (window.sessionStorage.getItem(key)) return
-        window.sessionStorage.setItem(key, '1')
-      } catch {
-        /* storage may be unavailable (private mode): download anyway */
-      }
-      void downloadReceiptPdf(confirmation, config?.site).catch(() => {
-        /* generation failed: the on-screen receipt and Print button still work */
-      })
-    }
-    // Wait briefly for the organiser details (site config) before generating.
-    const timer = window.setTimeout(attempt, config ? 400 : 2500)
-    return () => window.clearTimeout(timer)
-  }, [confirmation, config])
 
   if (!confirmation) {
     return (
@@ -75,11 +53,18 @@ export function SuccessPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 print:max-w-none print:px-0 print:py-0">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print-hide">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3 print-hide">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent-600">Payment received</p>
           <h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-brand-900 sm:text-3xl">Your receipt</h1>
         </div>
+        <ReceiptDownloadButton
+          confirmation={confirmation}
+          site={config?.site}
+          auto
+          ready={Boolean(config)}
+          align="end"
+        />
       </div>
 
       <ReceiptInvoice confirmation={confirmation} site={config?.site} />

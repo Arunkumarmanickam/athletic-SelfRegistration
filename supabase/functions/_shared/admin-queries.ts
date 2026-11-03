@@ -33,7 +33,7 @@ export interface PaymentFilters {
 export const REGISTRATION_SELECT = [
   'id, registration_code, bib_number, status, payment_status, fee_paise, currency,',
   'registered_at, confirmed_at, category_name, notes, updated_at,',
-  'championships (id, name, slug, starts_on, level, max_events_per_athlete),',
+  'championships (id, name, slug, starts_on, ends_on, location, level, max_events_per_athlete),',
   'championship_categories (id, name),',
   'athlete_profiles!inner(id, athlete_id, full_name, date_of_birth, gender, mobile_country_code, mobile_number, mobile_e164, email, state, district, address, representing, emergency_contact_name, emergency_contact_phone, photo_path),',
   'registration_events (event_id, event_name, fee_paise)',

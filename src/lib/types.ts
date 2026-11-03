@@ -249,7 +249,16 @@ export interface RegistrationAdminRow {
   category_name: string | null
   notes: string | null
   updated_at: string
-  championships: { id: string; name: string; slug: string; starts_on: string | null; level?: string; max_events_per_athlete?: number | null } | null
+  championships: {
+    id: string
+    name: string
+    slug: string
+    starts_on: string | null
+    ends_on?: string | null
+    location?: string | null
+    level?: string
+    max_events_per_athlete?: number | null
+  } | null
   championship_categories: { id: string; name: string } | null
   athlete_profiles: AthleteProfile
   registration_events: RegistrationEventRow[] | null

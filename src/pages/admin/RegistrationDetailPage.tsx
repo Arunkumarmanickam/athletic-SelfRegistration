@@ -6,7 +6,9 @@ import { Field, Input } from '@/components/ui/input'
 import { Select, Textarea } from '@/components/ui/form-controls'
 import { ConfirmDialog } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/admin/PageHeader'
+import { ReceiptDownloadButton } from '@/components/registration/ReceiptDownload'
 import { ApiError, adminPaymentAction, adminRegistrationDetail, adminUpdateRegistration } from '@/lib/api'
+import { useConfig } from '@/context/ConfigContext'
 import { useToast } from '@/context/ToastContext'
 import {
   formatDate,
@@ -17,14 +19,56 @@ import {
   registrationStatusTone,
   titleCase,
 } from '@/lib/format'
-import type { AuditRow, PaymentRow, RegistrationAdminRow } from '@/lib/types'
+import type { AuditRow, Confirmation, PaymentRow, RegistrationAdminRow } from '@/lib/types'
 
 type Detail = { registration: RegistrationAdminRow; payments: PaymentRow[]; audit: AuditRow[] }
+
+/** Rebuilds the same confirmation payload used by the public receipt. */
+function toConfirmation(detail: Detail): Confirmation {
+  const { registration, payments } = detail
+  const profile = registration.athlete_profiles
+
+  return {
+    registration: {
+      id: registration.id,
+      registration_code: registration.registration_code,
+      bib_number: registration.bib_number,
+      status: registration.status,
+      payment_status: registration.payment_status,
+      fee_paise: registration.fee_paise,
+      currency: registration.currency,
+      registered_at: registration.registered_at,
+      confirmed_at: registration.confirmed_at,
+      championships: registration.championships,
+      championship_categories: registration.championship_categories,
+      athlete_profiles: {
+        athlete_id: profile.athlete_id,
+        full_name: profile.full_name,
+        email: profile.email,
+        mobile_e164: profile.mobile_e164,
+        state: profile.state,
+        district: profile.district,
+        representing: profile.representing,
+      },
+      registration_events: registration.registration_events,
+    },
+    payments: payments.map((payment) => ({
+      razorpay_order_id: payment.razorpay_order_id,
+      razorpay_payment_id: payment.razorpay_payment_id,
+      amount_paise: payment.amount_paise,
+      currency: payment.currency,
+      status: payment.status,
+      method: payment.method,
+      verified_at: payment.verified_at,
+    })),
+  }
+}
 
 export function RegistrationDetailPage() {
   const { registrationId = '' } = useParams<{ registrationId: string }>()
   const navigate = useNavigate()
   const toast = useToast()
+  const { config } = useConfig()
 
   const [detail, setDetail] = useState<Detail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -138,6 +182,8 @@ export function RegistrationDetailPage() {
 
   const { registration, payments, audit } = detail
   const profile = registration.athlete_profiles
+  const paid =
+    registration.payment_status === 'paid' || payments.some((payment) => payment.status === 'captured')
   const dirty =
     status !== registration.status ||
     paymentStatus !== registration.payment_status ||
@@ -151,11 +197,21 @@ export function RegistrationDetailPage() {
           registration.championship_categories?.name ? ` · ${registration.championship_categories.name}` : ''
         }`}
         actions={
-          <Link to="/admin/registrations">
-            <Button variant="outline" size="sm">
-              ← All registrations
-            </Button>
-          </Link>
+          <>
+            {paid && (
+              <ReceiptDownloadButton
+                confirmation={toConfirmation(detail)}
+                site={config?.site}
+                size="sm"
+                align="end"
+              />
+            )}
+            <Link to="/admin/registrations">
+              <Button variant="outline" size="sm">
+                ← All registrations
+              </Button>
+            </Link>
+          </>
         }
       />
 
