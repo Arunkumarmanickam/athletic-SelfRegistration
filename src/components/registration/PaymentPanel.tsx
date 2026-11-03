@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Alert, Badge } from '@/components/ui/display'
 import { Button } from '@/components/ui/button'
 import { formatMoney } from '@/lib/format'
-import { startPhonePeCheckout } from '@/lib/phonepe'
+import { isPhonePeCheckoutUrl, startPhonePeCheckout } from '@/lib/phonepe'
+import { qrDataUrl } from '@/lib/qr'
 import { ApiError, retryPayment } from '@/lib/api'
 import type { Confirmation } from '@/lib/types'
 
@@ -36,7 +38,30 @@ export interface PaymentPanelProps {
   onSuccess: (confirmation: Confirmation) => void
 }
 
-type Stage = 'idle' | 'opening' | 'failed'
+type Stage = 'idle' | 'opening' | 'failed' | 'qr'
+
+const DESKTOP_QUERY = '(min-width: 900px) and (pointer: fine)'
+
+/**
+ * True for a desktop-sized screen with a precise pointer. PhonePe itself
+ * switches to its mobile layout below 900px, so this mirrors the same boundary:
+ * anything that would receive PhonePe's mobile flow is redirected normally.
+ */
+function useIsDesktop(): boolean {
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(DESKTOP_QUERY).matches,
+  )
+
+  useEffect(() => {
+    const media = window.matchMedia(DESKTOP_QUERY)
+    const update = () => setIsDesktop(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  return isDesktop
+}
 
 /**
  * PhonePe Standard Checkout launcher.
@@ -57,13 +82,15 @@ export function PaymentPanel({
   const [currentOrder, setCurrentOrder] = useState<PaymentOrder | null>((order as any) ?? null)
   const [stage, setStage] = useState<Stage>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [qrTarget, setQrTarget] = useState<string | null>(null)
+  const isDesktop = useIsDesktop()
 
   const displayAmount = currentOrder?.amount_paise ?? amountPaise
   const displayCurrency = currentOrder?.currency ?? currency
   const amountLabel = formatMoney(displayAmount, displayCurrency)
+  const qrImage = useMemo(() => (qrTarget ? qrDataUrl(qrTarget) : null), [qrTarget])
 
   const startCheckout = (paymentOrder: PaymentOrder) => {
-    setStage('opening')
     setError(null)
 
     if (!paymentOrder.redirect_url) {
@@ -71,10 +98,25 @@ export function PaymentPanel({
       setError('The payment link is missing. Please try again.')
       return
     }
+    if (!isPhonePeCheckoutUrl(paymentOrder.redirect_url)) {
+      setStage('failed')
+      setError('The payment link could not be verified. Please try again or contact the organiser.')
+      return
+    }
+
+    // Desktop: PhonePe's own QR screen can overflow and cannot be zoomed out,
+    // so keep the athlete here and show a QR of the same hosted checkout link.
+    // Scanning it opens the normal mobile UPI flow on the phone.
+    if (isDesktop) {
+      setQrTarget(paymentOrder.redirect_url)
+      setStage('qr')
+      return
+    }
 
     // The browser leaves for PhonePe and comes back through the
     // payment-callback Edge Function. There is no in-page success callback to
     // trust, so nothing here can confirm a payment.
+    setStage('opening')
     const opened = startPhonePeCheckout(paymentOrder.redirect_url)
     if (!opened.ok) {
       setStage('failed')
@@ -136,20 +178,62 @@ export function PaymentPanel({
           <Badge tone="warning">Awaiting payment</Badge>
         </div>
 
-        <Button
-          variant="accent"
-          size="lg"
-          className="mt-4 w-full sm:w-auto"
-          onClick={() => (currentOrder ? startCheckout(currentOrder) : void handleRetry())}
-          loading={busy}
-          disabled={busy}
-        >
-          {stage === 'failed' ? 'Start a new payment attempt' : `Pay ${amountLabel} securely`}
-        </Button>
+        {stage === 'qr' && qrImage && qrTarget ? (
+          <div className="mt-4">
+            <div className="rounded-lg border border-accent-200 bg-white p-4 text-center">
+              <p className="text-sm font-semibold text-slate-900">Scan this code with your phone</p>
+              <img
+                src={qrImage}
+                alt={`UPI payment QR code for ${amountLabel}`}
+                className="mx-auto mt-3 w-full max-w-[320px]"
+              />
+              <p className="mt-3 text-sm text-slate-700">
+                Open any UPI app (PhonePe, Google Pay, Paytm), scan this code and approve {amountLabel}.
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Keep this page open. Your entry is confirmed automatically once the payment succeeds.
+              </p>
+            </div>
 
-        <p className="mt-2 text-xs text-accent-800">
-          Pay with any UPI app. On a computer, scan the QR code shown by PhonePe with your phone.
-        </p>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+              <a
+                href={qrTarget}
+                className="font-medium text-accent-700 underline underline-offset-2"
+              >
+                Continue on this computer instead
+              </a>
+              <button
+                type="button"
+                onClick={() => void handleRetry()}
+                disabled={busy}
+                className="font-medium text-slate-600 underline underline-offset-2 disabled:opacity-50"
+              >
+                Generate a new QR code
+              </button>
+              <Link to="/status" className="font-medium text-slate-600 underline underline-offset-2">
+                Already paid? Check status
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <>
+            <Button
+              variant="accent"
+              size="lg"
+              className="mt-4 w-full sm:w-auto"
+              onClick={() => (currentOrder ? startCheckout(currentOrder) : void handleRetry())}
+              loading={busy}
+              disabled={busy}
+            >
+              {stage === 'failed' ? 'Start a new payment attempt' : `Pay ${amountLabel} securely`}
+            </Button>
+
+            <p className="mt-2 text-xs text-accent-800">
+              Pay with any UPI app. On a computer, click Pay to show a QR code you can scan with your
+              phone.
+            </p>
+          </>
+        )}
       </div>
 
       {error && (
