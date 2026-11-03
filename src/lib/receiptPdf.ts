@@ -4,6 +4,7 @@ import type { jsPDF as JsPdfType } from 'jspdf'
 import type { Confirmation, PublicConfig } from '@/lib/types'
 import { formatDate, formatDateTime, representingText, titleCase } from '@/lib/format'
 import { amountInWords } from '@/lib/amountWords'
+import { supportPhones } from '@/lib/site'
 
 const M = 14
 const RIGHT = 196
@@ -72,7 +73,7 @@ export async function buildReceiptPdf(
   const profile = registration.athlete_profiles
   const events = registration.registration_events ?? []
   const organizer = site?.organizer_name?.trim() || 'Championship organiser'
-  const contact = [site?.support_email, site?.support_phone].filter(Boolean).join(' · ')
+  const contact = [site?.support_email, ...supportPhones(site)].filter(Boolean).join(' · ')
   const currency = registration.currency || 'INR'
   const capturedPayment =
     payments.find((payment) => payment.status === 'captured') ?? payments[0] ?? null

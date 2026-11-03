@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Plus, Trash2 } from 'lucide-react'
 import { Alert, Card, CardContent, CardHeader, CardTitle, Spinner } from '@/components/ui/display'
 import { Button } from '@/components/ui/button'
 import { Field, Input } from '@/components/ui/input'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { ApiError, adminSettings } from '@/lib/api'
+import { splitPhones } from '@/lib/site'
 import { useAdminAuth } from '@/context/AdminAuthContext'
 import { useToast } from '@/context/ToastContext'
 
 interface SiteSettings {
   organizer_name: string
   support_email: string
-  support_phone: string
+  /** One entry per published number; always has at least one row. */
+  support_phones: string[]
   address: string
 }
 
@@ -19,17 +22,30 @@ interface AthleteIdFormat {
   sequence_length: number
 }
 
-const EMPTY_SITE: SiteSettings = { organizer_name: '', support_email: '', support_phone: '', address: '' }
+/** Enough for every committee member, small enough to stay tidy in the UI. */
+const MAX_PHONES = 10
+
+const EMPTY_SITE: SiteSettings = { organizer_name: '', support_email: '', support_phones: [''], address: '' }
 const DEFAULT_FORMAT: AthleteIdFormat = { prefix: 'ATH', sequence_length: 6 }
 
 function readSettings(raw: Record<string, unknown>): { site: SiteSettings; format: AthleteIdFormat } {
   const siteRaw = (raw.site ?? {}) as Record<string, unknown>
   const formatRaw = (raw.athlete_id_format ?? {}) as Record<string, unknown>
+
+  const savedPhones = Array.isArray(siteRaw.support_phones)
+    ? siteRaw.support_phones.map((phone) => String(phone ?? '').trim()).filter(Boolean)
+    : []
+  const legacyPhone = String(siteRaw.support_phone ?? '').trim()
+  // Older settings kept several numbers in one comma-separated field; split it
+  // so each number gets its own input row.
+  const phones = splitPhones(savedPhones.length > 0 ? savedPhones : legacyPhone)
+  if (phones.length === 0) phones.push('')
+
   return {
     site: {
       organizer_name: String(siteRaw.organizer_name ?? ''),
       support_email: String(siteRaw.support_email ?? ''),
-      support_phone: String(siteRaw.support_phone ?? ''),
+      support_phones: phones,
       address: String(siteRaw.address ?? ''),
     },
     format: {
@@ -78,13 +94,17 @@ export function SettingsPage() {
   const handleSave = async () => {
     setSaving(true)
     try {
+      const phones = site.support_phones.map((phone) => phone.trim()).filter(Boolean)
       await adminSettings({
         action: 'settings_update',
         settings: {
           site: {
             organizer_name: site.organizer_name.trim(),
             support_email: site.support_email.trim(),
-            support_phone: site.support_phone.trim(),
+            // `support_phone` stays the first number for older clients and the
+            // receipt templates; `support_phones` is the full published list.
+            support_phone: phones[0] ?? '',
+            support_phones: phones,
             address: site.address.trim(),
           },
           athlete_id_format: {
@@ -106,6 +126,30 @@ export function SettingsPage() {
     Math.min(12, Math.max(3, format.sequence_length || 6)),
     '0',
   )}`
+
+  const setPhone = (index: number, value: string) => {
+    setSite((current) => {
+      const next = [...current.support_phones]
+      next[index] = value
+      return { ...current, support_phones: next }
+    })
+  }
+
+  const addPhone = () => {
+    setSite((current) =>
+      current.support_phones.length >= MAX_PHONES
+        ? current
+        : { ...current, support_phones: [...current.support_phones, ''] },
+    )
+  }
+
+  const removePhone = (index: number) => {
+    setSite((current) =>
+      current.support_phones.length <= 1
+        ? current
+        : { ...current, support_phones: current.support_phones.filter((_, i) => i !== index) },
+    )
+  }
 
   return (
     <div>
@@ -157,13 +201,51 @@ export function SettingsPage() {
                   onChange={(event) => setSite({ ...site, support_email: event.target.value })}
                 />
               </Field>
-              <Field label="Support phone" htmlFor="set-phone">
-                <Input
-                  id="set-phone"
-                  value={site.support_phone}
-                  disabled={readOnly}
-                  onChange={(event) => setSite({ ...site, support_phone: event.target.value })}
-                />
+              <Field
+                label="Support phone numbers"
+                htmlFor="set-phone-0"
+                hint="Shown in the site footer, the contact page and on receipts. Add as many numbers as you need."
+              >
+                <div className="space-y-2">
+                  {site.support_phones.map((phone, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Input
+                        id={`set-phone-${index}`}
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
+                        placeholder={index === 0 ? 'e.g. +91 98765 43210' : 'Another number'}
+                        value={phone}
+                        disabled={readOnly}
+                        onChange={(event) => setPhone(index, event.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Remove phone number ${index + 1}`}
+                        title="Remove this number"
+                        disabled={readOnly || site.support_phones.length === 1}
+                        onClick={() => removePhone(index)}
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={readOnly || site.support_phones.length >= MAX_PHONES}
+                    onClick={addPhone}
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    Add mobile number
+                  </Button>
+                  {site.support_phones.length >= MAX_PHONES && (
+                    <p className="text-xs text-slate-500">Up to {MAX_PHONES} numbers can be shown.</p>
+                  )}
+                </div>
               </Field>
               <Field label="Postal address" htmlFor="set-address">
                 <Input

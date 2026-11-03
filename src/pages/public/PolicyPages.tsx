@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/display'
 import { Button } from '@/components/ui/button'
 import { useConfig } from '@/context/ConfigContext'
+import { supportPhones, telHref } from '@/lib/site'
 
 function PolicyShell({
   title,
@@ -209,6 +210,7 @@ export function TermsPage() {
 export function ContactPage() {
   const { config } = useConfig()
   const site = config?.site ?? {}
+  const phones = supportPhones(site)
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
@@ -237,14 +239,28 @@ export function ContactPage() {
             </div>
             <div>
               <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Phone</dt>
-              <dd className="text-slate-800">{site.support_phone?.trim() || 'Not provided yet'}</dd>
+              <dd className="text-slate-800">
+                {phones.length > 0 ? (
+                  <ul className="space-y-1">
+                    {phones.map((phone) => (
+                      <li key={phone}>
+                        <a className="text-accent-700 underline" href={telHref(phone)}>
+                          {phone}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  'Not provided yet'
+                )}
+              </dd>
             </div>
             <div>
               <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Address</dt>
               <dd className="whitespace-pre-line text-slate-800">{site.address?.trim() || 'Not provided yet'}</dd>
             </div>
           </dl>
-          {!site.support_email?.trim() && !site.support_phone?.trim() && (
+          {!site.support_email?.trim() && phones.length === 0 && (
             <p className="mt-4 text-xs text-slate-500">
               The organiser has not published contact details yet. An administrator can add them under Admin →
               Settings.

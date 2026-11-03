@@ -3,6 +3,7 @@ import { AssociationLogo } from '@/components/AssociationLogo'
 import { ASSOCIATION_CREDENTIALS } from '@/lib/brand'
 import { formatDate, formatDateTime, formatMoney, representingText, titleCase } from '@/lib/format'
 import { amountInWords } from '@/lib/amountWords'
+import { supportPhones } from '@/lib/site'
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
@@ -32,7 +33,7 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
   const profile = registration.athlete_profiles
   const events = registration.registration_events ?? []
   const organizer = site?.organizer_name?.trim() || 'Championship organiser'
-  const contact = [site?.support_email, site?.support_phone].filter(Boolean).join(' · ')
+  const contact = [site?.support_email, ...supportPhones(site)].filter(Boolean).join(' · ')
 
   const capturedPayment = payments.find((payment) => payment.status === 'captured') ?? payments[0] ?? null
   const paid = registration.payment_status === 'paid' || capturedPayment?.status === 'captured'

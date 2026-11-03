@@ -6,6 +6,7 @@ import { AssociationLogo } from '@/components/AssociationLogo'
 import { Button } from '@/components/ui/button'
 import { useConfig } from '@/context/ConfigContext'
 import { ASSOCIATION_CREDENTIALS, ASSOCIATION_NAME, ASSOCIATION_TAGLINE } from '@/lib/brand'
+import { supportPhones, telHref } from '@/lib/site'
 
 const NAV_LINKS = [
   { to: '/', label: 'Home', end: true },
@@ -47,9 +48,7 @@ export function PublicLayout() {
     site?.support_email
       ? { icon: Mail, label: site.support_email, href: `mailto:${site.support_email}` }
       : null,
-    site?.support_phone
-      ? { icon: Phone, label: site.support_phone, href: `tel:${site.support_phone.replace(/[^\d+]/g, '')}` }
-      : null,
+    ...supportPhones(site).map((phone) => ({ icon: Phone, label: phone, href: telHref(phone) })),
     site?.address ? { icon: MapPin, label: site.address, href: null } : null,
   ].filter((item): item is NonNullable<typeof item> => item !== null)
 
@@ -156,8 +155,8 @@ export function PublicLayout() {
             </p>
             {contactItems.length > 0 && (
               <ul className="mt-4 space-y-2 text-sm text-slate-600">
-                {contactItems.map((item) => (
-                  <li key={item.label} className="flex items-start gap-2">
+                {contactItems.map((item, index) => (
+                  <li key={`${item.href ?? item.label}-${index}`} className="flex items-start gap-2">
                     <item.icon className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" />
                     {item.href ? (
                       <a href={item.href} className="break-words hover:text-brand-900">

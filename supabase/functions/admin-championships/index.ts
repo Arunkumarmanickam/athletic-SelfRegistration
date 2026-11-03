@@ -448,10 +448,28 @@ Deno.serve(
 
       if (settings.site && typeof settings.site === 'object') {
         const site = settings.site as Record<string, unknown>
+
+        // Support numbers are a list. Older saved settings (and older admin
+        // bundles) only send `support_phone`, sometimes with several numbers in
+        // one comma-separated string; split and fold both shapes into the list.
+        // The legacy field stays equal to the first number for receipts and any
+        // cached client.
+        const split = (value: unknown) =>
+          str(value)
+            .split(/[,;\n]+/)
+            .map((phone) => phone.trim().slice(0, 40))
+            .filter(Boolean)
+
+        const submitted = Array.isArray(site.support_phones) ? site.support_phones.flatMap(split) : []
+        const supportPhones = [...submitted, ...split(site.support_phone)]
+          .filter((phone, index, all) => all.indexOf(phone) === index)
+          .slice(0, 10)
+
         const sanitized = {
           organizer_name: str(site.organizer_name).slice(0, 160),
           support_email: str(site.support_email).slice(0, 160),
-          support_phone: str(site.support_phone).slice(0, 40),
+          support_phone: supportPhones[0] ?? '',
+          support_phones: supportPhones,
           address: str(site.address).slice(0, 300),
         }
         await supabase

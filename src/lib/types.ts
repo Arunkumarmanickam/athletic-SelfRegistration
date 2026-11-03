@@ -95,7 +95,10 @@ export interface PublicConfig {
   site: {
     organizer_name?: string
     support_email?: string
+    /** Legacy single number; kept in sync with the first entry of `support_phones`. */
     support_phone?: string
+    /** All support numbers, in the order the organiser entered them. */
+    support_phones?: string[]
     address?: string
   }
   athlete_id_format: { prefix?: string; sequence_length?: number } | null
