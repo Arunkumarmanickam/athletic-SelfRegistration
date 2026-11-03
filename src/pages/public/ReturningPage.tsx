@@ -9,7 +9,7 @@ import { ApiError, retrieveProfile, verifyAthlete } from '@/lib/api'
 import { athleteIdExample } from '@/lib/athleteId'
 import { useConfig } from '@/context/ConfigContext'
 import { COUNTRY_CODES } from '@/lib/constants'
-import { formatDate, formatMoney, genderLabel, registrationStatusTone, paymentStatusTone, titleCase, toE164 } from '@/lib/format'
+import { formatDate, formatMoney, genderLabel, registrationStatusTone, paymentStatusTone, representingText, titleCase, toE164 } from '@/lib/format'
 import { ReceiptDownloadButton } from '@/components/registration/ReceiptDownload'
 import type {
   AthleteProfile,
@@ -353,7 +353,7 @@ export function ReturningPage() {
                   ['State', profile.state],
                   ['District', profile.district || '—'],
                   ['Address', profile.address || '—'],
-                  ['Representing', profile.representing || '—'],
+                  ['Representing', representingText(profile)],
                   [
                     'Emergency contact',
                     profile.emergency_contact_name

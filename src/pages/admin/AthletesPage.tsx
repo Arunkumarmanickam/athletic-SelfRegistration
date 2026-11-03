@@ -11,7 +11,7 @@ import { useChampionshipOptions } from '@/hooks/useChampionshipOptions'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { downloadBlob } from '@/lib/download'
 import { useToast } from '@/context/ToastContext'
-import { formatDate, formatDateTime, genderLabel, paymentStatusTone, titleCase } from '@/lib/format'
+import { formatDate, formatDateTime, genderLabel, paymentStatusTone, representingText, titleCase } from '@/lib/format'
 import type { RegistrationAdminRow } from '@/lib/types'
 
 const PAGE_SIZE = 25
@@ -255,7 +255,7 @@ export function AthletesPage() {
                           {(row.registration_events ?? []).map((event) => event.event_name).join(', ') || '—'}
                         </span>
                       </Td>
-                      <Td>{profile?.representing || profile?.district || profile?.state || '—'}</Td>
+                      <Td>{representingText(profile) || '—'}</Td>
                       {championshipId === ALL && <Td>{row.championships?.name ?? '—'}</Td>}
                       <Td>
                         <Badge tone={paymentStatusTone(row.payment_status)}>{titleCase(row.payment_status)}</Badge>

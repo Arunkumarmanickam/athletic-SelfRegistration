@@ -17,6 +17,7 @@ import {
   genderLabel,
   paymentStatusTone,
   registrationStatusTone,
+  representingText,
   titleCase,
 } from '@/lib/format'
 import type { AuditRow, Confirmation, PaymentRow, RegistrationAdminRow } from '@/lib/types'
@@ -236,7 +237,7 @@ export function RegistrationDetailPage() {
                     ['State', profile.state],
                     ['District', profile.district || '—'],
                     ['Address', profile.address || '—'],
-                    ['Representing', profile.representing || '—'],
+                    ['Representing', representingText(profile)],
                     [
                       'Emergency contact',
                       profile.emergency_contact_name

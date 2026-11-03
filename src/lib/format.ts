@@ -87,7 +87,10 @@ export function representingText(
       Boolean(district) && representing.toLowerCase() === district.toLowerCase()
     return isDistrict && state ? `${representing}, ${state}` : representing
   }
-  return [district, state].filter(Boolean).join(', ')
+  // District meets ask for an optional academy/club. Athletes who leave it
+  // blank compete as individuals — don't fall back to the venue state.
+  if (district) return state ? `${district}, ${state}` : district
+  return 'Individual'
 }
 
 export type BadgeTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'accent'

@@ -114,9 +114,7 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
               <Detail label="Athlete ID" value={profile?.athlete_id ?? '—'} />
               {profile?.mobile_e164 && <Detail label="Mobile" value={profile.mobile_e164} />}
               {profile?.email && <Detail label="Email" value={profile.email} />}
-              {(profile?.state || profile?.district || profile?.representing) && (
-                <Detail label="Representing" value={representingText(profile)} />
-              )}
+              <Detail label="Representing" value={representingText(profile)} />
             </dl>
           </div>
 

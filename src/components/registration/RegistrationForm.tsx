@@ -549,6 +549,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
                 <Input
                   id={reprId}
                   name="representing"
+                  autoComplete="off"
                   value={values.representing}
                   invalid={Boolean(errors.representing)}
                   onChange={(event) => setValues((current) => ({ ...current, representing: event.target.value }))}

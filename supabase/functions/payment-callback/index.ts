@@ -41,6 +41,58 @@ function failure(message: string, appNo?: string | null, mobile?: string | null)
   return redirectTo('/status', params)
 }
 
+/**
+ * Mints a single-use receipt token and sends the browser to the receipt page.
+ *
+ * The token is what lets the success page show the receipt without trusting
+ * anything in the URL. If the token cannot be stored the athlete still gets a
+ * useful page: the success page can fall back to the status lookup.
+ */
+async function receiptRedirect(supabase: any, registrationId: string): Promise<Response> {
+  const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '')
+  const { data: tokenHash, error: hashError } = await supabase.rpc('hash_secret', { p_value: token })
+  if (hashError || !tokenHash) {
+    console.error('payment-callback: could not hash receipt token', hashError)
+    return redirectTo('/registration/success', { payment_callback: 'paid' })
+  }
+
+  const expiresAt = new Date(Date.now() + RECEIPT_TOKEN_TTL_MINUTES * 60_000).toISOString()
+  const { error: tokenError } = await supabase.from('receipt_tokens').insert({
+    token_hash: tokenHash as string,
+    registration_id: registrationId,
+    expires_at: expiresAt,
+  })
+  if (tokenError) {
+    console.error('payment-callback: could not store receipt token', tokenError)
+    return redirectTo('/registration/success', { payment_callback: 'paid' })
+  }
+
+  // Best-effort cleanup; never blocks the redirect.
+  try {
+    await supabase.rpc('prune_receipt_tokens')
+  } catch (err) {
+    console.error('prune_receipt_tokens failed (non-fatal)', err)
+  }
+
+  return redirectTo('/registration/success', { receipt: token })
+}
+
+/**
+ * Recovers the draft id encoded in a merchant order id
+ * (`cdmaa_<draft hex>_<attempt>_<suffix>`).
+ *
+ * Older deployments deleted `payment_orders` when the draft was promoted, so a
+ * browser that returned after the webhook had already captured the payment
+ * could not find its order. The registration still carries the draft id, which
+ * lets the athlete reach their receipt instead of a false failure.
+ */
+function draftIdFromOrderId(orderId: string): string | null {
+  const match = /^cdmaa_([0-9a-f]{32})_/i.exec(orderId)
+  if (!match) return null
+  const hex = match[1]
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
 Deno.serve(
   handler(async (req) => {
     const url = new URL(req.url)
@@ -100,6 +152,21 @@ Deno.serve(
     }
 
     if (!order) {
+      // The order row can be missing when an earlier deployment deleted it as
+      // the draft was promoted. Recover the registration from the draft id in
+      // the order reference, but only claim success after PhonePe confirms.
+      const draftId = draftIdFromOrderId(orderId)
+      const { data: registration } = draftId
+        ? await supabase.from('registrations').select('id').eq('draft_id', draftId).maybeSingle()
+        : { data: null }
+
+      if (registration?.id) {
+        const remote = await fetchPhonePeOrder(orderId)
+        if (remote && phonepeOrderPaid(remote)) {
+          return receiptRedirect(supabase, registration.id as string)
+        }
+      }
+
       console.error('payment-callback: unknown order', { orderId })
       return failure('We could not find that payment order. Please contact the organiser.', appNoForRedirect, mobileForRedirect)
     }
@@ -184,33 +251,6 @@ Deno.serve(
 
     // Mint a single-use token so the receipt can be shown without trusting
     // anything the browser supplies.
-    const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '')
-    const { data: tokenHash, error: hashError } = await supabase.rpc('hash_secret', { p_value: token })
-    if (hashError || !tokenHash) {
-      console.error('payment-callback: could not hash receipt token', hashError)
-      return redirectTo('/registration/success', { payment_callback: 'paid' })
-    }
-    const expiresAt = new Date(Date.now() + RECEIPT_TOKEN_TTL_MINUTES * 60_000).toISOString()
-
-    const { error: tokenError } = await supabase.from('receipt_tokens').insert({
-      token_hash: tokenHash as string,
-      registration_id: registration.id,
-      expires_at: expiresAt,
-    })
-    if (tokenError) {
-      console.error('payment-callback: could not store receipt token', tokenError)
-      // The payment is captured, so still send them to the receipt page: it can
-      // fall back to the status lookup.
-      return redirectTo('/registration/success', { payment_callback: 'paid' })
-    }
-
-    // Best-effort cleanup; never blocks the redirect.
-    try {
-      await supabase.rpc('prune_receipt_tokens')
-    } catch (err) {
-      console.error('prune_receipt_tokens failed (non-fatal)', err)
-    }
-
-    return redirectTo('/registration/success', { receipt: token })
+    return receiptRedirect(supabase, registration.id as string)
   }),
 )

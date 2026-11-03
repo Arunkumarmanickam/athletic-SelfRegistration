@@ -18,6 +18,7 @@ import {
   genderLabel,
   paymentStatusTone,
   registrationStatusTone,
+  representingText,
   titleCase,
   toE164,
 } from '@/lib/format'
@@ -340,7 +341,7 @@ export function AthleteDetailPage() {
                     ['State', profile.state || '—'],
                     ['District', profile.district || '—'],
                     ['Address', profile.address || '—'],
-                    ['Representing', profile.representing || '—'],
+                    ['Representing', representingText(profile)],
                     [
                       'Emergency contact',
                       profile.emergency_contact_name
