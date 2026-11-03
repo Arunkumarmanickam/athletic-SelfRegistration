@@ -54,15 +54,21 @@ variables. They are server-side only.
 ### 1c. Add the webhook (recommended)
 **PhonePe dashboard → Webhooks → Add webhook**
 - URL: `https://urlkpbvvtossdzsjcmie.supabase.co/functions/v1/payment-webhook`
-- Auth: **SHA256** with a username and password you choose
+- Auth: **SHA** with username/password (NOT HMAC)
 - Events: `checkout.order.completed`, `checkout.order.failed`,
   `pg.refund.completed`, `pg.refund.failed`
+
+Then set the same credentials as Supabase secrets:
 
 ```bash
 supabase secrets set \
   PHONEPE_WEBHOOK_USERNAME=<chosen username> \
   PHONEPE_WEBHOOK_PASSWORD=<long random password>
 ```
+
+Status: secrets are **set** and the endpoint verifies the SHA256
+`username:password` header (unauthenticated calls get `401`). Only the
+dashboard entry remains.
 
 The webhook is optional: the browser callback already verifies every payment.
 It only adds recovery when the athlete closes the tab before returning.
@@ -91,7 +97,8 @@ supabase functions deploy public-config
 1. [x] Complete PhonePe **merchant/account approval**.
 2. [x] Set the **production** Client ID/Secret/Version.
 3. [x] Set `PHONEPE_ENV=production`.
-4. [ ] Update the webhook username/password for live events (see 1c).
+4. [ ] Add the webhook in the PhonePe dashboard (username/password are
+      already set — see 1c).
 5. [ ] Re-test with a real (small) payment.
 
 > ⚠️ **Live payments will not work until approval is complete and production
