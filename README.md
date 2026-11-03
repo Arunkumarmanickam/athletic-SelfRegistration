@@ -122,6 +122,23 @@ The portal uses **PhonePe Payment Gateway — Standard Checkout**. The server cr
 5. `payment-callback` calls `GET /checkout/v2/order/{merchantOrderId}/status?details=true`. Only a `COMPLETED` order with a matching amount is captured; `markPaymentCaptured()` promotes the draft.
 6. `payment-webhook` handles the same events out-of-band, so a payment still completes if the athlete closes the tab before the redirect.
 
+**Payment methods shown at checkout**
+
+`createPhonePeOrder()` sends a `paymentModeConfig` (schema V2) that enables the UPI **INTENT** flow as well as **QR**:
+
+```json
+{ "type": "UPI", "flows": ["INTENT", "QR"] }
+```
+
+`INTENT` is what makes PhonePe's page show the installed UPI apps (PhonePe, GPay, Paytm, BHIM, …) with the amount pre-filled; `QR` is the fallback. Cards and net banking are requested as wildcards, so they appear only if enabled on the merchant account.
+
+Two things this cannot control:
+
+- **A computer browser has no UPI app to open**, so PhonePe shows the QR code there even with `INTENT` enabled. Test the app list on a phone.
+- If PhonePe's account-level settings have UPI Intent switched off, the hosted page will still be QR-only. Ask PhonePe support / your account manager to enable UPI Intent for the merchant.
+
+If the account rejects the mode configuration with `400`, `createPhonePeOrder()` retries once without it (logged as a warning) so a payment is never blocked by it.
+
 **Credentials**
 
 | Variable | Where to get it |

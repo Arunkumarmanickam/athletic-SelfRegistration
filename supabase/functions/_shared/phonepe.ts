@@ -148,6 +148,28 @@ function clampExpireAfter(seconds: number | undefined): number {
 }
 
 /**
+ * Checkout payment-mode configuration (schema V2).
+ *
+ * Asking for the UPI `INTENT` flow is what makes PhonePe's hosted page offer
+ * the installed UPI apps (PhonePe, GPay, Paytm, BHIM, …) with the order amount
+ * already filled in, instead of only a QR code. `QR` is kept as well so a
+ * desktop browser — where there is no app to launch — still has a way to pay.
+ *
+ * Cards and net banking stay available as wildcards; if the merchant account
+ * has them switched off PhonePe simply does not show them.
+ */
+function paymentModeConfig(): Record<string, unknown> {
+  return {
+    version: 'V2',
+    enabledPaymentModes: [
+      { type: 'UPI', flows: ['INTENT', 'QR'] },
+      { type: 'CARD' },
+      { type: 'NET_BANKING' },
+    ],
+  }
+}
+
+/**
  * Creates a hosted-checkout order. The amount is always the server-calculated
  * fee, never a value supplied by the browser.
  */
@@ -163,20 +185,36 @@ export async function createPhonePeOrder(input: {
     throw new Error('PhonePe requires an order amount of at least 100 paise')
   }
 
-  const response = await authorisedFetch('/checkout/v2/pay', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      merchantOrderId: input.merchantOrderId,
-      amount,
-      expireAfter: clampExpireAfter(input.expireAfterSeconds),
-      paymentFlow: {
-        type: 'PG_CHECKOUT',
-        message: input.message ?? 'CDMAA registration fee',
-        merchantUrls: { redirectUrl: input.redirectUrl },
-      },
-    }),
+  const message = input.message ?? 'CDMAA registration fee'
+  const merchantUrls = { redirectUrl: input.redirectUrl }
+
+  const pay = (paymentFlow: Record<string, unknown>) =>
+    authorisedFetch('/checkout/v2/pay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        merchantOrderId: input.merchantOrderId,
+        amount,
+        expireAfter: clampExpireAfter(input.expireAfterSeconds),
+        paymentFlow,
+      }),
+    })
+
+  let response = await pay({
+    type: 'PG_CHECKOUT',
+    message,
+    merchantUrls,
+    paymentModeConfig: paymentModeConfig(),
   })
+
+  // Older/sandbox merchant accounts may reject a payment-mode request they do
+  // not support. Fall back to PhonePe's default checkout rather than failing
+  // the payment outright: the athlete can still pay, just with fewer options.
+  if (response.status === 400) {
+    const rejection = await response.clone().text().catch(() => '')
+    console.warn('phonepe rejected payment mode config, retrying with defaults', rejection.slice(0, 300))
+    response = await pay({ type: 'PG_CHECKOUT', message, merchantUrls })
+  }
 
   const payload = await response.json().catch(() => null)
   if (!response.ok || !payload?.redirectUrl) {
