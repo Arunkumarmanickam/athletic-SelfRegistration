@@ -16,7 +16,7 @@ Supabase, `PHONEPE_ENV=production`, and `public-config` reports
 OAuth token issued, order created (redirect host `mercury-t2.phonepe.com`),
 and Order Status API returned `PENDING` — no money charged.
 
-Remaining: one real ₹600 checkout, and the optional webhook (1c).
+Remaining: one real ₹600 checkout. The webhook is live (1c).
 
 ### 1a. Get credentials
 1. Sign in to the PhonePe Business dashboard for the association's merchant
@@ -66,9 +66,9 @@ supabase secrets set \
   PHONEPE_WEBHOOK_PASSWORD=<long random password>
 ```
 
-Status: secrets are **set** and the endpoint verifies the SHA256
-`username:password` header (unauthenticated calls get `401`). Only the
-dashboard entry remains.
+Status: secrets are **set**, the endpoint verifies the SHA256
+`username:password` header (unauthenticated calls get `401`), and the webhook
+is **created** in the PhonePe dashboard with the four events above.
 
 The webhook is optional: the browser callback already verifies every payment.
 It only adds recovery when the athlete closes the tab before returning.
@@ -97,9 +97,17 @@ supabase functions deploy public-config
 1. [x] Complete PhonePe **merchant/account approval**.
 2. [x] Set the **production** Client ID/Secret/Version.
 3. [x] Set `PHONEPE_ENV=production`.
-4. [ ] Add the webhook in the PhonePe dashboard (username/password are
+4. [x] Add the webhook in the PhonePe dashboard (username/password are
       already set — see 1c).
-5. [ ] Re-test with a real (small) payment.
+5. [x] Re-test with a real (small) payment — ₹3 test payment captured on
+      3 Nov 2026 (order `cdmaa_00b223e41f884a0fad20acd5a001c779_1_bcd88523`,
+      PhonePe txn `OM2611030537294724927820W`). The test registration and all
+      test drafts were then deleted and the ID/bib counters reset to 0.
+6. [ ] Refund that ₹3 on the gateway side. The Refund API
+      (`POST /apis/pg/payments/v2/refund`) returns `AUTHORIZATION_FAILED` for
+      this merchant, same as Custom Checkout, so it has to be done from the
+      PhonePe Business dashboard (Transactions → select the ₹3 payment →
+      Refund) or by asking PhonePe support to enable refunds.
 
 > ⚠️ **Live payments will not work until approval is complete and production
 > credentials are configured.** Do not accept real money before that.
