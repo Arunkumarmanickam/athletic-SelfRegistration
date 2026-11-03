@@ -188,9 +188,19 @@ export interface AthleteRegistrationSummary {
   registered_at: string
   confirmed_at: string | null
   championship_id: string
-  championships: { id: string; name: string; slug: string; starts_on: string | null; location: string | null; level?: string } | null
+  championships: {
+    id: string
+    name: string
+    slug: string
+    starts_on: string | null
+    ends_on: string | null
+    location: string | null
+    level?: string
+  } | null
   championship_categories: { name: string } | null
   registration_events: RegistrationEventRow[] | null
+  /** Present when the registration already has payment attempts recorded. */
+  payments?: ConfirmationPayment[]
 }
 
 export interface RegisterResponse {

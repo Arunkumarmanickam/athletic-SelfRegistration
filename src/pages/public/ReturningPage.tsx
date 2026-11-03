@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Download } from 'lucide-react'
 import { Alert, Badge, Card, CardContent, CardHeader, CardTitle, Spinner } from '@/components/ui/display'
 import { Button } from '@/components/ui/button'
 import { Field, Input, useFieldId } from '@/components/ui/input'
@@ -10,50 +11,148 @@ import { athleteIdExample } from '@/lib/athleteId'
 import { useConfig } from '@/context/ConfigContext'
 import { COUNTRY_CODES } from '@/lib/constants'
 import { formatDate, formatMoney, genderLabel, registrationStatusTone, paymentStatusTone, titleCase, toE164 } from '@/lib/format'
-import type { AthleteProfile, AthleteRegistrationSummary } from '@/lib/types'
+import { downloadReceiptPdf } from '@/lib/receiptPdf'
+import type {
+  AthleteProfile,
+  AthleteRegistrationSummary,
+  Confirmation,
+  PublicConfig,
+} from '@/lib/types'
 
-function RegistrationsList({ registrations }: { registrations: AthleteRegistrationSummary[] }) {
+/**
+ * Rebuilds the same confirmation payload the payment flow hands to
+ * `SuccessPage`, so a receipt downloaded from here is identical to the one the
+ * athlete saw straight after paying.
+ */
+function toConfirmation(
+  profile: AthleteProfile,
+  registration: AthleteRegistrationSummary,
+): Confirmation {
+  return {
+    registration: {
+      id: registration.id,
+      registration_code: registration.registration_code,
+      bib_number: registration.bib_number,
+      status: registration.status,
+      payment_status: registration.payment_status,
+      fee_paise: registration.fee_paise,
+      currency: registration.currency,
+      registered_at: registration.registered_at,
+      confirmed_at: registration.confirmed_at,
+      championships: registration.championships,
+      championship_categories: registration.championship_categories,
+      athlete_profiles: {
+        athlete_id: profile.athlete_id,
+        full_name: profile.full_name,
+        email: profile.email,
+        mobile_e164: profile.mobile_e164,
+        state: profile.state,
+        district: profile.district,
+        representing: profile.representing,
+      },
+      registration_events: registration.registration_events,
+    },
+    payments: registration.payments ?? [],
+  }
+}
+
+function ReceiptDownloadButton({
+  confirmation,
+  site,
+}: {
+  confirmation: Confirmation
+  site?: PublicConfig['site']
+}) {
+  const [downloading, setDownloading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleDownload = async () => {
+    setDownloading(true)
+    setError(null)
+    try {
+      await downloadReceiptPdf(confirmation, site)
+    } catch {
+      setError('We could not create the receipt. Please try again, or contact the organiser.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button variant="outline" onClick={handleDownload} loading={downloading}>
+        {!downloading && <Download aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />}
+        Download receipt
+      </Button>
+      {error && (
+        <p role="alert" className="text-right text-xs text-red-600">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function RegistrationsList({
+  registrations,
+  profile,
+  site,
+}: {
+  registrations: AthleteRegistrationSummary[]
+  profile: AthleteProfile
+  site?: PublicConfig['site']
+}) {
   if (registrations.length === 0) {
     return <p className="text-sm text-slate-600">No championship registrations were found for this Athlete ID.</p>
   }
   return (
     <ul className="space-y-4">
-      {registrations.map((registration) => (
-        <li key={registration.id} className="rounded-lg border border-slate-200 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p className="font-medium text-slate-900">{registration.championships?.name ?? 'Championship'}</p>
-              <p className="text-xs text-slate-500">
-                {registration.championship_categories?.name ? `${registration.championship_categories.name} · ` : ''}
-                Reference {registration.registration_code}
-                {registration.bib_number ? ` · Bib ${registration.bib_number}` : ''}
-              </p>
+      {registrations.map((registration) => {
+        const paid =
+          registration.payment_status === 'paid' ||
+          (registration.payments ?? []).some((payment) => payment.status === 'captured')
+        return (
+          <li key={registration.id} className="rounded-lg border border-slate-200 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="font-medium text-slate-900">{registration.championships?.name ?? 'Championship'}</p>
+                <p className="text-xs text-slate-500">
+                  {registration.championship_categories?.name ? `${registration.championship_categories.name} · ` : ''}
+                  Reference {registration.registration_code}
+                  {registration.bib_number ? ` · Bib ${registration.bib_number}` : ''}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge tone={registrationStatusTone(registration.status)}>{titleCase(registration.status)}</Badge>
+                <Badge tone={paymentStatusTone(registration.payment_status)}>
+                  Payment: {titleCase(registration.payment_status)}
+                </Badge>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge tone={registrationStatusTone(registration.status)}>{titleCase(registration.status)}</Badge>
-              <Badge tone={paymentStatusTone(registration.payment_status)}>
-                Payment: {titleCase(registration.payment_status)}
-              </Badge>
-            </div>
-          </div>
-          <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Registered</dt>
-              <dd className="text-slate-800">{formatDate(registration.registered_at)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Fee</dt>
-              <dd className="text-slate-800">{formatMoney(registration.fee_paise, registration.currency)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Events</dt>
-              <dd className="text-slate-800">
-                {(registration.registration_events ?? []).map((event) => event.event_name).join(', ') || '—'}
-              </dd>
-            </div>
-          </dl>
-        </li>
-      ))}
+            <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-slate-500">Registered</dt>
+                <dd className="text-slate-800">{formatDate(registration.registered_at)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-slate-500">Fee</dt>
+                <dd className="text-slate-800">{formatMoney(registration.fee_paise, registration.currency)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-slate-500">Events</dt>
+                <dd className="text-slate-800">
+                  {(registration.registration_events ?? []).map((event) => event.event_name).join(', ') || '—'}
+                </dd>
+              </div>
+            </dl>
+            {paid && (
+              <div className="mt-3 border-t border-slate-100 pt-3">
+                <ReceiptDownloadButton confirmation={toConfirmation(profile, registration)} site={site} />
+              </div>
+            )}
+          </li>
+        )
+      })}
     </ul>
   )
 }
@@ -314,7 +413,11 @@ export function ReturningPage() {
               <CardTitle>Your registrations</CardTitle>
             </CardHeader>
             <CardContent>
-              <RegistrationsList registrations={registrations} />
+              <RegistrationsList
+                registrations={registrations}
+                profile={profile}
+                site={config?.site}
+              />
             </CardContent>
           </Card>
 
