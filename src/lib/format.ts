@@ -82,15 +82,16 @@ export function representingText(
   const representing = (profile.representing ?? '').trim()
   const district = (profile.district ?? '').trim()
   const state = (profile.state ?? '').trim()
-  if (representing) {
-    const isDistrict =
-      Boolean(district) && representing.toLowerCase() === district.toLowerCase()
-    return isDistrict && state ? `${representing}, ${state}` : representing
+  // An athlete who leaves representing blank, or enters the association name
+  // itself, competes as an Individual — never show the association as its own
+  // representing body on a receipt.
+  if (!representing || representing.toLowerCase() === 'cdmaa') {
+    if (district) return state ? `${district}, ${state}` : district
+    return 'Individual'
   }
-  // District meets ask for an optional academy/club. Athletes who leave it
-  // blank compete as individuals — don't fall back to the venue state.
-  if (district) return state ? `${district}, ${state}` : district
-  return 'Individual'
+  const isDistrict =
+    Boolean(district) && representing.toLowerCase() === district.toLowerCase()
+  return isDistrict && state ? `${representing}, ${state}` : representing
 }
 
 export type BadgeTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'accent'
