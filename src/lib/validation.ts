@@ -43,7 +43,15 @@ export interface RegistrationFormValues {
 }
 
 export const registrationFormSchema = z.object({
-  full_name: z.string().trim().min(2, 'Please enter the full name').max(120, 'Name is too long'),
+  full_name: z
+    .string()
+    .trim()
+    .min(2, 'Please enter the full name')
+    .max(120, 'Name is too long')
+    .regex(
+      /^[A-Z][a-z]*( [A-Z][a-z]*)*$/,
+      'Letters only. First letter and each letter after a space must be uppercase (e.g. John Doe).',
+    ),
   date_of_birth: z
     .string()
     .min(1, 'Please enter the date of birth')

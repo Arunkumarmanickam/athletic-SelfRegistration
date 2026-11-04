@@ -15,6 +15,7 @@ import {
   formatDate,
   formatDateTime,
   formatMoney,
+  capitaliseName,
   genderLabel,
   paymentStatusTone,
   registrationStatusTone,
@@ -369,7 +370,7 @@ export function AthleteDetailPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <Field label="Full name" htmlFor="a-name" required>
-                <Input id="a-name" value={edit.full_name} onChange={(event) => setField({ full_name: event.target.value })} />
+                <Input id="a-name" value={edit.full_name} onChange={(event) => setField({ full_name: capitaliseName(event.target.value) })} />
               </Field>
               <Field label="Date of birth" htmlFor="a-dob" required>
                 <Input

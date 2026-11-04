@@ -14,7 +14,7 @@ import { useConfig } from '@/context/ConfigContext'
 import { clearDraft, loadDraft, saveDraft } from '@/lib/draft'
 import { COUNTRY_CODES } from '@/lib/constants'
 import { isIndia, districtsOf, INDIAN_STATES } from '@/lib/geo'
-import { formatAge, formatDate, formatMoney, toE164 } from '@/lib/format'
+import { formatAge, formatDate, formatMoney, capitaliseName, toE164 } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { registrationFormSchema, validateWith, type RegistrationFormValues } from '@/lib/validation'
 import { saveConfirmation } from '@/lib/receipt'
@@ -486,7 +486,9 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
                 autoComplete="name"
                 value={values.full_name}
                 invalid={Boolean(errors.full_name)}
-                onChange={(event) => setValues((current) => ({ ...current, full_name: event.target.value }))}
+                onChange={(event) =>
+                  setValues((current) => ({ ...current, full_name: capitaliseName(event.target.value) }))
+                }
                 placeholder="As it should appear on results and the bib"
               />
             </Field>

@@ -94,6 +94,14 @@ export function representingText(
   return isDistrict && state ? `${representing}, ${state}` : representing
 }
 
+/** Capitalises the first letter of each word and lowercases the rest (e.g. "john doe" -> "John Doe"). */
+export function capitaliseName(value: string): string {
+  return value
+    .split(' ')
+    .map((word) => (word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : word))
+    .join(' ')
+}
+
 export type BadgeTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'accent'
 
 export function paymentStatusTone(status: string | null | undefined): BadgeTone {
