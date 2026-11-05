@@ -13,7 +13,7 @@ A production-ready athlete registration portal for CDMAA championships. Built wi
 - **Live event eligibility in the form** — The event picker marks events the athlete cannot enter and shows why.
 - **Admin panel** — Manage championships, events, categories, registrations, athletes, payments, and exports.
 - **Unpaid application tracking** — Admins can review pending, failed, abandoned, and not-started submissions under **Registrations → Unpaid applications**. These rows show full athlete details but no Athlete ID or bib.
-- **Receipts** — Auto-generated PDF receipt on successful payment.
+- **Receipts** — Auto-generated JPEG receipt on successful payment (filename `CDMAA-<registration number>.jpg`). Auto-downloads once per tab after payment; re-downloadable from **Retrieve your details** and from **Admin → Athletes → [athlete]**.
 
 ## Tech Stack
 
@@ -214,11 +214,11 @@ The live championship is `state-meet-2026` (44th Coimbatore District Masters Ath
 - **Event cap:** 3 events per athlete.
 - **Base fee:** ₹500 (category and event fees are added on top).
 
-The programme has **19 active events**:
+The programme has **18 active events**:
 
-`100m`, `200m`, `400m`, `800m`, `1500m`, `5000m`, `5k Walking`, `110m Hurdles`, `100m Hurdles`, `80m Hurdles`, `400m Hurdles`, `300m Hurdles`, `Long Jump`, `Triple Jump`, `High Jump`, `Shot Put`, `Discus Throw`, `Javelin Throw`, `Hammer Throw`.
+`100m`, `200m`, `400m`, `800m`, `1500m`, `5k Walking`, `110m Hurdles`, `100m Hurdles`, `80m Hurdles`, `400m Hurdles`, `300m Hurdles`, `Long Jump`, `Triple Jump`, `High Jump`, `Shot Put`, `Discus Throw`, `Javelin Throw`, `Hammer Throw`.
 
-It also has **3 inactive extras** — `3000m`, `3000m Race Walk`, and `10000m`. They are not part of the current programme but can be enabled from the admin Events editor if needed.
+It also has **4 inactive extras** — `3000m`, `3000m Race Walk`, `10000m`, and `5000m`. They are not part of the current programme but can be enabled from the admin Events editor if needed.
 
 `110m Hurdles` is men-only. `100m Hurdles` is open to both genders. All other events use the per-gender ranges below (shown as the first and last eligible bracket):
 
