@@ -48,9 +48,9 @@ export const registrationFormSchema = z.object({
     .trim()
     .min(2, 'Please enter the full name')
     .max(120, 'Name is too long')
-    .regex(
-      /^[A-Z][a-z.]*([ .][A-Z][a.z.]*)*$/,
-      'Letters, spaces, and periods (.) only. Each word must start with an uppercase letter (e.g. John Doe, M.S. Dhoni).',
+    .refine(
+      (value) => !/^\d+$/.test(value),
+      'Name cannot be numbers only',
     ),
   date_of_birth: z
     .string()

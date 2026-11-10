@@ -95,32 +95,12 @@ export function representingText(
 }
 
 /**
- * Capitalises the first letter of each word and lowercases the rest
- * (e.g. "john doe" -> "John Doe"). Periods are preserved and the letter
- * after a period is also capitalised (e.g. "m.s. dhoni" -> "M.S. Dhoni").
+ * Returns the name as entered. Athletes can type whatever they want
+ * (letters, periods, spaces, hyphens, apostrophes, etc.); the only thing
+ * rejected is a name that is purely numeric.
  */
 export function capitaliseName(value: string): string {
   return value
-    .split(' ')
-    .map((word) => {
-      if (!word) return word
-      let out = ''
-      let nextUpper = true
-      for (const ch of word) {
-        if (nextUpper && /[a-z]/i.test(ch)) {
-          out += ch.toUpperCase()
-          nextUpper = false
-        } else if (ch === '.') {
-          out += ch
-          nextUpper = true
-        } else {
-          out += ch.toLowerCase()
-          nextUpper = false
-        }
-      }
-      return out
-    })
-    .join(' ')
 }
 
 export type BadgeTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'accent'
