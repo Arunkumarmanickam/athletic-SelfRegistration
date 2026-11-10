@@ -94,11 +94,32 @@ export function representingText(
   return isDistrict && state ? `${representing}, ${state}` : representing
 }
 
-/** Capitalises the first letter of each word and lowercases the rest (e.g. "john doe" -> "John Doe"). */
+/**
+ * Capitalises the first letter of each word and lowercases the rest
+ * (e.g. "john doe" -> "John Doe"). Periods are preserved and the letter
+ * after a period is also capitalised (e.g. "m.s. dhoni" -> "M.S. Dhoni").
+ */
 export function capitaliseName(value: string): string {
   return value
     .split(' ')
-    .map((word) => (word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : word))
+    .map((word) => {
+      if (!word) return word
+      let out = ''
+      let nextUpper = true
+      for (const ch of word) {
+        if (nextUpper && /[a-z]/i.test(ch)) {
+          out += ch.toUpperCase()
+          nextUpper = false
+        } else if (ch === '.') {
+          out += ch
+          nextUpper = true
+        } else {
+          out += ch.toLowerCase()
+          nextUpper = false
+        }
+      }
+      return out
+    })
     .join(' ')
 }
 
