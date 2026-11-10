@@ -12,6 +12,7 @@ import { useToast } from '@/context/ToastContext'
 
 interface SiteSettings {
   organizer_name: string
+  authority_name: string
   support_email: string
   /** One entry per published number; always has at least one row. */
   support_phones: string[]
@@ -26,7 +27,7 @@ interface AthleteIdFormat {
 /** Enough for every committee member, small enough to stay tidy in the UI. */
 const MAX_PHONES = 10
 
-const EMPTY_SITE: SiteSettings = { organizer_name: '', support_email: '', support_phones: [''], address: '' }
+const EMPTY_SITE: SiteSettings = { organizer_name: '', authority_name: '', support_email: '', support_phones: [''], address: '' }
 const DEFAULT_FORMAT: AthleteIdFormat = { prefix: 'ATH', sequence_length: 6 }
 
 function readSettings(raw: Record<string, unknown>): { site: SiteSettings; format: AthleteIdFormat } {
@@ -45,6 +46,7 @@ function readSettings(raw: Record<string, unknown>): { site: SiteSettings; forma
   return {
     site: {
       organizer_name: String(siteRaw.organizer_name ?? ''),
+      authority_name: String(siteRaw.authority_name ?? ''),
       support_email: String(siteRaw.support_email ?? ''),
       support_phones: phones,
       address: String(siteRaw.address ?? ''),
@@ -101,6 +103,7 @@ export function SettingsPage() {
         settings: {
           site: {
             organizer_name: site.organizer_name.trim(),
+            authority_name: site.authority_name.trim(),
             support_email: site.support_email.trim(),
             // `support_phone` stays the first number for older clients and the
             // receipt templates; `support_phones` is the full published list.
@@ -188,6 +191,14 @@ export function SettingsPage() {
                   value={site.organizer_name}
                   disabled={readOnly}
                   onChange={(event) => setSite({ ...site, organizer_name: event.target.value })}
+                />
+              </Field>
+              <Field label="Authority name" htmlFor="set-authority" hint="Shown as the Authority Signatory on receipts.">
+                <Input
+                  id="set-authority"
+                  value={site.authority_name}
+                  disabled={readOnly}
+                  onChange={(event) => setSite({ ...site, authority_name: event.target.value })}
                 />
               </Field>
               <Field label="Support email" htmlFor="set-email">

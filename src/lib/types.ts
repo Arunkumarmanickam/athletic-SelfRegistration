@@ -94,6 +94,8 @@ export interface AdminChampionship extends Omit<Championship, 'championship_cate
 export interface PublicConfig {
   site: {
     organizer_name?: string
+    /** Authority Signatory shown on receipts. */
+    authority_name?: string
     support_email?: string
     /** Legacy single number; kept in sync with the first entry of `support_phones`. */
     support_phone?: string

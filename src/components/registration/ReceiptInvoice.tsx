@@ -1,6 +1,6 @@
 import type { Confirmation, PublicConfig } from '@/lib/types'
 import { AssociationLogo } from '@/components/AssociationLogo'
-import { ASSOCIATION_CREDENTIALS } from '@/lib/brand'
+import { ASSOCIATION_CREDENTIALS, ASSOCIATION_NAME } from '@/lib/brand'
 import { formatDate, formatDateTime, formatMoney, representingText, titleCase } from '@/lib/format'
 import { amountInWords } from '@/lib/amountWords'
 import { supportPhones } from '@/lib/site'
@@ -246,6 +246,15 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
               This is a computer-generated receipt for a payment verified by our server with the payment gateway. Please
               carry the bib number above on event day. For any correction, contact the organiser quoting the receipt
               number.
+            </p>
+          </div>
+          <div className="shrink-0 text-center">
+            <div className="mx-auto mb-1 h-8 w-36 border-b border-slate-300" />
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              Authority
+            </p>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              {site?.authority_name?.trim() || ASSOCIATION_NAME}
             </p>
           </div>
         </footer>

@@ -467,6 +467,7 @@ Deno.serve(
 
         const sanitized = {
           organizer_name: str(site.organizer_name).slice(0, 160),
+          authority_name: str(site.authority_name).slice(0, 160),
           support_email: str(site.support_email).slice(0, 160),
           support_phone: supportPhones[0] ?? '',
           support_phones: supportPhones,
