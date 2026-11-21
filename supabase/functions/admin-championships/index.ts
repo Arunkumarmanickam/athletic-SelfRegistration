@@ -10,6 +10,7 @@ import { isDateOnly, str } from '../_shared/helpers.ts'
 const STATUSES = ['draft', 'open', 'closed', 'archived']
 const GENDERS = ['any', 'male', 'female']
 const FORM_CONFIG_KEYS = [
+  'default_fields',
   'require_email',
   'require_address',
   'require_emergency',
@@ -29,6 +30,30 @@ function slugify(value: string): string {
     .slice(0, 60)
 }
 
+// Fields the registration flow depends on: never let an organiser hide them or
+// make them optional, because age categories, bibs and fees are derived from
+// them.
+const LOCKED_DEFAULT_FIELDS = ['full_name', 'date_of_birth', 'gender', 'events']
+const EDITABLE_DEFAULT_FIELDS = ['email', 'representing']
+
+function sanitizeDefaultFields(raw: unknown): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  if (!raw || typeof raw !== 'object') return result
+  const source = raw as Record<string, unknown>
+  for (const key of [...LOCKED_DEFAULT_FIELDS, ...EDITABLE_DEFAULT_FIELDS]) {
+    const value = source[key]
+    if (!value || typeof value !== 'object') continue
+    const setting = value as Record<string, unknown>
+    const clean: Record<string, unknown> = {}
+    if (typeof setting.label === 'string') clean.label = setting.label.trim().slice(0, 80)
+    const locked = LOCKED_DEFAULT_FIELDS.includes(key)
+    clean.visible = locked ? true : setting.visible !== false
+    clean.required = locked ? true : setting.required === true
+    result[key] = clean
+  }
+  return result
+}
+
 function sanitizeFormConfig(raw: unknown): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   if (raw && typeof raw === 'object') {
@@ -36,7 +61,9 @@ function sanitizeFormConfig(raw: unknown): Record<string, unknown> {
     for (const key of FORM_CONFIG_KEYS) {
       if (!(key in obj)) continue
       const value = obj[key]
-      if (typeof value === 'boolean') out[key] = value
+      if (key === 'default_fields') {
+        out.default_fields = sanitizeDefaultFields(value)
+      } else if (typeof value === 'boolean') out[key] = value
       else if (key === 'age_calculation_mode' && ['championship_start', 'fixed'].includes(String(value))) {
         out[key] = String(value)
       } else if (key === 'age_calculation_date') {

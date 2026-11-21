@@ -22,6 +22,7 @@ import type {
   Championship,
   Confirmation,
   FormConfig,
+  DefaultFieldKey,
   ChampionshipRegistrationField,
   RegisterResponse,
 } from '@/lib/types'
@@ -33,6 +34,38 @@ function ageCutoffDate(championship: Championship): string {
     return config.age_calculation_date
   }
   return championship.starts_on ?? new Date().toISOString().slice(0, 10)
+}
+
+const DEFAULT_FIELD_LABELS: Record<DefaultFieldKey, string> = {
+  full_name: 'Full name',
+  date_of_birth: 'Date of birth',
+  gender: 'Gender',
+  email: 'Email',
+  representing: 'Representing',
+  events: 'Events',
+}
+
+const LOCKED_FIELDS: DefaultFieldKey[] = ['full_name', 'date_of_birth', 'gender', 'events']
+
+interface DefaultFieldSetting {
+  label: string
+  visible: boolean
+  required: boolean
+}
+
+function defaultFieldSetting(config: FormConfig, key: DefaultFieldKey): DefaultFieldSetting {
+  const setting = config.default_fields?.[key]
+  const locked = LOCKED_FIELDS.includes(key)
+  return {
+    label: setting?.label?.trim() || DEFAULT_FIELD_LABELS[key],
+    visible: locked ? true : setting?.visible !== false,
+    required:
+      locked
+        ? true
+        : key === 'email' && !setting
+          ? config.require_email === true
+          : setting?.required === true,
+  }
 }
 
 const EMPTY: RegistrationFormValues = {
@@ -191,6 +224,16 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
   const maxEvents = championship.max_events_per_athlete ?? null
   const cutoff = ageCutoffDate(championship)
 
+  const formConfig: FormConfig = championship.form_config ?? {}
+  const fieldSettings = {
+    full_name: defaultFieldSetting(formConfig, 'full_name'),
+    date_of_birth: defaultFieldSetting(formConfig, 'date_of_birth'),
+    gender: defaultFieldSetting(formConfig, 'gender'),
+    email: defaultFieldSetting(formConfig, 'email'),
+    representing: defaultFieldSetting(formConfig, 'representing'),
+    events: defaultFieldSetting(formConfig, 'events'),
+  }
+
   // What "representing" asks for follows the championship level: a district
   // meet asks for the academy/club the athlete represents (free text and
   // optional), a state meet asks for a district of that state, a national meet
@@ -336,14 +379,20 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
 
   // At a district-level meet the academy/club is optional: an athlete who
   // leaves it blank represents themselves, recorded as "Individual".
-  const representingValue =
-    representingMode === 'academy' ? values.representing.trim() || 'Individual' : values.representing
+  const representingValue = !fieldSettings.representing.visible
+    ? championshipState || 'Individual'
+    : representingMode === 'academy'
+      ? values.representing.trim() || 'Individual'
+      : values.representing
 
   const handleSubmit = async () => {
     setFormError(null)
     const parsed = validateWith(registrationFormSchema, { ...values, representing: representingValue })
     const extra: Record<string, string> = {}
     if (!parsed.success) Object.assign(extra, parsed.errors)
+    if (fieldSettings.email.required && !values.email.trim()) {
+      extra.email = `Please enter your ${fieldSettings.email.label.toLowerCase()}.`
+    }
     if (age !== null && values.gender && !eligibleCategory) {
       extra.date_of_birth = 'No age category in this championship matches your date of birth.'
     }
@@ -384,6 +433,9 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
           mobile_e164: mobileE164,
           email: values.email.trim(),
           ...locationFields(representingValue),
+          ...(fieldSettings.representing.visible
+            ? {}
+            : { state: championshipState ?? '', district: '' }),
           address: '',
           representing: representingValue,
           ...customFieldValues,
@@ -544,13 +596,15 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
 
   // ---- form view ------------------------------------------------------------
   const representingLabel =
-    representingMode === 'academy'
-      ? 'Academy / Club (you represent)'
-      : representingMode === 'district'
-        ? `District (you represent) — ${championshipState}`
-        : representingMode === 'state'
-          ? 'State (you represent)'
-          : 'State / Province (you represent)'
+    fieldSettings.representing.label !== DEFAULT_FIELD_LABELS.representing
+      ? fieldSettings.representing.label
+      : representingMode === 'academy'
+        ? 'Academy / Club (you represent)'
+        : representingMode === 'district'
+          ? `District (you represent) — ${championshipState}`
+          : representingMode === 'state'
+            ? 'State (you represent)'
+            : 'State / Province (you represent)'
   const representingHint =
     representingMode === 'academy'
       ? 'Optional — leave blank and your entry will be recorded as Individual.'
@@ -600,7 +654,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
             title="Athlete details"
             description="Your name, age category, representation, and gender."
           >
-            <Field label="Full name" htmlFor={nameId} required error={errors.full_name}>
+            <Field label={fieldSettings.full_name.label} htmlFor={nameId} required error={errors.full_name}>
               <Input
                 id={nameId}
                 name="full_name"
@@ -615,7 +669,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
             </Field>
 
             <Field
-              label="Date of birth"
+              label={fieldSettings.date_of_birth.label}
               htmlFor={dobId}
               required
               error={errors.date_of_birth}
@@ -661,37 +715,39 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
               </div>
             )}
 
-            <Field
-              label={representingLabel}
-              htmlFor={reprId}
-              required={representingMode !== 'academy'}
-              error={errors.representing}
-              hint={representingHint}
-            >
-              {representingMode === 'academy' ? (
-                <Input
-                  id={reprId}
-                  name="representing"
-                  autoComplete="off"
-                  value={values.representing}
-                  invalid={Boolean(errors.representing)}
-                  onChange={(event) => setValues((current) => ({ ...current, representing: event.target.value }))}
-                  placeholder={representingPlaceholder}
-                />
-              ) : (
-                <SearchCombobox
-                  id={reprId}
-                  name="representing"
-                  value={values.representing}
-                  invalid={Boolean(errors.representing)}
-                  onChange={(value) => setValues((current) => ({ ...current, representing: value }))}
-                  options={representingOptions}
-                  placeholder={representingPlaceholder}
-                />
-              )}
-            </Field>
+            {fieldSettings.representing.visible && (
+              <Field
+                label={representingLabel}
+                htmlFor={reprId}
+                required={fieldSettings.representing.required && representingMode !== 'academy'}
+                error={errors.representing}
+                hint={representingHint}
+              >
+                {representingMode === 'academy' ? (
+                  <Input
+                    id={reprId}
+                    name="representing"
+                    autoComplete="off"
+                    value={values.representing}
+                    invalid={Boolean(errors.representing)}
+                    onChange={(event) => setValues((current) => ({ ...current, representing: event.target.value }))}
+                    placeholder={representingPlaceholder}
+                  />
+                ) : (
+                  <SearchCombobox
+                    id={reprId}
+                    name="representing"
+                    value={values.representing}
+                    invalid={Boolean(errors.representing)}
+                    onChange={(value) => setValues((current) => ({ ...current, representing: value }))}
+                    options={representingOptions}
+                    placeholder={representingPlaceholder}
+                  />
+                )}
+              </Field>
+            )}
 
-            <Field label="Gender" htmlFor={genderId} required error={errors.gender}>
+            <Field label={fieldSettings.gender.label} htmlFor={genderId} required error={errors.gender}>
               <div id={genderId} role="radiogroup" aria-label="Gender" className="flex flex-wrap gap-6 pt-1">
                 {[
                   { value: 'male', label: 'Men' },
@@ -745,7 +801,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
             <div>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="text-sm font-medium text-slate-800">
-                  Events <span className="text-red-600">*</span>
+                  {fieldSettings.events.label} <span className="text-red-600">*</span>
                 </span>
                 <span className="text-xs text-slate-500">
                   {values.event_ids.length} selected
@@ -810,23 +866,30 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
               </Field>
             </div>
 
-            <Field
-              label="Email"
-              htmlFor={emailId}
-              error={errors.email}
-              hint="Optional. Used on your payment receipt and the PhonePe checkout."
-            >
-              <Input
-                id={emailId}
-                name="email"
-                type="email"
-                autoComplete="email"
-                value={values.email}
-                invalid={Boolean(errors.email)}
-                onChange={(event) => setValues((current) => ({ ...current, email: event.target.value }))}
-                placeholder="name@example.com"
-              />
-            </Field>
+            {fieldSettings.email.visible && (
+              <Field
+                label={fieldSettings.email.label}
+                htmlFor={emailId}
+                required={fieldSettings.email.required}
+                error={errors.email}
+                hint={
+                  fieldSettings.email.required
+                    ? 'Used on your payment receipt and the PhonePe checkout.'
+                    : 'Optional. Used on your payment receipt and the PhonePe checkout.'
+                }
+              >
+                <Input
+                  id={emailId}
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  value={values.email}
+                  invalid={Boolean(errors.email)}
+                  onChange={(event) => setValues((current) => ({ ...current, email: event.target.value }))}
+                  placeholder="name@example.com"
+                />
+              </Field>
+            )}
           </FormSection>
 
           <FormSection

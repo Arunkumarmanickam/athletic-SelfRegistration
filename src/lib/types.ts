@@ -60,13 +60,42 @@ export type DefaultEvent = Omit<
   'category_ids' | 'male_category_ids' | 'female_category_ids'
 >
 
+/** Built-in fields an organiser can relabel, hide, or make optional. */
+export type DefaultFieldKey =
+  | 'full_name'
+  | 'date_of_birth'
+  | 'gender'
+  | 'email'
+  | 'representing'
+  | 'events'
+
+export interface DefaultFieldSetting {
+  /** Label shown on the registration form (overrides the built-in label). */
+  label?: string
+  visible?: boolean
+  required?: boolean
+}
+
 export interface FormConfig {
+  /**
+   * Per-field overrides for the built-in registration fields. Fields that the
+   * registration itself depends on (name, date of birth, gender, events) are
+   * always forced visible and required by the server.
+   */
+  default_fields?: Partial<Record<DefaultFieldKey, DefaultFieldSetting>>
+  /** @deprecated Kept for old championships; use `default_fields` instead. */
   require_email?: boolean
+  /** @deprecated These legacy flags are no longer rendered by the form. */
   require_address?: boolean
+  /** @deprecated These legacy flags are no longer rendered by the form. */
   require_emergency?: boolean
+  /** @deprecated These legacy flags are no longer rendered by the form. */
   require_photo?: boolean
+  /** @deprecated These legacy flags are no longer rendered by the form. */
   require_representing?: boolean
+  /** @deprecated These legacy flags are no longer rendered by the form. */
   show_district?: boolean
+  /** @deprecated These legacy flags are no longer rendered by the form. */
   allow_photo_upload?: boolean
   age_calculation_mode?: 'championship_start' | 'fixed'
   age_calculation_date?: string

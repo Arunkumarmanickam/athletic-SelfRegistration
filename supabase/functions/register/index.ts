@@ -61,8 +61,17 @@ function sanitizePersonal(raw: Record<string, unknown>): PersonalInput {
   }
 }
 
+interface ValidationOptions {
+  requireState?: boolean
+  requireEmail?: boolean
+}
+
 /** Returns an error message, or null when the supplied fields are acceptable. */
-function validatePersonal(p: PersonalInput, requireAll: boolean): string | null {
+function validatePersonal(
+  p: PersonalInput,
+  requireAll: boolean,
+  options: ValidationOptions = {},
+): string | null {
   const has = (v: string) => v.trim().length > 0
   const mobileProvided = /^\+?\d{8,15}$/.test(p.mobile_e164)
 
@@ -84,8 +93,9 @@ function validatePersonal(p: PersonalInput, requireAll: boolean): string | null 
   if (requireAll || mobileProvided) {
     if (!isE164(p.mobile_e164)) return 'Please enter a valid mobile number with country code.'
   }
+  if (options.requireEmail && !has(p.email)) return 'Please enter your email address.'
   if (has(p.email) && !isEmail(p.email)) return 'Please enter a valid email address.'
-  if (requireAll || has(p.state)) {
+  if (options.requireState !== false && (requireAll || has(p.state))) {
     if (!has(p.state)) return 'Please select a state.'
   }
   return null
@@ -123,10 +133,26 @@ Deno.serve(
     if (!hasPersonal) {
       return errorJson(req, 'MISSING_FIELDS', 'Please fill in the athlete\u2019s personal details.', 400)
     }
-    const personalError = validatePersonal(personal, true)
-    if (personalError) return errorJson(req, 'INVALID_FIELDS', personalError, 400)
 
     const supabase = serviceClient()
+
+    // Built-in fields can be hidden or made optional by the organiser.
+    const { data: championshipRow } = await supabase
+      .from('championships')
+      .select('form_config')
+      .eq('id', championshipId)
+      .maybeSingle()
+    const formConfig = (championshipRow?.form_config ?? {}) as Record<string, unknown>
+    const defaultFields = (formConfig.default_fields ?? {}) as Record<string, unknown>
+    const representingSetting = (defaultFields.representing ?? {}) as Record<string, unknown>
+    const emailSetting = (defaultFields.email ?? {}) as Record<string, unknown>
+    const validationOptions: ValidationOptions = {
+      requireState: representingSetting.visible !== false && representingSetting.required !== false,
+      requireEmail: emailSetting.visible !== false && emailSetting.required === true,
+    }
+
+    const personalError = validatePersonal(personal, true, validationOptions)
+    if (personalError) return errorJson(req, 'INVALID_FIELDS', personalError, 400)
 
     // Validate custom registration fields defined for this championship.
     const { data: customFields, error: customFieldsError } = await supabase

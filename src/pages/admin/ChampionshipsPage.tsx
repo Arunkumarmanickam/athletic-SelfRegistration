@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Alert, Badge, Card, CardContent, CardHeader, CardTitle, Separator, Spinner } from '@/components/ui/display'
+import { Alert, Badge, Card, CardContent, CardHeader, CardTitle, Spinner } from '@/components/ui/display'
 import { Button } from '@/components/ui/button'
 import { Field, Input } from '@/components/ui/input'
 import { Checkbox, Select, Textarea } from '@/components/ui/form-controls'
@@ -57,14 +57,36 @@ interface ChampionshipFormState {
   max_events_per_athlete: string
 }
 
+interface DefaultFieldSettingState {
+  label: string
+  visible: boolean
+  required: boolean
+}
+
+type DefaultFieldKey = keyof NonNullable<FormConfig['default_fields']>
+
+const DEFAULT_FIELD_LABELS: Record<DefaultFieldKey, string> = {
+  full_name: 'Full name',
+  date_of_birth: 'Date of birth',
+  gender: 'Gender',
+  email: 'Email',
+  representing: 'Representing (academy / district / state)',
+  events: 'Events',
+}
+
+/** Fields the registration itself cannot work without. */
+const LOCKED_FIELDS: DefaultFieldKey[] = ['full_name', 'date_of_birth', 'gender', 'events']
+const DEFAULT_FIELD_KEYS: DefaultFieldKey[] = [
+  'full_name',
+  'date_of_birth',
+  'gender',
+  'email',
+  'representing',
+  'events',
+]
+
 interface FormConfigState {
-  require_email: boolean
-  require_address: boolean
-  require_emergency: boolean
-  require_photo: boolean
-  require_representing: boolean
-  show_district: boolean
-  allow_photo_upload: boolean
+  default_fields: Record<DefaultFieldKey, DefaultFieldSettingState>
   age_calculation_mode: 'championship_start' | 'fixed'
   age_calculation_date: string
 }
@@ -89,14 +111,22 @@ const EMPTY_FORM: ChampionshipFormState = {
 }
 
 function formConfigState(config: FormConfig | undefined): FormConfigState {
+  const saved = config?.default_fields ?? {}
+  // Older championships used `require_email`; carry it forward so the email
+  // setting behaves the same after upgrading.
+  const legacyEmailRequired = config?.require_email === true
+  const defaultFields = {} as Record<DefaultFieldKey, DefaultFieldSettingState>
+  for (const key of DEFAULT_FIELD_KEYS) {
+    const setting = saved[key]
+    const locked = LOCKED_FIELDS.includes(key)
+    defaultFields[key] = {
+      label: setting?.label?.trim() || DEFAULT_FIELD_LABELS[key],
+      visible: locked ? true : setting?.visible !== false,
+      required: locked ? true : key === 'email' && !setting ? legacyEmailRequired : setting?.required === true,
+    }
+  }
   return {
-    require_email: config?.require_email === true,
-    require_address: config?.require_address === true,
-    require_emergency: config?.require_emergency === true,
-    require_photo: config?.require_photo === true,
-    require_representing: config?.require_representing === true,
-    show_district: config?.show_district !== false,
-    allow_photo_upload: config?.allow_photo_upload === true,
+    default_fields: defaultFields,
     age_calculation_mode: config?.age_calculation_mode === 'fixed' ? 'fixed' : 'championship_start',
     age_calculation_date: config?.age_calculation_date ?? '',
   }
@@ -441,13 +471,22 @@ function ChampionshipEditor({
       currency: form.currency.trim().toUpperCase() || 'INR',
       base_fee_paise: rupeesToPaise(form.base_fee_rupees),
       form_config: {
-        require_email: config.require_email,
-        require_address: config.require_address,
-        require_emergency: config.require_emergency,
-        require_photo: config.require_photo,
-        require_representing: config.require_representing,
-        show_district: config.show_district,
-        allow_photo_upload: config.allow_photo_upload,
+        default_fields: Object.fromEntries(
+          DEFAULT_FIELD_KEYS.map((key) => {
+            const setting = config.default_fields[key]
+            const locked = LOCKED_FIELDS.includes(key)
+            return [
+              key,
+              {
+                label: setting.label.trim() || DEFAULT_FIELD_LABELS[key],
+                visible: locked ? true : setting.visible,
+                required: locked ? true : setting.required,
+              },
+            ]
+          }),
+        ),
+        // Keep the legacy flag in sync for older readers.
+        require_email: config.default_fields.email.required,
         age_calculation_mode: config.age_calculation_mode,
         ...(config.age_calculation_mode === 'fixed' && config.age_calculation_date
           ? { age_calculation_date: config.age_calculation_date }
@@ -826,18 +865,63 @@ function ChampionshipEditor({
 
           <Card>
             <CardHeader>
-              <CardTitle>Registration form fields</CardTitle>
+              <CardTitle>Default registration fields</CardTitle>
+              <p className="text-xs text-slate-500">
+                Rename, hide, or make any built-in field optional. Name, date of birth, gender and events are required
+                by the registration itself, so only their labels can be changed.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {DEFAULT_FIELD_KEYS.map((key) => {
+                const setting = config.default_fields[key]
+                const locked = LOCKED_FIELDS.includes(key)
+                const update = (patch: Partial<DefaultFieldSettingState>) =>
+                  setConfigField({
+                    default_fields: {
+                      ...config.default_fields,
+                      [key]: { ...setting, ...patch },
+                    },
+                  })
+                return (
+                  <div key={key} className="rounded-lg border border-slate-200 p-3">
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                      <div className="min-w-[180px] flex-1">
+                        <Field label="Label shown to athletes" htmlFor={`default-label-${key}`}>
+                          <Input
+                            id={`default-label-${key}`}
+                            value={setting.label}
+                            onChange={(e) => update({ label: e.target.value })}
+                            placeholder={DEFAULT_FIELD_LABELS[key]}
+                          />
+                        </Field>
+                      </div>
+                      <div className="flex flex-col gap-2 pt-5">
+                        <Checkbox
+                          label="Show field"
+                          checked={setting.visible}
+                          disabled={locked}
+                          onChange={(e) => update({ visible: e.target.checked })}
+                        />
+                        <Checkbox
+                          label="Required"
+                          checked={setting.required}
+                          disabled={locked}
+                          onChange={(e) => update({ required: e.target.checked })}
+                        />
+                      </div>
+                    </div>
+                    {locked && <p className="mt-2 text-xs text-slate-400">This field is required by registration.</p>}
+                  </div>
+                )
+              })}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Registration rules</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Checkbox label="Require email address" checked={config.require_email} onChange={(e) => setConfigField({ require_email: e.target.checked })} />
-                <Checkbox label="Require postal address" checked={config.require_address} onChange={(e) => setConfigField({ require_address: e.target.checked })} />
-                <Checkbox label="Require emergency contact" checked={config.require_emergency} onChange={(e) => setConfigField({ require_emergency: e.target.checked })} />
-                <Checkbox label="Require 'representing'" checked={config.require_representing} onChange={(e) => setConfigField({ require_representing: e.target.checked })} />
-                <Checkbox label="Show district field" checked={config.show_district} onChange={(e) => setConfigField({ show_district: e.target.checked })} />
-                <Checkbox label="Allow photo/document upload" checked={config.allow_photo_upload} onChange={(e) => setConfigField({ allow_photo_upload: e.target.checked })} />
-              </div>
-              <Separator />
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Age calculation" htmlFor="c-age-mode">
                   <Select
