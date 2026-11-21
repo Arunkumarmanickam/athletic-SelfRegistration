@@ -14,6 +14,10 @@ A production-ready athlete registration portal for CDMAA championships. Built wi
 - **Admin panel** — Manage championships, events, categories, registrations, athletes, payments, and exports.
 - **Unpaid application tracking** — Admins can review pending, failed, abandoned, and not-started submissions under **Registrations → Unpaid applications**. These rows show full athlete details but no Athlete ID or bib.
 - **Receipts** — Auto-generated JPEG receipt on successful payment (filename `CDMAA-<registration number>.jpg`). Auto-downloads once per tab after payment; re-downloadable from **Retrieve your details** and from **Admin → Athletes → [athlete]**.
+- **Editable authority name** — The signing authority printed on receipts is configurable under **Admin → Settings** ("Authority name on receipts") and defaults to `Coimbatore District Masters Athletic Association`.
+- **Configurable registration fields** — Per championship, admins can relabel, hide, or make optional the built-in fields, and add their own custom text/dropdown/radio/checkbox fields.
+- **Returning athlete lookup** — Athletes can enter an existing Athlete ID on the registration form to prefill name, date of birth, gender, and mobile, then review and pay. New athletes use the same form unchanged.
+- **Flexible athlete names** — Any full name is accepted except a purely numeric value; periods and other punctuation are preserved.
 
 ## Tech Stack
 
@@ -103,7 +107,7 @@ The build runs `tsc --noEmit` before Vite, so type errors fail the build.
 
 ## Registration Flow
 
-1. Select a championship → fill personal details, age category, events, and contact details.
+1. Select a championship → either fill in the form as a **new athlete**, or choose **I have an Athlete ID** to fetch and confirm saved basics (name, DOB, gender, mobile). Pick the age category and this championship's events, then add contact details.
 2. A draft is created with an Application Number → redirect to payment.
 3. Pay on PhonePe's hosted checkout → the browser returns to `payment-callback` (verified server-side).
 4. On success → the draft is promoted via `promote_draft()`, and the registration, bib, and Athlete ID are issued → receipt shown.
@@ -246,6 +250,51 @@ It also has **4 inactive extras** — `3000m`, `3000m Race Walk`, `10000m`, and 
 
 These ranges apply only to `state-meet-2026`. The standard defaults (`default_categories`, `default_events`) and other championships are unchanged.
 
+## Registration Form Fields
+
+Open **Admin → Championships → [championship]** to configure both built-in and custom fields. Settings are stored per championship in `form_config` and in the `championship_registration_fields` table; the public form and the `register` function both honour them.
+
+### Default registration fields
+
+**Default registration fields** card lets an organiser, for each built-in field:
+
+- **Rename** it — the new label is what athletes see.
+- **Show / hide** it.
+- Make it **required or optional**.
+
+| Field | Rename | Hide | Make optional |
+| --- | --- | --- | --- |
+| Full name, Date of birth, Gender, Events | Yes | No | No |
+| Email | Yes | Yes | Yes |
+| Representing (academy / district / state) | Yes | Yes | Yes |
+
+Name, DOB, gender and events stay locked because age categories, bibs and fees are derived from them. Hiding Email or Representing means the value is not collected; server-side validation is updated to match. Older championships using the legacy `require_email` flag are carried forward automatically.
+
+### Custom registration fields
+
+**Custom registration fields** card adds extra questions to a championship's form:
+
+- Field types: **text**, **dropdown**, **radio buttons**, and **checkboxes**.
+- The organiser fixes the options for choice fields and marks each field mandatory or optional.
+- Keys must match `^[a-z0-9_]+$`; answers are stored in the registration's `personal` JSONB so they survive into drafts, receipts and exports.
+- Fields are staged locally while creating a new championship and saved together with it.
+- Deleting a field is blocked once the championship has registrations — deactivate/hide it instead where appropriate.
+
+The migration `20261103000001_championship_registration_fields.sql` creates the table and is applied with `supabase db push`.
+
+### Returning athlete lookup
+
+At the top of the registration form there is a **"Have you registered with us before?"** toggle:
+
+- **New athlete** — the normal form.
+- **I have an Athlete ID** — the athlete enters their ID and clicks **Fetch my details**. Name, date of birth, gender and mobile are prefilled from the saved profile for review; all four are editable, and **Use a different athlete** resets them. Representing, email, custom fields and this championship's events still follow the admin configuration above.
+
+The `fetch-athlete-basics` Edge Function backs this:
+
+- Returns **only** `full_name`, `date_of_birth`, `gender`, `mobile_country_code`, `mobile_number` and the Athlete ID — no email, address, history or session.
+- Rate limited per IP (20/hour) and per Athlete ID (5/hour); the same generic error is returned for unknown and malformed IDs so IDs cannot be enumerated.
+- No token is issued. Athlete IDs are still issued only after payment; when the athlete pays, `promote_draft()` reuses the existing profile by mobile + DOB, so no duplicate ID is created. The existing "already registered for this championship" guard still applies.
+
 ## Admin: Unpaid Applications
 
 Open **Registrations → Unpaid applications** (`/admin/registrations?tab=applications`) to see submissions that have not completed payment. These records come from `registration_drafts` and their `payment_orders`; they are not registrations.
@@ -272,8 +321,11 @@ Migrations are applied in filename order. Recent ones relevant to the current ch
 - `20261025000002_district_level.sql` — level-aware required fields and draft validation.
 - `20261101000001_event_gender_categories.sql` — per-gender event eligibility, server-side validation, and the `state-meet-2026` event programme.
 - `20261101000002_state_meet_100m_hurdles.sql` — opens `100m Hurdles` to both genders.
+- `20261101000003_site_organizer_name.sql` — configurable organiser name in `app_settings` (`site` key).
+- `20261102000001_site_authority_name.sql` — configurable receipt authority name in `app_settings` (`site` key), backfilled with `Coimbatore District Masters Athletic Association`.
+- `20261103000001_championship_registration_fields.sql` — per-championship custom registration fields table.
 
-The `state-meet-2026` programme migration is data-only for that championship. It does not alter the standard defaults or other championships.
+The `state-meet-2026` programme migration is data-only for that championship. It does not alter the standard defaults or other championships. Default/custom field settings and the returning-athlete lookup require no migration — field settings live in `form_config`, and the lookup is a read-only Edge Function over the existing `athlete_profiles` table.
 
 ## Operations
 
@@ -290,9 +342,13 @@ The `state-meet-2026` programme migration is data-only for that championship. It
 ```bash
 supabase functions deploy public-config
 supabase functions deploy admin-championships
+supabase functions deploy register
+supabase functions deploy fetch-athlete-basics
 # ...or deploy every function
 supabase functions deploy
 ```
+
+`admin-championships` must be redeployed after changing field configuration logic, `register` after changing validation, and `fetch-athlete-basics` is a new function that must be deployed once before the returning-athlete lookup works. The frontend (which includes the Settings and Championships UI) deploys automatically from `main` on Vercel.
 
 - Secrets take effect immediately and do not require a function redeploy.
 - `VITE_*` values are baked in at build time. After changing one in Vercel, trigger a new deployment.
