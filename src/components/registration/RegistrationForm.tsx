@@ -8,7 +8,8 @@ import { SearchCombobox } from '@/components/ui/search-combobox'
 import { EventMultiSelect } from '@/components/ui/event-multi-select'
 import { FeeSummary } from './FeeSummary'
 import { PaymentPanel } from './PaymentPanel'
-import { ApiError, register } from '@/lib/api'
+import { ApiError, fetchAthleteBasics, register } from '@/lib/api'
+import { athleteIdExample } from '@/lib/athleteId'
 import { useToast } from '@/context/ToastContext'
 import { useConfig } from '@/context/ConfigContext'
 import { clearDraft, loadDraft, saveDraft } from '@/lib/draft'
@@ -23,6 +24,7 @@ import type {
   Confirmation,
   FormConfig,
   DefaultFieldKey,
+  AthleteBasics,
   ChampionshipRegistrationField,
   RegisterResponse,
 } from '@/lib/types'
@@ -273,6 +275,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
   const countryId = useFieldId('mobile_country_code')
   const mobileId = useFieldId('mobile_number')
   const emailId = useFieldId('email')
+  const returningIdField = useFieldId('returning_athlete_id')
 
   const [values, setValues] = useState<RegistrationFormValues>(EMPTY)
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({})
@@ -283,6 +286,53 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
   const [result, setResult] = useState<RegisterResponse | null>(null)
   const [draftToken, setDraftToken] = useState<string | null>(null)
   const [alreadyRegistered, setAlreadyRegistered] = useState(false)
+
+  // ---- returning athlete lookup ---------------------------------------------
+  const [registrationMode, setRegistrationMode] = useState<'new' | 'returning'>('new')
+  const [returningId, setReturningId] = useState('')
+  const [fetching, setFetching] = useState(false)
+  const [fetched, setFetched] = useState<AthleteBasics | null>(null)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const idExample = athleteIdExample(config?.athlete_id_format)
+
+  const handleFetchAthlete = async () => {
+    setFetchError(null)
+    const value = returningId.trim()
+    if (value.length < 4) {
+      setFetchError(`Please enter your Athlete ID (for example ${idExample}).`)
+      return
+    }
+    setFetching(true)
+    try {
+      const response = await fetchAthleteBasics(value.toUpperCase())
+      const athlete = response.athlete
+      setFetched(athlete)
+      // Pre-fill only the four saved basics; everything else stays as the
+      // organiser configured it. All four remain editable for corrections.
+      setValues((current) => ({
+        ...current,
+        full_name: athlete.full_name,
+        date_of_birth: athlete.date_of_birth,
+        gender: athlete.gender === 'female' ? 'female' : athlete.gender === 'male' ? 'male' : '',
+        mobile_country_code: athlete.mobile_country_code || '+91',
+        mobile_number: athlete.mobile_number,
+      }))
+      setErrors({})
+    } catch (err) {
+      setFetched(null)
+      setFetchError(err instanceof ApiError ? err.message : 'We could not load your details. Please try again.')
+    } finally {
+      setFetching(false)
+    }
+  }
+
+  const resetReturning = () => {
+    setFetched(null)
+    setReturningId('')
+    setFetchError(null)
+    setValues(EMPTY)
+    setErrors({})
+  }
 
   // ---- draft persistence ----------------------------------------------------
   useEffect(() => {
@@ -649,6 +699,74 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
           <CardTitle>Registration form</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <p className="mb-3 text-sm font-medium text-slate-800">Have you registered with us before?</p>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Registration mode">
+              <label className={`cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium ${registrationMode === 'new' ? 'border-accent-400 bg-accent-50 text-accent-800' : 'border-slate-300 bg-white text-slate-700'}`}>
+                <input
+                  type="radio"
+                  name="registration_mode"
+                  className="sr-only"
+                  checked={registrationMode === 'new'}
+                  onChange={() => {
+                    setRegistrationMode('new')
+                    setFetchError(null)
+                  }}
+                />
+                New athlete
+              </label>
+              <label className={`cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium ${registrationMode === 'returning' ? 'border-accent-400 bg-accent-50 text-accent-800' : 'border-slate-300 bg-white text-slate-700'}`}>
+                <input
+                  type="radio"
+                  name="registration_mode"
+                  className="sr-only"
+                  checked={registrationMode === 'returning'}
+                  onChange={() => setRegistrationMode('returning')}
+                />
+                I have an Athlete ID
+              </label>
+            </div>
+
+            {registrationMode === 'returning' && (
+              <div className="mt-4 space-y-3">
+                <Field label="Athlete ID" htmlFor={returningIdField} hint={`Example: ${idExample}`}>
+                  <div className="flex flex-wrap gap-2">
+                    <Input
+                      id={returningIdField}
+                      value={returningId}
+                      autoComplete="off"
+                      placeholder={idExample}
+                      onChange={(event) => setReturningId(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault()
+                          void handleFetchAthlete()
+                        }
+                      }}
+                    />
+                    <Button onClick={() => void handleFetchAthlete()} disabled={fetching}>
+                      {fetching ? 'Fetching…' : 'Fetch my details'}
+                    </Button>
+                  </div>
+                </Field>
+
+                {fetchError && <Alert tone="danger" title="We couldn't find those details">{fetchError}</Alert>}
+
+                {fetched && (
+                  <Alert tone="success" title="Details found">
+                    These details were fetched from Athlete ID <strong>{fetched.athlete_id}</strong>. Please check them
+                    below — you can edit any field before submitting.
+                    <div className="mt-2">
+                      <Button variant="ghost" size="sm" onClick={resetReturning}>
+                        Use a different athlete
+                      </Button>
+                    </div>
+                  </Alert>
+                )}
+              </div>
+            )}
+          </div>
+
           <FormSection
             step="1"
             title="Athlete details"

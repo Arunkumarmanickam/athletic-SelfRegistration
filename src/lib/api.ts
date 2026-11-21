@@ -12,6 +12,7 @@ import type {
   RegistrationAdminRow,
   RegistrationFilters,
   AthleteProfile,
+  AthleteBasics,
   AthleteRegistrationSummary,
   AdminUserRow,
   AdminChampionship,
@@ -127,6 +128,10 @@ export const retrieveProfile = (athleteSessionToken: string) =>
   invoke<{ profile: AthleteProfile; registrations: AthleteRegistrationSummary[] }>('retrieve-profile', {
     athleteSessionToken,
   })
+
+/** Fetches only the four saved basics for a returning athlete, by Athlete ID. */
+export const fetchAthleteBasics = (athleteId: string) =>
+  invoke<{ ok: boolean; athlete: AthleteBasics }>('fetch-athlete-basics', { athleteId })
 
 export const register = (body: Record<string, unknown>) => invoke<RegisterResponse>('register', body)
 

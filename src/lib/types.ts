@@ -172,6 +172,16 @@ export interface AthleteProfile {
   photo_path: string | null
 }
 
+/** The only saved fields fetched by Athlete ID for a returning registration. */
+export interface AthleteBasics {
+  athlete_id: string
+  full_name: string
+  date_of_birth: string
+  gender: Gender
+  mobile_country_code: string
+  mobile_number: string
+}
+
 export interface RegistrationEventRow {
   event_id?: string
   event_name: string
