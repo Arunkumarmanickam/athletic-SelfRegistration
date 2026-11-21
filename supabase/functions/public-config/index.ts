@@ -18,7 +18,7 @@ Deno.serve(
         .from('championships')
         .select(
           // PostgREST rejects newline characters inside `select` (PGRST100), so this must stay on one line.
-          'id, slug, name, description, location, starts_on, ends_on, registration_opens_at, registration_closes_at, status, currency, base_fee_paise, terms_text, form_config, level, nation, state_name, max_events_per_athlete, championship_categories (id, name, gender, min_age, max_age, fee_paise, is_active, sort_order), championship_events (id, name, gender, category_ids, male_category_ids, female_category_ids, fee_paise, is_active, sort_order)',
+          'id, slug, name, description, location, starts_on, ends_on, registration_opens_at, registration_closes_at, status, currency, base_fee_paise, terms_text, form_config, level, nation, state_name, max_events_per_athlete, championship_categories (id, name, gender, min_age, max_age, fee_paise, is_active, sort_order), championship_events (id, name, gender, category_ids, male_category_ids, female_category_ids, fee_paise, is_active, sort_order), championship_registration_fields (id, field_key, label, field_type, options, is_required, sort_order)',
         )
         .eq('status', 'open')
         .order('starts_on', { ascending: true }),
@@ -40,6 +40,9 @@ Deno.serve(
       championship_events: (c.championship_events ?? [])
         .filter((e) => e.is_active)
         .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
+      custom_registration_fields: (c.championship_registration_fields ?? []).sort(
+        (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+      ),
     }))
 
     return json(req, {

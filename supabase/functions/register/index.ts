@@ -127,6 +127,44 @@ Deno.serve(
     if (personalError) return errorJson(req, 'INVALID_FIELDS', personalError, 400)
 
     const supabase = serviceClient()
+
+    // Validate custom registration fields defined for this championship.
+    const { data: customFields, error: customFieldsError } = await supabase
+      .from('championship_registration_fields')
+      .select('id, field_key, label, field_type, is_required, options')
+      .eq('championship_id', championshipId)
+      .order('sort_order', { ascending: true })
+    if (customFieldsError) {
+      console.error('custom fields lookup failed', customFieldsError)
+      return errorJson(req, 'SERVER_ERROR', 'We could not load the registration form. Please try again.', 500)
+    }
+    const requiredMissing = (customFields ?? [])
+      .filter((field) => field.is_required)
+      .filter((field) => {
+        const value = rawPersonal[field.field_key]
+        if (value === null || value === undefined) return true
+        if (typeof value === 'string') return value.trim().length === 0
+        if (Array.isArray(value)) return value.length === 0
+        return false
+      })
+    if (requiredMissing.length > 0) {
+      const names = requiredMissing.map((f) => f.label).join(', ')
+      return errorJson(
+        req,
+        'INVALID_FIELDS',
+        `Please fill in the required field(s): ${names}.`,
+        400,
+      )
+    }
+
+    // Keep the custom answers in the personal jsonb so they survive into the
+    // draft and, after payment, the registration record.
+    const personalWithCustom: Record<string, unknown> = { ...personal }
+    for (const field of customFields ?? []) {
+      const value = rawPersonal[field.field_key]
+      if (value !== undefined) personalWithCustom[field.field_key] = value
+    }
+
     const ip = clientIp(req)
     await enforceRateLimit(supabase, `register:ip:${ip}`, 30, 3600)
     if (personal.mobile_e164) {
@@ -140,7 +178,7 @@ Deno.serve(
 
     const { data: rpcResult, error: rpcError } = await supabase.rpc('create_registration_draft', {
       p_championship_id: championshipId,
-      p_personal: personal,
+      p_personal: personalWithCustom,
       p_category_id: categoryId,
       p_event_ids: eventIds,
       p_request_ip: ip,

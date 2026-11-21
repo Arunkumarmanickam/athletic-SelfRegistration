@@ -398,7 +398,7 @@ Deno.serve(
       const { data: championships, error } = await supabase
         .from('championships')
         .select(
-          'id, slug, name, description, location, starts_on, ends_on, registration_opens_at, registration_closes_at, status, currency, base_fee_paise, form_config, terms_text, level, nation, state_name, max_events_per_athlete, created_at, updated_at, championship_categories (id, name, gender, min_age, max_age, fee_paise, is_active, sort_order), championship_events (id, name, gender, category_ids, male_category_ids, female_category_ids, fee_paise, is_active, sort_order)',
+          'id, slug, name, description, location, starts_on, ends_on, registration_opens_at, registration_closes_at, status, currency, base_fee_paise, form_config, terms_text, level, nation, state_name, max_events_per_athlete, created_at, updated_at, championship_categories (id, name, gender, min_age, max_age, fee_paise, is_active, sort_order), championship_events (id, name, gender, category_ids, male_category_ids, female_category_ids, fee_paise, is_active, sort_order), championship_registration_fields (id, field_key, label, field_type, options, is_required, sort_order)',
         )
         .order('created_at', { ascending: false })
       if (error) {
@@ -424,6 +424,9 @@ Deno.serve(
             (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order,
           ),
           championship_events: (championship.championship_events ?? []).sort(
+            (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order,
+          ),
+          custom_registration_fields: (championship.championship_registration_fields ?? []).sort(
             (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order,
           ),
           registrations_total: totalCount ?? 0,
@@ -860,6 +863,128 @@ Deno.serve(
       const { error } = await supabase.from('championship_events').delete().eq('id', eventId)
       if (error) return errorJson(req, 'SERVER_ERROR', 'Could not delete the event.', 500)
       await writeAudit(supabase, admin, 'event.deleted', 'championship_event', eventId, {})
+      return json(req, { ok: true })
+    }
+
+    // ---- custom registration fields ------------------------------------------
+
+    if (action === 'field_list') {
+      const championshipId = str(body.championshipId)
+      if (!championshipId) return errorJson(req, 'MISSING_FIELDS', 'Championship id is required.', 400)
+      const { data, error } = await supabase
+        .from('championship_registration_fields')
+        .select('id, field_key, label, field_type, options, is_required, sort_order')
+        .eq('championship_id', championshipId)
+        .order('sort_order', { ascending: true })
+      if (error) return errorJson(req, 'SERVER_ERROR', 'Could not load custom fields.', 500)
+      return json(req, { fields: data ?? [] })
+    }
+
+    if (action === 'field_create' || action === 'field_update') {
+      if (readOnly) return errorJson(req, 'FORBIDDEN', 'Viewers cannot change custom fields.', 403)
+      const championshipId = str(body.championshipId)
+      const fieldKey = str(body.field_key)
+      const label = str(body.label)
+      const fieldType = str(body.field_type)
+      const isRequired = body.is_required === true
+      const sortOrder = toInt(body.sort_order) ?? 0
+      const optionsRaw = body.options
+      let options: string[] = []
+      if (Array.isArray(optionsRaw)) {
+        options = optionsRaw.map((v) => str(v)).filter(Boolean)
+      }
+
+      if (!championshipId || fieldKey.length < 1) {
+        return errorJson(req, 'INVALID_FIELDS', 'Field key is required.', 400)
+      }
+      if (!/^[a-z0-9_]+$/.test(fieldKey)) {
+        return errorJson(
+          req,
+          'INVALID_FIELD_KEY',
+          'Field key may contain lowercase letters, numbers and underscores only.',
+          400,
+        )
+      }
+      if (label.length < 1 || label.length > 120) {
+        return errorJson(req, 'INVALID_FIELDS', 'Label must be between 1 and 120 characters.', 400)
+      }
+      if (!['text', 'dropdown', 'radio', 'checkbox'].includes(fieldType)) {
+        return errorJson(req, 'INVALID_FIELDS', 'Invalid field type.', 400)
+      }
+      if ((fieldType === 'dropdown' || fieldType === 'radio' || fieldType === 'checkbox') && options.length === 0) {
+        return errorJson(req, 'INVALID_FIELDS', `At least one option is required for ${fieldType} fields.`, 400)
+      }
+
+      const payload: Record<string, unknown> = {
+        championship_id: championshipId,
+        field_key: fieldKey,
+        label,
+        field_type: fieldType,
+        options,
+        is_required: isRequired,
+        sort_order: sortOrder,
+      }
+
+      if (action === 'field_create') {
+        const { data: created, error: insertError } = await supabase
+          .from('championship_registration_fields')
+          .insert(payload)
+          .select('id, field_key, label, field_type, options, is_required, sort_order')
+          .maybeSingle()
+        if (insertError) {
+          if (insertError.code === '23505') {
+            return errorJson(req, 'DUPLICATE', 'A field with this key already exists for this championship.', 409)
+          }
+          console.error('field insert failed', insertError)
+          return errorJson(req, 'SERVER_ERROR', 'Could not create the custom field.', 500)
+        }
+        await writeAudit(supabase, admin, 'field.created', 'championship', championshipId, { field_key: fieldKey })
+        return json(req, { ok: true, field: created })
+      }
+
+      const fieldId = str(body.fieldId)
+      if (!fieldId) return errorJson(req, 'MISSING_FIELDS', 'Field id is required.', 400)
+      const { error: updateError } = await supabase
+        .from('championship_registration_fields')
+        .update(payload)
+        .eq('id', fieldId)
+        .eq('championship_id', championshipId)
+      if (updateError) return errorJson(req, 'SERVER_ERROR', 'Could not update the custom field.', 500)
+      await writeAudit(supabase, admin, 'field.updated', 'championship', championshipId, { fieldId })
+      return json(req, { ok: true })
+    }
+
+    if (action === 'field_delete') {
+      if (readOnly) return errorJson(req, 'FORBIDDEN', 'Viewers cannot change custom fields.', 403)
+      const fieldId = str(body.fieldId)
+      const championshipId = str(body.championshipId)
+      if (!fieldId || !championshipId) {
+        return errorJson(req, 'MISSING_FIELDS', 'Field id and championship id are required.', 400)
+      }
+
+      // Drafts store personal as jsonb; we can't easily jsonb-search across all
+      // drafts here, so we only block deletion once registrations exist (which
+      // means the answers are part of a permanent record).
+      const { count: regCount } = await supabase
+        .from('registrations')
+        .select('id', { count: 'exact', head: true })
+        .eq('championship_id', championshipId)
+      if ((regCount ?? 0) > 0) {
+        return errorJson(
+          req,
+          'IN_USE',
+          'This championship already has registrations, so its fields can no longer be deleted.',
+          409,
+        )
+      }
+
+      const { error } = await supabase
+        .from('championship_registration_fields')
+        .delete()
+        .eq('id', fieldId)
+        .eq('championship_id', championshipId)
+      if (error) return errorJson(req, 'SERVER_ERROR', 'Could not delete the custom field.', 500)
+      await writeAudit(supabase, admin, 'field.deleted', 'championship_field', fieldId, {})
       return json(req, { ok: true })
     }
 

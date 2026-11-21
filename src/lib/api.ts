@@ -17,6 +17,7 @@ import type {
   AdminChampionship,
   DefaultCategory,
   DefaultEvent,
+  ChampionshipRegistrationField,
 } from './types'
 
 /** Error thrown for any non-2xx Edge Function response. */
@@ -293,6 +294,8 @@ export const adminChampionships = (body: Record<string, unknown> = { action: 'li
     /** `action: 'defaults'` — the standard categories/events new championships start from. */
     categories?: DefaultCategory[]
     events?: DefaultEvent[]
+    /** `action: 'field_list'` — custom registration fields for a championship. */
+    fields?: ChampionshipRegistrationField[]
     ok?: boolean
     championship?: { id: string; name: string; slug: string }
     categoriesAdded?: number

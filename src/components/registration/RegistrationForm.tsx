@@ -18,7 +18,13 @@ import { formatAge, formatDate, formatMoney, capitaliseName, toE164 } from '@/li
 import { cn } from '@/lib/utils'
 import { registrationFormSchema, validateWith, type RegistrationFormValues } from '@/lib/validation'
 import { saveConfirmation } from '@/lib/receipt'
-import type { Championship, Confirmation, FormConfig, RegisterResponse } from '@/lib/types'
+import type {
+  Championship,
+  Confirmation,
+  FormConfig,
+  ChampionshipRegistrationField,
+  RegisterResponse,
+} from '@/lib/types'
 
 /** Resolves the date on which age eligibility is evaluated. */
 function ageCutoffDate(championship: Championship): string {
@@ -69,6 +75,100 @@ function FormSection({
       </div>
       <div className="space-y-5">{children}</div>
     </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Custom field renderer (used inside the registration form)
+// ---------------------------------------------------------------------------
+
+interface CustomFieldRendererProps {
+  field: ChampionshipRegistrationField
+  value: string
+  error: string | undefined
+  onChange: (value: string) => void
+}
+
+function CustomFieldRenderer({ field, value, error, onChange }: CustomFieldRendererProps) {
+  const isRequired = field.is_required
+
+  if (field.field_type === 'text') {
+    return (
+      <Field label={field.label} htmlFor={`custom-${field.field_key}`} required={isRequired} error={error}>
+        <Input
+          id={`custom-${field.field_key}`}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={field.label}
+        />
+      </Field>
+    )
+  }
+
+  if (field.field_type === 'dropdown') {
+    return (
+      <Field label={field.label} htmlFor={`custom-${field.field_key}`} required={isRequired} error={error}>
+        <Select
+          id={`custom-${field.field_key}`}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          <option value="">— {field.label} —</option>
+          {field.options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </Select>
+      </Field>
+    )
+  }
+
+  if (field.field_type === 'radio') {
+    return (
+      <Field label={field.label} htmlFor={`custom-${field.field_key}`} required={isRequired} error={error}>
+        <div className="flex flex-wrap gap-4 pt-1">
+          {field.options.map((option) => (
+            <label key={option} className="flex items-center gap-2 text-sm font-medium text-slate-800">
+              <input
+                type="radio"
+                name={`custom-${field.field_key}`}
+                className="h-4 w-4 border-slate-300 text-brand-700 focus:ring-brand-500"
+                value={option}
+                checked={value === option}
+                onChange={() => onChange(option)}
+              />
+              {option}
+            </label>
+          ))}
+        </div>
+      </Field>
+    )
+  }
+
+  // checkbox
+  return (
+    <Field label={field.label} htmlFor={`custom-${field.field_key}`} required={isRequired} error={error}>
+      <div className="flex flex-wrap gap-4 pt-1">
+        {field.options.map((option) => (
+          <label key={option} className="flex items-center gap-2 text-sm font-medium text-slate-800">
+            <input
+              type="checkbox"
+              name={`custom-${field.field_key}`}
+              className="h-4 w-4 border-slate-300 text-brand-700 focus:ring-brand-500"
+              value={option}
+              checked={value.split(',').includes(option)}
+              onChange={() => {
+                const selected = value.split(',').filter(Boolean)
+                const next = selected.includes(option) ? selected.filter((o) => o !== option) : [...selected, option]
+                onChange(next.join(','))
+              }}
+            />
+            {option}
+          </label>
+        ))}
+      </div>
+    </Field>
   )
 }
 
@@ -132,6 +232,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
   const emailId = useFieldId('email')
 
   const [values, setValues] = useState<RegistrationFormValues>(EMPTY)
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -162,6 +263,15 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
         email: p.email ?? '',
         accept_terms: false,
       })
+      // Restore any custom field values that were saved in the draft.
+      const custom = championship.custom_registration_fields ?? []
+      const next: Record<string, string> = {}
+      const personal = p as unknown as Record<string, unknown>
+      custom.forEach((field) => {
+        const v = personal[field.field_key]
+        if (typeof v === 'string' && v.length > 0) next[field.field_key] = v
+      })
+      setCustomFieldValues(next)
     }
   }, [championship.id, representingMode])
 
@@ -179,6 +289,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
         ...locationFields(values.representing),
         address: '',
         representing: values.representing,
+        ...customFieldValues,
       },
       participation: {
         category_id: '',
@@ -188,7 +299,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
       },
       stepIndex: 0,
     })
-  }, [result, championship.id, representingMode, values])
+  }, [result, championship.id, representingMode, values, customFieldValues])
 
   // ---- live derivations ------------------------------------------------------
   const age = values.date_of_birth ? Number(formatAge(values.date_of_birth, cutoff)) : null
@@ -242,6 +353,15 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
     if (championship.terms_text && !values.accept_terms) {
       extra.accept_terms = 'Please accept the terms and conditions.'
     }
+    // Validate required custom registration fields.
+    championship.custom_registration_fields?.forEach((field) => {
+      if (field.is_required) {
+        const value = customFieldValues[field.field_key] ?? ''
+        if (value.trim().length === 0) {
+          extra[field.field_key] = `Please fill in ${field.label}.`
+        }
+      }
+    })
     if (Object.keys(extra).length > 0 || !eligibleCategory) {
       setErrors(extra)
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
@@ -266,6 +386,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
           ...locationFields(representingValue),
           address: '',
           representing: representingValue,
+          ...customFieldValues,
         },
       })
 
@@ -592,6 +713,29 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
             </Field>
 
           </FormSection>
+
+          {championship.custom_registration_fields?.length && (
+            <FormSection
+              step="1.5"
+              title="Additional details"
+              description="Extra information requested by the championship organiser."
+            >
+              {championship.custom_registration_fields.map((field) => (
+                <CustomFieldRenderer
+                  key={field.id}
+                  field={field}
+                  value={customFieldValues[field.field_key] ?? ''}
+                  error={errors[field.field_key]}
+                  onChange={(value) =>
+                    setCustomFieldValues((current) => ({
+                      ...current,
+                      [field.field_key]: value,
+                    }))
+                  }
+                />
+              ))}
+            </FormSection>
+          )}
 
           <FormSection
             step="2"

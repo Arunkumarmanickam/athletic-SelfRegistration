@@ -39,6 +39,21 @@ export interface ChampionshipEvent {
  * carry the same fields as a championship's own rows (events have no category
  * restriction until the organiser adds one after creating the championship).
  */
+export interface ChampionshipRegistrationField {
+  id: string
+  field_key: string
+  label: string
+  field_type: 'text' | 'dropdown' | 'radio' | 'checkbox'
+  options: string[]
+  is_required: boolean
+  sort_order: number
+}
+
+/**
+ * The standard set every new championship starts from. Categories and events
+ * carry the same fields as a championship's own rows (events have no category
+ * restriction until the organiser adds one after creating the championship).
+ */
 export type DefaultCategory = ChampionshipCategory
 export type DefaultEvent = Omit<
   ChampionshipEvent,
@@ -80,6 +95,7 @@ export interface Championship {
   max_events_per_athlete?: number | null
   championship_categories: ChampionshipCategory[]
   championship_events: ChampionshipEvent[]
+  custom_registration_fields: ChampionshipRegistrationField[]
 }
 
 export interface AdminChampionship extends Omit<Championship, 'championship_categories' | 'championship_events'> {

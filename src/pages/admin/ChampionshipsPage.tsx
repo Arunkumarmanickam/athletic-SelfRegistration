@@ -15,6 +15,7 @@ import type {
   AdminChampionship,
   ChampionshipCategory,
   ChampionshipEvent,
+  ChampionshipRegistrationField,
   DefaultCategory,
   DefaultEvent,
   FormConfig,
@@ -359,6 +360,9 @@ function ChampionshipEditor({
   // organiser only has to trim or extend the list.
   const [draftCategories, setDraftCategories] = useState<DraftCategory[]>([])
   const [draftEvents, setDraftEvents] = useState<DraftEvent[]>([])
+  const [customFields, setCustomFields] = useState<ChampionshipRegistrationField[]>(
+    championship?.custom_registration_fields ?? [],
+  )
   const [defaultsLoading, setDefaultsLoading] = useState(championship === null)
   const [defaultsError, setDefaultsError] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
@@ -494,8 +498,21 @@ function ChampionshipEditor({
         )
         const newId = result.championship?.id
         if (newId) {
+          // Save any custom fields staged while creating the championship.
+          for (const field of customFields) {
+            await adminChampionships({
+              action: 'field_create',
+              championshipId: newId,
+              field_key: field.field_key,
+              label: field.label,
+              field_type: field.field_type,
+              options: field.options,
+              is_required: field.is_required,
+              sort_order: field.sort_order,
+            })
+          }
           const found = await refreshCurrent(newId)
-          if (found) setForm(formState(found))
+          if (found) setCustomFields(found.custom_registration_fields)
         }
       }
       onSaved()
@@ -537,6 +554,119 @@ function ChampionshipEditor({
       onSaved()
     } catch (err) {
       toast.error('Could not archive', err instanceof ApiError ? err.message : 'Please try again.')
+    }
+  }
+
+  // ---- Custom registration fields -------------------------------------------
+
+  const [fieldDraft, setFieldDraft] = useState<{
+    field_key: string
+    label: string
+    field_type: 'text' | 'dropdown' | 'radio' | 'checkbox'
+    options: string
+    is_required: boolean
+  }>({
+    field_key: '',
+    label: '',
+    field_type: 'text',
+    options: '',
+    is_required: false,
+  })
+  const [fieldEditingId, setFieldEditingId] = useState<string | null>(null)
+
+  const resetField = () => {
+    setFieldEditingId(null)
+    setFieldDraft({ field_key: '', label: '', field_type: 'text', options: '', is_required: false })
+  }
+
+  const startEditField = (field: ChampionshipRegistrationField) => {
+    setFieldEditingId(field.id)
+    setFieldDraft({
+      field_key: field.field_key,
+      label: field.label,
+      field_type: field.field_type,
+      options: field.options.join(', '),
+      is_required: field.is_required,
+    })
+  }
+
+  const submitField = async () => {
+    const key = fieldDraft.field_key.trim()
+    const label = fieldDraft.label.trim()
+    if (key.length < 1 || label.length < 1) {
+      toast.error('Missing details', 'A field key and label are required.')
+      return
+    }
+    if (!/^[a-z0-9_]+$/.test(key)) {
+      toast.error('Invalid key', 'Use lowercase letters, numbers and underscores only.')
+      return
+    }
+    const options = fieldDraft.options
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean)
+    if ((fieldDraft.field_type === 'dropdown' || fieldDraft.field_type === 'radio' || fieldDraft.field_type === 'checkbox') && options.length === 0) {
+      toast.error('Missing options', 'Please add at least one option.')
+      return
+    }
+
+    const payload = {
+      field_key: key,
+      label,
+      field_type: fieldDraft.field_type,
+      options,
+      is_required: fieldDraft.is_required,
+      sort_order: customFields.length + 1,
+    }
+
+    // A brand-new championship has no id yet: keep the fields locally and
+    // create them right after the championship is saved.
+    if (!current) {
+      const localField: ChampionshipRegistrationField = {
+        ...payload,
+        id: fieldEditingId ?? `draft-${Date.now()}`,
+      }
+      setCustomFields((fields) => {
+        const index = fields.findIndex((f) => f.id === localField.id)
+        if (index === -1) return [...fields, localField]
+        const next = [...fields]
+        next[index] = localField
+        return next
+      })
+      toast.success(fieldEditingId ? 'Field updated' : 'Field added')
+      resetField()
+      return
+    }
+
+    try {
+      if (fieldEditingId) {
+        await adminChampionships({ action: 'field_update', fieldId: fieldEditingId, championshipId: current.id, ...payload })
+        toast.success('Field updated')
+      } else {
+        await adminChampionships({ action: 'field_create', championshipId: current.id, ...payload })
+        toast.success('Field added')
+      }
+      resetField()
+      const refreshed = await refreshCurrent(current.id)
+      if (refreshed) setCustomFields(refreshed.custom_registration_fields)
+    } catch (err) {
+      toast.error('Could not save field', err instanceof ApiError ? err.message : 'Please try again.')
+    }
+  }
+
+  const deleteField = async (fieldId: string) => {
+    if (!current) {
+      setCustomFields((fields) => fields.filter((f) => f.id !== fieldId))
+      if (fieldEditingId === fieldId) resetField()
+      return
+    }
+    try {
+      await adminChampionships({ action: 'field_delete', fieldId, championshipId: current.id })
+      toast.success('Field deleted')
+      const refreshed = await refreshCurrent(current.id)
+      if (refreshed) setCustomFields(refreshed.custom_registration_fields)
+    } catch (err) {
+      toast.error('Could not delete field', err instanceof ApiError ? err.message : 'Please try again.')
     }
   }
 
@@ -744,6 +874,106 @@ function ChampionshipEditor({
                 placeholder="Championship-specific terms and conditions (optional)."
                 className="min-h-32"
               />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Custom registration fields</CardTitle>
+              <p className="text-xs text-slate-500">
+                Extra input fields shown to athletes on the registration form (e.g. T-Shirt Size, Dietary Preference).
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {customFields.length > 0 && (
+                <ul className="divide-y divide-slate-100 text-sm">
+                  {customFields.map((field) => (
+                    <li key={field.id} className="flex items-center justify-between gap-2 py-2">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-slate-800">
+                          {field.label}
+                          {!field.is_required ? <span className="ml-2 text-xs text-slate-400">(optional)</span> : null}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {field.field_type}
+                          {field.options.length > 0 ? ` · ${field.options.join(', ')}` : ''}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => startEditField(field)}>
+                          Edit
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => deleteField(field.id)}>
+                          Delete
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {customFields.length === 0 && (
+                <p className="text-xs text-slate-500">No custom fields yet. Add one below.</p>
+              )}
+
+              <div className="rounded-lg border border-slate-200 p-3">
+                <p className="mb-2 text-sm font-semibold text-slate-800">
+                  {fieldEditingId ? 'Edit field' : 'Add input field'}
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Field key" htmlFor="custom-field-key" hint="Used internally (e.g. t_shirt_size).">
+                    <Input
+                      id="custom-field-key"
+                      value={fieldDraft.field_key}
+                      onChange={(e) => setFieldDraft({ ...fieldDraft, field_key: e.target.value })}
+                      placeholder="t_shirt_size"
+                    />
+                  </Field>
+                  <Field label="Label" htmlFor="custom-field-label" hint="Shown to athletes on the form.">
+                    <Input
+                      id="custom-field-label"
+                      value={fieldDraft.label}
+                      onChange={(e) => setFieldDraft({ ...fieldDraft, label: e.target.value })}
+                      placeholder="T-Shirt Size"
+                    />
+                  </Field>
+                  <Field label="Type" htmlFor="custom-field-type">
+                    <Select
+                      id="custom-field-type"
+                      value={fieldDraft.field_type}
+                      onChange={(e) => setFieldDraft({ ...fieldDraft, field_type: e.target.value as 'text' | 'dropdown' | 'radio' | 'checkbox' })}
+                    >
+                      <option value="text">Text input</option>
+                      <option value="dropdown">Dropdown (select one)</option>
+                      <option value="radio">Radio buttons</option>
+                      <option value="checkbox">Checkboxes</option>
+                    </Select>
+                  </Field>
+                  <Field label="Options" htmlFor="custom-field-options" hint="Comma-separated, e.g. S, M, L, XL. Only for dropdown / radio / checkbox.">
+                    <Input
+                      id="custom-field-options"
+                      value={fieldDraft.options}
+                      onChange={(e) => setFieldDraft({ ...fieldDraft, options: e.target.value })}
+                      placeholder="S, M, L, XL"
+                    />
+                  </Field>
+                </div>
+                <Checkbox
+                  label="Required (athlete must fill it)"
+                  checked={fieldDraft.is_required}
+                  onChange={(e) => setFieldDraft({ ...fieldDraft, is_required: e.target.checked })}
+                  className="sm:col-span-2"
+                />
+                <div className="flex gap-2">
+                  <Button variant="accent" size="sm" onClick={() => void submitField()}>
+                    {fieldEditingId ? 'Save field' : 'Add input field'}
+                  </Button>
+                  {fieldEditingId && (
+                    <Button variant="ghost" size="sm" onClick={resetField}>
+                      Cancel
+                    </Button>
+                  )}
+                </div>
+              </div>
             </CardContent>
           </Card>
 
