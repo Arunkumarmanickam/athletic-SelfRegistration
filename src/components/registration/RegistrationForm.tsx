@@ -58,15 +58,18 @@ interface DefaultFieldSetting {
 function defaultFieldSetting(config: FormConfig, key: DefaultFieldKey): DefaultFieldSetting {
   const setting = config.default_fields?.[key]
   const locked = LOCKED_FIELDS.includes(key)
-  return {
-    label: setting?.label?.trim() || DEFAULT_FIELD_LABELS[key],
-    visible: locked ? true : setting?.visible !== false,
-    required:
-      locked
-        ? true
+  const required =
+    locked
+      ? true
+      : key === 'representing'
+        ? setting?.required !== false
         : key === 'email' && !setting
           ? config.require_email === true
-          : setting?.required === true,
+          : setting?.required === true
+  return {
+    label: setting?.label?.trim() || DEFAULT_FIELD_LABELS[key],
+    visible: locked || required ? true : setting?.visible !== false,
+    required,
   }
 }
 
@@ -483,9 +486,6 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
           mobile_e164: mobileE164,
           email: values.email.trim(),
           ...locationFields(representingValue),
-          ...(fieldSettings.representing.visible
-            ? {}
-            : { state: championshipState ?? '', district: '' }),
           address: '',
           representing: representingValue,
           ...customFieldValues,

@@ -119,10 +119,21 @@ function formConfigState(config: FormConfig | undefined): FormConfigState {
   for (const key of DEFAULT_FIELD_KEYS) {
     const setting = saved[key]
     const locked = LOCKED_FIELDS.includes(key)
+    // Representing was required before field controls existed; keep that
+    // default so athletes are not asked to fill a field the form marks optional.
+    const required = locked
+      ? true
+      : key === 'representing'
+        ? setting?.required !== false
+        : key === 'email' && !setting
+          ? legacyEmailRequired
+          : setting?.required === true
     defaultFields[key] = {
       label: setting?.label?.trim() || DEFAULT_FIELD_LABELS[key],
-      visible: locked ? true : setting?.visible !== false,
-      required: locked ? true : key === 'email' && !setting ? legacyEmailRequired : setting?.required === true,
+      // A required field must be visible — an older saved config could otherwise
+      // hide a field the server still demands, producing a confusing error.
+      visible: locked || required ? true : setting?.visible !== false,
+      required,
     }
   }
   return {
@@ -900,13 +911,21 @@ function ChampionshipEditor({
                           label="Show field"
                           checked={setting.visible}
                           disabled={locked}
-                          onChange={(e) => update({ visible: e.target.checked })}
+                          onChange={(e) =>
+                            update(
+                              e.target.checked
+                                ? { visible: true }
+                                : { visible: false, required: false },
+                            )
+                          }
                         />
                         <Checkbox
                           label="Required"
                           checked={setting.required}
-                          disabled={locked}
-                          onChange={(e) => update({ required: e.target.checked })}
+                          disabled={locked || !setting.visible}
+                          onChange={(e) =>
+                            update(e.target.checked ? { required: true, visible: true } : { required: false })
+                          }
                         />
                       </div>
                     </div>

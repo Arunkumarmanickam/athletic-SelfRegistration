@@ -48,7 +48,13 @@ function sanitizeDefaultFields(raw: unknown): Record<string, unknown> {
     if (typeof setting.label === 'string') clean.label = setting.label.trim().slice(0, 80)
     const locked = LOCKED_DEFAULT_FIELDS.includes(key)
     clean.visible = locked ? true : setting.visible !== false
-    clean.required = locked ? true : setting.required === true
+    // Representing has always been a required field for state/national meets;
+    // only an explicit opt-out should turn that off.
+    clean.required = locked
+      ? true
+      : key === 'representing'
+        ? setting.required !== false
+        : setting.required === true
     result[key] = clean
   }
   return result
