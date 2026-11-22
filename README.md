@@ -277,7 +277,9 @@ In the **Age categories** card, tick **Free entry — waive base, category and e
 
 The public form shows **Free entry · ₹0** instead of a fee breakdown, and those registrations are confirmed immediately without visiting PhonePe (the gateway rejects amounts below ₹1). The receipt says “Free entry — no payment is required.” The checkbox is stored on `championship_categories.is_free` (and `default_categories.is_free` for new championships) by migration `20261122000002_free_entry_categories.sql`.
 
-Enabling free entry requires all three of: the migration, a redeploy of `admin-championships` (so the checkbox is saved and returned), a redeploy of `public-config` (so the athlete form can show the ₹0 label), and a redeploy of `register` (so zero-fee drafts are promoted immediately). See [Deployment](#deployment).
+The admin **Dashboard** includes a **Free entries** stat card and a **Free** column in the “By championship” table. The **Championships** list shows `X free` per championship when present. Free registrations are counted as `fee_paise = 0`; paid registrations are counted as `payment_status = 'paid' AND fee_paise > 0`. Migration `20261122000003_dashboard_free_entries.sql` updates `get_dashboard_stats()`.
+
+Enabling free entry requires the migrations, plus redeploy of `admin-championships` (checkbox save/return, championship counts), `public-config` (athlete form ₹0 label), and `register` (instant confirmation). For dashboard counts, also apply `20261122000003_dashboard_free_entries.sql`. See [Deployment](#deployment).
 
 ### Custom registration fields
 
