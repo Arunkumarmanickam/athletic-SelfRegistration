@@ -17,6 +17,7 @@ interface SiteSettings {
   /** One entry per published number; always has at least one row. */
   support_phones: string[]
   address: string
+  enable_athlete_lookup: boolean
 }
 
 interface AthleteIdFormat {
@@ -27,7 +28,14 @@ interface AthleteIdFormat {
 /** Enough for every committee member, small enough to stay tidy in the UI. */
 const MAX_PHONES = 10
 
-const EMPTY_SITE: SiteSettings = { organizer_name: '', authority_name: '', support_email: '', support_phones: [''], address: '' }
+const EMPTY_SITE: SiteSettings = {
+  organizer_name: '',
+  authority_name: '',
+  support_email: '',
+  support_phones: [''],
+  address: '',
+  enable_athlete_lookup: false,
+}
 const DEFAULT_FORMAT: AthleteIdFormat = { prefix: 'ATH', sequence_length: 6 }
 
 function readSettings(raw: Record<string, unknown>): { site: SiteSettings; format: AthleteIdFormat } {
@@ -50,6 +58,7 @@ function readSettings(raw: Record<string, unknown>): { site: SiteSettings; forma
       support_email: String(siteRaw.support_email ?? ''),
       support_phones: phones,
       address: String(siteRaw.address ?? ''),
+      enable_athlete_lookup: siteRaw.enable_athlete_lookup === true,
     },
     format: {
       prefix: String(formatRaw.prefix ?? DEFAULT_FORMAT.prefix),
@@ -110,6 +119,7 @@ export function SettingsPage() {
             support_phone: phones[0] ?? '',
             support_phones: phones,
             address: site.address.trim(),
+            enable_athlete_lookup: site.enable_athlete_lookup,
           },
           athlete_id_format: {
             prefix: format.prefix.trim().toUpperCase() || 'ATH',
@@ -268,6 +278,29 @@ export function SettingsPage() {
           </Card>
 
           <div className="space-y-5">
+            <Card>
+              <CardHeader>
+                <CardTitle>Registration form</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <label className="flex items-start gap-3 text-sm text-slate-800">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 rounded border-slate-300 text-accent-600"
+                    checked={site.enable_athlete_lookup}
+                    onChange={(event) => setSite({ ...site, enable_athlete_lookup: event.target.checked })}
+                  />
+                  <span>
+                    <span className="font-medium">Allow returning athletes to fetch details by Athlete ID</span>
+                    <span className="mt-0.5 block text-xs text-slate-500">
+                      When on, the registration form shows “I have an Athlete ID” and pre-fills name, date of
+                      birth, gender and mobile number. Turn it off to hide this for everyone.
+                    </span>
+                  </span>
+                </label>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle>Athlete ID format</CardTitle>

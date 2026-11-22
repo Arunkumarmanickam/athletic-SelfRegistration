@@ -20,6 +20,17 @@ Deno.serve(
     const supabase = serviceClient()
     const ip = clientIp(req)
 
+    // Feature is admin-controlled and off by default.
+    const { data: siteRow } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'site')
+      .maybeSingle()
+    const siteSettings = (siteRow?.value ?? {}) as Record<string, unknown>
+    if (siteSettings.enable_athlete_lookup !== true) {
+      return errorJson(req, 'FEATURE_DISABLED', 'Athlete ID lookup is currently unavailable.', 403)
+    }
+
     // An Athlete ID alone is enough to ask, so guessing must be expensive.
     await enforceRateLimit(supabase, `fetch-athlete-basics:ip:${ip}`, 20, 3600)
 

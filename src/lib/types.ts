@@ -152,6 +152,8 @@ export interface PublicConfig {
     /** All support numbers, in the order the organiser entered them. */
     support_phones?: string[]
     address?: string
+    /** When true, returning athletes can pre-fill registration by Athlete ID. */
+    enable_athlete_lookup?: boolean
   }
   athlete_id_format: { prefix?: string; sequence_length?: number } | null
   payments_configured: boolean

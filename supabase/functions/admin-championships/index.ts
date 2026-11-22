@@ -519,6 +519,9 @@ Deno.serve(
           support_phone: supportPhones[0] ?? '',
           support_phones: supportPhones,
           address: str(site.address).slice(0, 300),
+          // Admin-controlled: lets returning athletes pre-fill the registration
+          // form by entering their Athlete ID. Off by default.
+          enable_athlete_lookup: site.enable_athlete_lookup === true,
         }
         await supabase
           .from('app_settings')

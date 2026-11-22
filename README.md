@@ -295,13 +295,16 @@ The migration `20261103000001_championship_registration_fields.sql` creates the 
 
 ### Returning athlete lookup
 
-At the top of the registration form there is a **"Have you registered with us before?"** toggle:
+Returning-athlete prefill is **off by default**. Enable it in **Admin → Settings → Registration form → Allow returning athletes to fetch details by Athlete ID**.
+
+When enabled, the top of the registration form shows a **"Have you registered with us before?"** toggle:
 
 - **New athlete** — the normal form.
 - **I have an Athlete ID** — the athlete enters their ID and clicks **Fetch my details**. Name, date of birth, gender and mobile are prefilled from the saved profile for review; all four are editable, and **Use a different athlete** resets them. Representing, email, custom fields and this championship's events still follow the admin configuration above.
 
 The `fetch-athlete-basics` Edge Function backs this:
 
+- Requires `site.enable_athlete_lookup = true` in `app_settings`; otherwise returns `403 FEATURE_DISABLED`.
 - Returns **only** `full_name`, `date_of_birth`, `gender`, `mobile_country_code`, `mobile_number` and the Athlete ID — no email, address, history or session.
 - Rate limited per IP (20/hour) and per Athlete ID (5/hour); the same generic error is returned for unknown and malformed IDs so IDs cannot be enumerated.
 - No token is issued. Athlete IDs are still issued only after payment; when the athlete pays, `promote_draft()` reuses the existing profile by mobile + DOB, so no duplicate ID is created. The existing "already registered for this championship" guard still applies.

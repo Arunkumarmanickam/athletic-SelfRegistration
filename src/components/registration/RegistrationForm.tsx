@@ -226,6 +226,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
   const navigate = useNavigate()
   const toast = useToast()
   const { config } = useConfig()
+  const returningLookupEnabled = config?.site?.enable_athlete_lookup === true
 
   const maxEvents = championship.max_events_per_athlete ?? null
   const cutoff = ageCutoffDate(championship)
@@ -734,73 +735,79 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
           <CardTitle>Registration form</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <p className="mb-3 text-sm font-medium text-slate-800">Have you registered with us before?</p>
-            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Registration mode">
-              <label className={`cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium ${registrationMode === 'new' ? 'border-accent-400 bg-accent-50 text-accent-800' : 'border-slate-300 bg-white text-slate-700'}`}>
-                <input
-                  type="radio"
-                  name="registration_mode"
-                  className="sr-only"
-                  checked={registrationMode === 'new'}
-                  onChange={() => {
-                    setRegistrationMode('new')
-                    setFetchError(null)
-                  }}
-                />
-                New athlete
-              </label>
-              <label className={`cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium ${registrationMode === 'returning' ? 'border-accent-400 bg-accent-50 text-accent-800' : 'border-slate-300 bg-white text-slate-700'}`}>
-                <input
-                  type="radio"
-                  name="registration_mode"
-                  className="sr-only"
-                  checked={registrationMode === 'returning'}
-                  onChange={() => setRegistrationMode('returning')}
-                />
-                I have an Athlete ID
-              </label>
-            </div>
+          {returningLookupEnabled && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <p className="mb-3 text-sm font-medium text-slate-800">Have you registered with us before?</p>
+              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Registration mode">
+                <label
+                  className={`cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium ${registrationMode === 'new' ? 'border-accent-400 bg-accent-50 text-accent-800' : 'border-slate-300 bg-white text-slate-700'}`}
+                >
+                  <input
+                    type="radio"
+                    name="registration_mode"
+                    className="sr-only"
+                    checked={registrationMode === 'new'}
+                    onChange={() => {
+                      setRegistrationMode('new')
+                      setFetchError(null)
+                    }}
+                  />
+                  New athlete
+                </label>
+                <label
+                  className={`cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium ${registrationMode === 'returning' ? 'border-accent-400 bg-accent-50 text-accent-800' : 'border-slate-300 bg-white text-slate-700'}`}
+                >
+                  <input
+                    type="radio"
+                    name="registration_mode"
+                    className="sr-only"
+                    checked={registrationMode === 'returning'}
+                    onChange={() => setRegistrationMode('returning')}
+                  />
+                  I have an Athlete ID
+                </label>
+              </div>
 
-            {registrationMode === 'returning' && (
-              <div className="mt-4 space-y-3">
-                <Field label="Athlete ID" htmlFor={returningIdField} hint={`Example: ${idExample}`}>
-                  <div className="flex flex-wrap gap-2">
-                    <Input
-                      id={returningIdField}
-                      value={returningId}
-                      autoComplete="off"
-                      placeholder={idExample}
-                      onChange={(event) => setReturningId(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          event.preventDefault()
-                          void handleFetchAthlete()
-                        }
-                      }}
-                    />
-                    <Button onClick={() => void handleFetchAthlete()} disabled={fetching}>
-                      {fetching ? 'Fetching…' : 'Fetch my details'}
-                    </Button>
-                  </div>
-                </Field>
-
-                {fetchError && <Alert tone="danger" title="We couldn't find those details">{fetchError}</Alert>}
-
-                {fetched && (
-                  <Alert tone="success" title="Details found">
-                    These details were fetched from Athlete ID <strong>{fetched.athlete_id}</strong>. Please check them
-                    below — you can edit any field before submitting.
-                    <div className="mt-2">
-                      <Button variant="ghost" size="sm" onClick={resetReturning}>
-                        Use a different athlete
+              {registrationMode === 'returning' && (
+                <div className="mt-4 space-y-3">
+                  <Field label="Athlete ID" htmlFor={returningIdField} hint={`Example: ${idExample}`}>
+                    <div className="flex flex-wrap gap-2">
+                      <Input
+                        id={returningIdField}
+                        value={returningId}
+                        autoComplete="off"
+                        placeholder={idExample}
+                        onChange={(event) => setReturningId(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault()
+                            void handleFetchAthlete()
+                          }
+                        }}
+                      />
+                      <Button onClick={() => void handleFetchAthlete()} disabled={fetching}>
+                        {fetching ? 'Fetching…' : 'Fetch my details'}
                       </Button>
                     </div>
-                  </Alert>
-                )}
-              </div>
-            )}
-          </div>
+                  </Field>
+
+                  {fetchError && <Alert tone="danger" title="We couldn't find those details">{fetchError}</Alert>}
+
+                  {fetched && (
+                    <Alert tone="success" title="Details found">
+                      These details were fetched from Athlete ID <strong>{fetched.athlete_id}</strong>. Please check
+                      them below — you can edit any field before submitting.
+                      <div className="mt-2">
+                        <Button variant="ghost" size="sm" onClick={resetReturning}>
+                          Use a different athlete
+                        </Button>
+                      </div>
+                    </Alert>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <FormSection
             step="1"
