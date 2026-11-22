@@ -75,6 +75,12 @@ export function DashboardPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard label="Total registrations" value={stats.registrations_total} />
             <StatCard label="Paid" value={stats.registrations_paid} tone="success" />
+            <StatCard
+              label="Free entries"
+              value={stats.registrations_free ?? 0}
+              tone="info"
+              hint="Confirmed with no payment required"
+            />
             <StatCard label="Pending payment" value={stats.registrations_pending_payment} tone="warning" />
             <StatCard label="Failed payment" value={stats.registrations_failed_payment} tone="danger" />
             <StatCard label="Refunded" value={stats.registrations_refunded} hint="Registrations with a refund" />
@@ -105,6 +111,7 @@ export function DashboardPage() {
                           <Th>Status</Th>
                           <Th className="text-right">Total</Th>
                           <Th className="text-right">Paid</Th>
+                          <Th className="text-right">Free</Th>
                           <Th className="text-right">Pending</Th>
                           <Th className="text-right">Failed</Th>
                         </tr>
@@ -118,6 +125,7 @@ export function DashboardPage() {
                             </Td>
                             <Td className="text-right tabular-nums">{row.total}</Td>
                             <Td className="text-right tabular-nums text-emerald-700">{row.paid}</Td>
+                            <Td className="text-right tabular-nums text-sky-700">{row.free ?? 0}</Td>
                             <Td className="text-right tabular-nums text-amber-700">{row.pending}</Td>
                             <Td className="text-right tabular-nums text-red-700">{row.failed}</Td>
                           </tr>

@@ -454,7 +454,13 @@ Deno.serve(
           .select('id', { count: 'exact', head: true })
           .eq('championship_id', championship.id)
           .eq('payment_status', 'paid')
-        const [{ count: totalCount }, { count: paidCount }] = await Promise.all([base, paid])
+          .gt('fee_paise', 0)
+        const free = supabase
+          .from('registrations')
+          .select('id', { count: 'exact', head: true })
+          .eq('championship_id', championship.id)
+          .eq('fee_paise', 0)
+        const [{ count: totalCount }, { count: paidCount }, { count: freeCount }] = await Promise.all([base, paid, free])
         rows.push({
           ...championship,
           championship_categories: (championship.championship_categories ?? []).sort(
@@ -468,6 +474,7 @@ Deno.serve(
           ),
           registrations_total: totalCount ?? 0,
           registrations_paid: paidCount ?? 0,
+          registrations_free: freeCount ?? 0,
         })
       }
 

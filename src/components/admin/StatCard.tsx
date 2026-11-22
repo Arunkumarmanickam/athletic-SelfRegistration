@@ -9,13 +9,14 @@ export function StatCard({
   label: string
   value: string | number
   hint?: string
-  tone?: 'neutral' | 'success' | 'warning' | 'danger'
+  tone?: 'neutral' | 'success' | 'warning' | 'danger' | 'info'
 }) {
   const toneClasses: Record<string, string> = {
     neutral: 'text-slate-900',
     success: 'text-emerald-700',
     warning: 'text-amber-700',
     danger: 'text-red-700',
+    info: 'text-sky-700',
   }
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

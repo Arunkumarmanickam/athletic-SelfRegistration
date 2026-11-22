@@ -459,6 +459,9 @@ export function ChampionshipsPage() {
                     <Td className="text-right tabular-nums">
                       <span className="font-medium text-slate-900">{championship.registrations_total}</span>
                       <span className="block text-xs text-emerald-700">{championship.registrations_paid} paid</span>
+                      {(championship.registrations_free ?? 0) > 0 && (
+                        <span className="block text-xs text-sky-700">{championship.registrations_free} free</span>
+                      )}
                     </Td>
                     <Td className="font-mono text-xs text-slate-600">
                       M/W + age category

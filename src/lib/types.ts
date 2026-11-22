@@ -138,6 +138,7 @@ export interface AdminChampionship extends Omit<Championship, 'championship_cate
   championship_events: ChampionshipEvent[]
   registrations_total: number
   registrations_paid: number
+  registrations_free: number
 }
 
 export interface PublicConfig {
@@ -466,6 +467,7 @@ export interface AdminUserRow {
 export interface DashboardStats {
   registrations_total: number
   registrations_paid: number
+  registrations_free: number
   registrations_pending_payment: number
   registrations_failed_payment: number
   registrations_refunded: number
@@ -482,6 +484,7 @@ export interface DashboardStats {
     status: ChampionshipStatus
     total: number
     paid: number
+    free: number
     pending: number
     failed: number
   }[]
