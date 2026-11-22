@@ -28,14 +28,113 @@ import type {
 const paiseToRupees = (paise: number): string => (paise / 100).toString()
 const rupeesToPaise = (rupees: string): number => Math.max(0, Math.round(Number(rupees || '0') * 100))
 
-function toLocalInput(value: string | null | undefined): string {
-  if (!value) return ''
+interface WindowInput {
+  date: string
+  hour: string
+  minute: string
+  meridiem: 'AM' | 'PM' | ''
+}
+
+const EMPTY_WINDOW: WindowInput = { date: '', hour: '', minute: '', meridiem: '' }
+
+/** Splits a stored UTC instant into the admin's local date and 12-hour time. */
+function toWindowInput(value: string | null | undefined): WindowInput {
+  if (!value) return { ...EMPTY_WINDOW }
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
+  if (Number.isNaN(date.getTime())) return { ...EMPTY_WINDOW }
   const pad = (n: number) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(
-    date.getMinutes(),
-  )}`
+  const hours24 = date.getHours()
+  return {
+    date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+    hour: String(hours24 % 12 || 12),
+    minute: pad(date.getMinutes()),
+    meridiem: hours24 >= 12 ? 'PM' : 'AM',
+  }
+}
+
+/**
+ * Builds an absolute instant from the date and 12-hour clock the admin entered.
+ * The offset is applied here, in the browser, so the server never has to guess
+ * which timezone a timezone-naive `datetime-local` string belonged to. That was
+ * the source of the stored time appearing hours in the future.
+ */
+function windowToIso(input: WindowInput): string | null {
+  if (!input.date) return null
+  if (!input.hour || !input.minute || !input.meridiem) return null
+  const [year, month, day] = input.date.split('-').map(Number)
+  let hour = Number(input.hour) % 12
+  if (input.meridiem === 'PM') hour += 12
+  const local = new Date(year, month - 1, day, hour, Number(input.minute), 0, 0)
+  if (Number.isNaN(local.getTime())) return null
+  return local.toISOString()
+}
+
+function windowError(input: WindowInput, label: string): string | null {
+  if (!input.date) return null
+  if (!input.hour || !input.minute || !input.meridiem) return `Please set a time for ${label}.`
+  return null
+}
+
+function WindowField({
+  id,
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  id: string
+  label: string
+  hint: string
+  value: WindowInput
+  onChange: (next: WindowInput) => void
+}) {
+  return (
+    <Field label={label} htmlFor={`${id}-date`} hint={hint}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          id={`${id}-date`}
+          type="date"
+          value={value.date}
+          onChange={(e) => onChange({ ...value, date: e.target.value })}
+          className="w-auto"
+        />
+        <Select
+          value={value.hour}
+          aria-label={`${label} hour`}
+          onChange={(e) => onChange({ ...value, hour: e.target.value })}
+        >
+          <option value="">Hour</option>
+          {Array.from({ length: 12 }, (_, i) => String(i + 1)).map((hour) => (
+            <option key={hour} value={hour}>
+              {hour}
+            </option>
+          ))}
+        </Select>
+        <span className="text-slate-500">:</span>
+        <Select
+          value={value.minute}
+          aria-label={`${label} minute`}
+          onChange={(e) => onChange({ ...value, minute: e.target.value })}
+        >
+          <option value="">Min</option>
+          {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map((minute) => (
+            <option key={minute} value={minute}>
+              {minute}
+            </option>
+          ))}
+        </Select>
+        <Select
+          value={value.meridiem}
+          aria-label={`${label} AM or PM`}
+          onChange={(e) => onChange({ ...value, meridiem: e.target.value as 'AM' | 'PM' })}
+        >
+          <option value="">AM/PM</option>
+          <option value="AM">AM</option>
+          <option value="PM">PM</option>
+        </Select>
+      </div>
+    </Field>
+  )
 }
 
 interface ChampionshipFormState {
@@ -45,8 +144,8 @@ interface ChampionshipFormState {
   location: string
   starts_on: string
   ends_on: string
-  registration_opens_at: string
-  registration_closes_at: string
+  registration_opens: WindowInput
+  registration_closes: WindowInput
   status: string
   currency: string
   base_fee_rupees: string
@@ -98,8 +197,8 @@ const EMPTY_FORM: ChampionshipFormState = {
   location: '',
   starts_on: '',
   ends_on: '',
-  registration_opens_at: '',
-  registration_closes_at: '',
+  registration_opens: { ...EMPTY_WINDOW },
+  registration_closes: { ...EMPTY_WINDOW },
   status: 'draft',
   currency: 'INR',
   base_fee_rupees: '0',
@@ -152,8 +251,8 @@ function formState(championship: AdminChampionship | null): ChampionshipFormStat
     location: championship.location ?? '',
     starts_on: championship.starts_on ?? '',
     ends_on: championship.ends_on ?? '',
-    registration_opens_at: toLocalInput(championship.registration_opens_at),
-    registration_closes_at: toLocalInput(championship.registration_closes_at),
+    registration_opens: toWindowInput(championship.registration_opens_at),
+    registration_closes: toWindowInput(championship.registration_closes_at),
     status: championship.status,
     currency: championship.currency,
     base_fee_rupees: paiseToRupees(championship.base_fee_paise),
@@ -469,6 +568,22 @@ function ChampionshipEditor({
       setFormError('Please choose the nation this championship belongs to.')
       return
     }
+    const openError = windowError(form.registration_opens, 'the registration opening')
+    if (openError) {
+      setFormError(openError)
+      return
+    }
+    const closeError = windowError(form.registration_closes, 'the registration closing')
+    if (closeError) {
+      setFormError(closeError)
+      return
+    }
+    const opensAt = windowToIso(form.registration_opens)
+    const closesAt = windowToIso(form.registration_closes)
+    if (opensAt && closesAt && opensAt >= closesAt) {
+      setFormError('Registration must close after it opens.')
+      return
+    }
     const payload: Record<string, unknown> = {
       name: form.name.trim(),
       slug: form.slug.trim(),
@@ -476,8 +591,8 @@ function ChampionshipEditor({
       location: form.location.trim(),
       starts_on: form.starts_on || '',
       ends_on: form.ends_on || '',
-      registration_opens_at: form.registration_opens_at,
-      registration_closes_at: form.registration_closes_at,
+      registration_opens_at: opensAt,
+      registration_closes_at: closesAt,
       status: form.status,
       currency: form.currency.trim().toUpperCase() || 'INR',
       base_fee_paise: rupeesToPaise(form.base_fee_rupees),
@@ -772,22 +887,30 @@ function ChampionshipEditor({
               <Field label="Ends on" htmlFor="c-end">
                 <Input id="c-end" type="date" value={form.ends_on} onChange={(e) => setField({ ends_on: e.target.value })} />
               </Field>
-              <Field label="Registration opens" htmlFor="c-opens" hint="Local time. Leave blank to open immediately.">
-                <Input
+              <div className="sm:col-span-2">
+                <WindowField
                   id="c-opens"
-                  type="datetime-local"
-                  value={form.registration_opens_at}
-                  onChange={(e) => setField({ registration_opens_at: e.target.value })}
+                  label="Registration opens"
+                  hint="Your local time. Leave the date blank to open immediately; enter a time when you set a date."
+                  value={form.registration_opens}
+                  onChange={(next) => setField({ registration_opens: next })}
                 />
-              </Field>
-              <Field label="Registration closes" htmlFor="c-closes" hint="Local time.">
-                <Input
+              </div>
+              <div className="sm:col-span-2">
+                <WindowField
                   id="c-closes"
-                  type="datetime-local"
-                  value={form.registration_closes_at}
-                  onChange={(e) => setField({ registration_closes_at: e.target.value })}
+                  label="Registration closes"
+                  hint="Your local time. Defaults to 11:59 PM on the date you choose."
+                  value={form.registration_closes}
+                  onChange={(next) =>
+                    setField({
+                      registration_closes: next.date
+                        ? { ...next, hour: '11', minute: '59', meridiem: 'PM' }
+                        : { ...next, hour: '', minute: '', meridiem: '' },
+                    })
+                  }
                 />
-              </Field>
+              </div>
               <Field label="Description" htmlFor="c-desc" className="sm:col-span-2">
                 <Textarea id="c-desc" value={form.description} onChange={(e) => setField({ description: e.target.value })} />
               </Field>

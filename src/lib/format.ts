@@ -24,13 +24,18 @@ export function formatDateTime(value: string | null | undefined): string {
   if (!value) return '—'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
-  return new Intl.DateTimeFormat('en-GB', {
+  // 12-hour clock with an explicit AM/PM, in the browser's local timezone.
+  const day = new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
   }).format(date)
+  const time = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(date)
+  return `${day}, ${time}`
 }
 
 export function formatAge(dob: string | null | undefined, on?: string): string {
