@@ -30,13 +30,13 @@ function slugify(value: string): string {
     .slice(0, 60)
 }
 
-// Fields the registration flow depends on: never let an organiser hide them or
-// make them optional, because age categories, bibs and fees are derived from
-// them.
-const LOCKED_DEFAULT_FIELDS = ['full_name', 'date_of_birth', 'gender', 'events']
-const EDITABLE_DEFAULT_FIELDS = ['email', 'representing']
+// Only identity and age-category fields cannot be hidden or made optional.
+// Everything else follows the organiser's setting, including an explicit
+// `required: false`.
+const LOCKED_DEFAULT_FIELDS = ['full_name', 'date_of_birth']
+const EDITABLE_DEFAULT_FIELDS = ['gender', 'mobile', 'email', 'representing', 'events']
 
-function sanitizeDefaultFields(raw: unknown): Record<string, unknown> {
+function sanitizeDefaultFields(raw: unknown, legacyEmailRequired = false): Record<string, unknown> {
   const result: Record<string, unknown> = {}
   if (!raw || typeof raw !== 'object') return result
   const source = raw as Record<string, unknown>
@@ -47,14 +47,15 @@ function sanitizeDefaultFields(raw: unknown): Record<string, unknown> {
     const clean: Record<string, unknown> = {}
     if (typeof setting.label === 'string') clean.label = setting.label.trim().slice(0, 80)
     const locked = LOCKED_DEFAULT_FIELDS.includes(key)
-    clean.visible = locked ? true : setting.visible !== false
-    // Representing has always been a required field for state/national meets;
-    // only an explicit opt-out should turn that off.
     clean.required = locked
       ? true
-      : key === 'representing'
-        ? setting.required !== false
-        : setting.required === true
+      : key === 'email'
+        ? typeof setting.required === 'boolean'
+          ? setting.required
+          : legacyEmailRequired
+        : setting.required !== false
+    // A required field can never be hidden.
+    clean.visible = locked || clean.required ? true : setting.visible !== false
     result[key] = clean
   }
   return result
@@ -68,7 +69,7 @@ function sanitizeFormConfig(raw: unknown): Record<string, unknown> {
       if (!(key in obj)) continue
       const value = obj[key]
       if (key === 'default_fields') {
-        out.default_fields = sanitizeDefaultFields(value)
+        out.default_fields = sanitizeDefaultFields(value, obj.require_email === true)
       } else if (typeof value === 'boolean') out[key] = value
       else if (key === 'age_calculation_mode' && ['championship_start', 'fixed'].includes(String(value))) {
         out[key] = String(value)

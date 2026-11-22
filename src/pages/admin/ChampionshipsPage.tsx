@@ -168,17 +168,19 @@ const DEFAULT_FIELD_LABELS: Record<DefaultFieldKey, string> = {
   full_name: 'Full name',
   date_of_birth: 'Date of birth',
   gender: 'Gender',
+  mobile: 'Mobile number',
   email: 'Email',
   representing: 'Representing (academy / district / state)',
   events: 'Events',
 }
 
-/** Fields the registration itself cannot work without. */
-const LOCKED_FIELDS: DefaultFieldKey[] = ['full_name', 'date_of_birth', 'gender', 'events']
+/** Identity and age-category fields cannot be hidden or made optional. */
+const ALWAYS_REQUIRED_FIELDS: DefaultFieldKey[] = ['full_name', 'date_of_birth']
 const DEFAULT_FIELD_KEYS: DefaultFieldKey[] = [
   'full_name',
   'date_of_birth',
   'gender',
+  'mobile',
   'email',
   'representing',
   'events',
@@ -217,16 +219,17 @@ function formConfigState(config: FormConfig | undefined): FormConfigState {
   const defaultFields = {} as Record<DefaultFieldKey, DefaultFieldSettingState>
   for (const key of DEFAULT_FIELD_KEYS) {
     const setting = saved[key]
-    const locked = LOCKED_FIELDS.includes(key)
-    // Representing was required before field controls existed; keep that
-    // default so athletes are not asked to fill a field the form marks optional.
+    const locked = ALWAYS_REQUIRED_FIELDS.includes(key)
+    // An explicit `false` from the admin is honoured. Older configs without a
+    // setting keep the historic default: everything except legacy email was
+    // required.
     const required = locked
       ? true
-      : key === 'representing'
-        ? setting?.required !== false
-        : key === 'email' && !setting
-          ? legacyEmailRequired
-          : setting?.required === true
+      : key === 'email'
+        ? setting
+          ? setting.required === true
+          : legacyEmailRequired
+        : setting?.required !== false
     defaultFields[key] = {
       label: setting?.label?.trim() || DEFAULT_FIELD_LABELS[key],
       // A required field must be visible — an older saved config could otherwise
@@ -600,12 +603,13 @@ function ChampionshipEditor({
         default_fields: Object.fromEntries(
           DEFAULT_FIELD_KEYS.map((key) => {
             const setting = config.default_fields[key]
-            const locked = LOCKED_FIELDS.includes(key)
+            const locked = ALWAYS_REQUIRED_FIELDS.includes(key)
             return [
               key,
               {
                 label: setting.label.trim() || DEFAULT_FIELD_LABELS[key],
-                visible: locked ? true : setting.visible,
+                // A required field can never be hidden.
+                visible: locked || setting.required ? true : setting.visible,
                 required: locked ? true : setting.required,
               },
             ]
@@ -1001,14 +1005,15 @@ function ChampionshipEditor({
             <CardHeader>
               <CardTitle>Default registration fields</CardTitle>
               <p className="text-xs text-slate-500">
-                Rename, hide, or make any built-in field optional. Name, date of birth, gender and events are required
-                by the registration itself, so only their labels can be changed.
+                Rename, hide, or make any built-in field optional. An unchecked “Required” removes the * and the
+                validation on the athlete form. Full name and date of birth stay visible and required because age
+                categories and athlete identity depend on them.
               </p>
             </CardHeader>
             <CardContent className="space-y-3">
               {DEFAULT_FIELD_KEYS.map((key) => {
                 const setting = config.default_fields[key]
-                const locked = LOCKED_FIELDS.includes(key)
+                const locked = ALWAYS_REQUIRED_FIELDS.includes(key)
                 const update = (patch: Partial<DefaultFieldSettingState>) =>
                   setConfigField({
                     default_fields: {
@@ -1053,6 +1058,9 @@ function ChampionshipEditor({
                       </div>
                     </div>
                     {locked && <p className="mt-2 text-xs text-slate-400">This field is required by registration.</p>}
+                    {!locked && !setting.required && (
+                      <p className="mt-2 text-xs text-slate-400">Optional — athletes may leave this blank.</p>
+                    )}
                   </div>
                 )
               })}

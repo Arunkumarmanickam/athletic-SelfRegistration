@@ -50,7 +50,9 @@ function sanitizePersonal(raw: Record<string, unknown>): PersonalInput {
     gender: str(raw.gender).toLowerCase(),
     mobile_country_code: countryCode,
     mobile_number: mobile,
-    mobile_e164: normalizeMobile(explicitE164 || `${countryCode}${mobile}`),
+    // A deliberately blank optional mobile must stay blank rather than being
+    // normalised into a country-code-only value.
+    mobile_e164: explicitE164 || (mobile ? normalizeMobile(`${countryCode}${mobile}`) : ''),
     email: str(raw.email),
     state: str(raw.state),
     district: str(raw.district),
@@ -64,6 +66,8 @@ function sanitizePersonal(raw: Record<string, unknown>): PersonalInput {
 interface ValidationOptions {
   requireState?: boolean
   requireEmail?: boolean
+  requireGender?: boolean
+  requireMobile?: boolean
 }
 
 /** Returns an error message, or null when the supplied fields are acceptable. */
@@ -87,10 +91,19 @@ function validatePersonal(
     const ageYears = (Date.now() - dob.getTime()) / (365.25 * 24 * 3600 * 1000)
     if (ageYears < 3 || ageYears > 100) return 'Please check the date of birth.'
   }
-  if (requireAll || has(p.gender)) {
+  if (options.requireGender === false) {
+    if (has(p.gender) && !['male', 'female', 'other'].includes(p.gender)) {
+      return 'Please select a gender.'
+    }
+  } else if (requireAll || has(p.gender)) {
     if (!['male', 'female', 'other'].includes(p.gender)) return 'Please select a gender.'
   }
-  if (requireAll || mobileProvided) {
+  if (options.requireMobile === false) {
+    // An optional mobile is left blank on purpose; only validate it when given.
+    if (mobileProvided && !isE164(p.mobile_e164)) {
+      return 'Please enter a valid mobile number with country code.'
+    }
+  } else if (requireAll || mobileProvided) {
     if (!isE164(p.mobile_e164)) return 'Please enter a valid mobile number with country code.'
   }
   if (options.requireEmail && !has(p.email)) return 'Please enter your email address.'
@@ -114,9 +127,6 @@ Deno.serve(
 
     if (!championshipId || !categoryId) {
       return errorJson(req, 'MISSING_FIELDS', 'Please choose a championship and an age category.', 400)
-    }
-    if (eventIds.length === 0) {
-      return errorJson(req, 'EVENTS_REQUIRED', 'Please select at least one event.', 400)
     }
     if (eventIds.length > 15) {
       return errorJson(req, 'TOO_MANY_EVENTS', 'Please select a maximum of 15 events.', 400)
@@ -146,9 +156,17 @@ Deno.serve(
     const defaultFields = (formConfig.default_fields ?? {}) as Record<string, unknown>
     const representingSetting = (defaultFields.representing ?? {}) as Record<string, unknown>
     const emailSetting = (defaultFields.email ?? {}) as Record<string, unknown>
+    const genderSetting = (defaultFields.gender ?? {}) as Record<string, unknown>
+    const mobileSetting = (defaultFields.mobile ?? {}) as Record<string, unknown>
+    const eventsSetting = (defaultFields.events ?? {}) as Record<string, unknown>
     const validationOptions: ValidationOptions = {
       requireState: representingSetting.visible !== false && representingSetting.required !== false,
       requireEmail: emailSetting.visible !== false && emailSetting.required === true,
+      requireGender: genderSetting.required !== false,
+      requireMobile: mobileSetting.required !== false,
+    }
+    if (eventsSetting.required !== false && eventIds.length === 0) {
+      return errorJson(req, 'EVENTS_REQUIRED', 'Please select at least one event.', 400)
     }
 
     const personalError = validatePersonal(personal, true, validationOptions)

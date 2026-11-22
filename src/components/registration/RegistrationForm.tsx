@@ -42,12 +42,14 @@ const DEFAULT_FIELD_LABELS: Record<DefaultFieldKey, string> = {
   full_name: 'Full name',
   date_of_birth: 'Date of birth',
   gender: 'Gender',
+  mobile: 'Mobile number',
   email: 'Email',
   representing: 'Representing',
   events: 'Events',
 }
 
-const LOCKED_FIELDS: DefaultFieldKey[] = ['full_name', 'date_of_birth', 'gender', 'events']
+/** Identity and age-category fields cannot be hidden or made optional. */
+const ALWAYS_REQUIRED_FIELDS: DefaultFieldKey[] = ['full_name', 'date_of_birth']
 
 interface DefaultFieldSetting {
   label: string
@@ -57,15 +59,14 @@ interface DefaultFieldSetting {
 
 function defaultFieldSetting(config: FormConfig, key: DefaultFieldKey): DefaultFieldSetting {
   const setting = config.default_fields?.[key]
-  const locked = LOCKED_FIELDS.includes(key)
-  const required =
-    locked
-      ? true
-      : key === 'representing'
-        ? setting?.required !== false
-        : key === 'email' && !setting
-          ? config.require_email === true
-          : setting?.required === true
+  const locked = ALWAYS_REQUIRED_FIELDS.includes(key)
+  const required = locked
+    ? true
+    : key === 'email'
+      ? setting
+        ? setting.required === true
+        : config.require_email === true
+      : setting?.required !== false
   return {
     label: setting?.label?.trim() || DEFAULT_FIELD_LABELS[key],
     visible: locked || required ? true : setting?.visible !== false,
@@ -234,6 +235,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
     full_name: defaultFieldSetting(formConfig, 'full_name'),
     date_of_birth: defaultFieldSetting(formConfig, 'date_of_birth'),
     gender: defaultFieldSetting(formConfig, 'gender'),
+    mobile: defaultFieldSetting(formConfig, 'mobile'),
     email: defaultFieldSetting(formConfig, 'email'),
     representing: defaultFieldSetting(formConfig, 'representing'),
     events: defaultFieldSetting(formConfig, 'events'),
@@ -401,11 +403,16 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
   const age = values.date_of_birth ? Number(formatAge(values.date_of_birth, cutoff)) : null
 
   const eligibleCategory = useMemo(() => {
-    if (age === null || !Number.isFinite(age) || !values.gender) return null
+    if (age === null || !Number.isFinite(age)) return null
     return (
       (championship.championship_categories ?? [])
         .filter((category) => category.is_active)
-        .filter((category) => category.gender === 'any' || category.gender === values.gender)
+        // When gender is optional and not supplied, any category matching the
+        // age is eligible (including gender-specific brackets).
+        .filter(
+          (category) =>
+            !values.gender || category.gender === 'any' || category.gender === values.gender,
+        )
         .find((category) => age >= category.min_age && age <= category.max_age) ?? null
     )
   }, [age, values.gender, championship.championship_categories])
@@ -428,7 +435,11 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
     })
   }
 
-  const mobileE164 = toE164(values.mobile_country_code, values.mobile_number)
+  // An optional mobile stays empty on the wire; the API and SQL skip their
+  // mobile checks for it rather than storing a fake number.
+  const mobileE164 = values.mobile_number.trim()
+    ? toE164(values.mobile_country_code, values.mobile_number)
+    : ''
 
   // At a district-level meet the academy/club is optional: an athlete who
   // leaves it blank represents themselves, recorded as "Individual".
@@ -446,7 +457,23 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
     if (fieldSettings.email.required && !values.email.trim()) {
       extra.email = `Please enter your ${fieldSettings.email.label.toLowerCase()}.`
     }
-    if (age !== null && values.gender && !eligibleCategory) {
+    if (fieldSettings.gender.required && !values.gender) {
+      extra.gender = 'Please select a gender.'
+    }
+    if (fieldSettings.mobile.required && !values.mobile_number.trim()) {
+      extra.mobile_number = 'Please enter your mobile number.'
+    }
+    if (
+      fieldSettings.representing.required &&
+      representingMode !== 'academy' &&
+      !representingValue.trim()
+    ) {
+      extra.representing = `Please enter your ${representingLabel.toLowerCase()}.`
+    }
+    if (fieldSettings.events.required && values.event_ids.length === 0) {
+      extra.event_ids = 'Please select at least one event.'
+    }
+    if (age !== null && !eligibleCategory) {
       extra.date_of_birth = 'No age category in this championship matches your date of birth.'
     }
     if (maxEvents !== null && values.event_ids.length > maxEvents) {
@@ -480,7 +507,9 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
         personal: {
           full_name: values.full_name,
           date_of_birth: values.date_of_birth,
-          gender: values.gender,
+          // A blank optional gender is stored as "other" (a valid profile
+          // value) and treated as "no gender restriction" by the API.
+          gender: values.gender || 'other',
           mobile_country_code: values.mobile_country_code,
           mobile_number: values.mobile_number,
           mobile_e164: mobileE164,
@@ -817,19 +846,17 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
                     {age !== null && Number.isFinite(age) ? `${age} years` : '—'}
                   </span>
                 </p>
-                {values.gender && eligibleCategory && (
+                {eligibleCategory && (
                   <p className="mt-1 text-slate-700">
                     Your age category: <span className="font-semibold">{eligibleCategory.name}</span> (
                     {eligibleCategory.min_age}–{eligibleCategory.max_age} years)
                   </p>
                 )}
-                {values.gender && !eligibleCategory && (
+                {!eligibleCategory && (
                   <p className="mt-1 font-medium text-amber-800">
-                    No age category in this championship matches your date of birth and gender. Please check the date of
-                    birth.
+                    No age category in this championship matches your date of birth. Please check the date of birth.
                   </p>
                 )}
-                {!values.gender && <p className="mt-1 text-slate-500">Select your gender to see your age category.</p>}
               </div>
             )}
 
@@ -865,26 +892,33 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
               </Field>
             )}
 
-            <Field label={fieldSettings.gender.label} htmlFor={genderId} required error={errors.gender}>
-              <div id={genderId} role="radiogroup" aria-label="Gender" className="flex flex-wrap gap-6 pt-1">
-                {[
-                  { value: 'male', label: 'Men' },
-                  { value: 'female', label: 'Women' },
-                ].map((option) => (
-                  <label key={option.value} className="flex items-center gap-2 text-sm font-medium text-slate-800">
-                    <input
-                      type="radio"
-                      name="gender"
-                      className="h-4 w-4 border-slate-300 text-brand-700 focus:ring-brand-500"
-                      value={option.value}
-                      checked={values.gender === option.value}
-                      onChange={() => setValues((current) => ({ ...current, gender: option.value }))}
-                    />
-                    {option.label}
-                  </label>
-                ))}
-              </div>
-            </Field>
+            {fieldSettings.gender.visible && (
+              <Field
+                label={fieldSettings.gender.label}
+                htmlFor={genderId}
+                required={fieldSettings.gender.required}
+                error={errors.gender}
+              >
+                <div id={genderId} role="radiogroup" aria-label="Gender" className="flex flex-wrap gap-6 pt-1">
+                  {[
+                    { value: 'male', label: 'Men' },
+                    { value: 'female', label: 'Women' },
+                  ].map((option) => (
+                    <label key={option.value} className="flex items-center gap-2 text-sm font-medium text-slate-800">
+                      <input
+                        type="radio"
+                        name="gender"
+                        className="h-4 w-4 border-slate-300 text-brand-700 focus:ring-brand-500"
+                        value={option.value}
+                        checked={values.gender === option.value}
+                        onChange={() => setValues((current) => ({ ...current, gender: option.value }))}
+                      />
+                      {option.label}
+                    </label>
+                  ))}
+                </div>
+              </Field>
+            )}
 
           </FormSection>
 
@@ -911,6 +945,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
             </FormSection>
           )}
 
+          {fieldSettings.events.visible && (
           <FormSection
             step="2"
             title="Your events"
@@ -919,7 +954,8 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
             <div>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="text-sm font-medium text-slate-800">
-                  {fieldSettings.events.label} <span className="text-red-600">*</span>
+                  {fieldSettings.events.label}{' '}
+                  {fieldSettings.events.required && <span className="text-red-600">*</span>}
                 </span>
                 <span className="text-xs text-slate-500">
                   {values.event_ids.length} selected
@@ -932,7 +968,7 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
                   events={championship.championship_events ?? []}
                   selectedIds={values.event_ids}
                   onToggle={toggleEvent}
-                  gender={values.gender}
+                  gender={values.gender || 'any'}
                   categoryId={eligibleCategory?.id ?? ''}
                   invalid={Boolean(errors.event_ids)}
                   maxSelected={maxEvents}
@@ -945,44 +981,59 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
               )}
             </div>
           </FormSection>
+          )}
 
           <FormSection
             step="3"
             title="Contact details"
             description="We use these only for registration updates and your receipt."
           >
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="Country code" htmlFor={countryId} required error={errors.mobile_country_code}>
-                <Select
-                  id={countryId}
-                  name="mobile_country_code"
-                  value={values.mobile_country_code}
-                  invalid={Boolean(errors.mobile_country_code)}
-                  onChange={(event) => setValues((current) => ({ ...current, mobile_country_code: event.target.value }))}
+            {fieldSettings.mobile.visible && (
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field
+                  label="Country code"
+                  htmlFor={countryId}
+                  required={fieldSettings.mobile.required}
+                  error={errors.mobile_country_code}
                 >
-                  {COUNTRY_CODES.map((option) => (
-                    <option key={option.code} value={option.code}>
-                      {option.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Mobile number" htmlFor={mobileId} required error={errors.mobile_number}>
-                <Input
-                  id={mobileId}
-                  name="mobile_number"
-                  type="tel"
-                  inputMode="numeric"
-                  autoComplete="tel"
-                  value={values.mobile_number}
-                  invalid={Boolean(errors.mobile_number)}
-                  onChange={(event) =>
-                    setValues((current) => ({ ...current, mobile_number: event.target.value.replace(/[^\d]/g, '') }))
-                  }
-                  placeholder="9876543210"
-                />
-              </Field>
-            </div>
+                  <Select
+                    id={countryId}
+                    name="mobile_country_code"
+                    value={values.mobile_country_code}
+                    invalid={Boolean(errors.mobile_country_code)}
+                    onChange={(event) =>
+                      setValues((current) => ({ ...current, mobile_country_code: event.target.value }))
+                    }
+                  >
+                    {COUNTRY_CODES.map((option) => (
+                      <option key={option.code} value={option.code}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field
+                  label={fieldSettings.mobile.label}
+                  htmlFor={mobileId}
+                  required={fieldSettings.mobile.required}
+                  error={errors.mobile_number}
+                >
+                  <Input
+                    id={mobileId}
+                    name="mobile_number"
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    value={values.mobile_number}
+                    invalid={Boolean(errors.mobile_number)}
+                    onChange={(event) =>
+                      setValues((current) => ({ ...current, mobile_number: event.target.value.replace(/[^\d]/g, '') }))
+                    }
+                    placeholder="9876543210"
+                  />
+                </Field>
+              </div>
+            )}
 
             {fieldSettings.email.visible && (
               <Field

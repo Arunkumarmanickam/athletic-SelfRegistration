@@ -264,11 +264,12 @@ Open **Admin → Championships → [championship]** to configure both built-in a
 
 | Field | Rename | Hide | Make optional |
 | --- | --- | --- | --- |
-| Full name, Date of birth, Gender, Events | Yes | No | No |
-| Email | Yes | Yes | Yes |
-| Representing (academy / district / state) | Yes | Yes | Yes |
+| Full name, Date of birth | Yes | No | No |
+| Gender, Mobile number, Email, Representing (academy / district / state), Events | Yes | Yes | Yes |
 
-Name, DOB, gender and events stay locked because age categories, bibs and fees are derived from them. Hiding Email or Representing means the value is not collected; server-side validation is updated to match. Older championships using the legacy `require_email` flag are carried forward automatically.
+An unchecked **Required** removes the `*` and the validation on the athlete form; the public form, the `register` function and `create_registration_draft` all read the same setting, so an admin-saved `required: false` is honoured end to end. Full name and date of birth stay visible and required because age categories and athlete identity depend on them.
+
+When **Gender** is optional and left blank, the athlete is stored as `other` and is not restricted to gender-specific categories/events. When **Mobile number** is optional, a blank number is stored as-is — those athletes cannot be looked up by mobile, and duplicate detection falls back to name + date of birth. When **Events** are optional, an athlete may register without selecting an event. Older championships using the legacy `require_email` flag are carried forward automatically. The migration `20261122000001_configurable_required_fields.sql` updates the draft RPC.
 
 ### Custom registration fields
 

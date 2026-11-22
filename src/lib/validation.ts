@@ -61,18 +61,20 @@ export const registrationFormSchema = z.object({
       const age = (Date.now() - date.getTime()) / (365.25 * 24 * 3600 * 1000)
       return age >= 3 && age <= 110
     }, 'Please check the date of birth'),
+  // Fields an organiser may mark optional are validated for *format* here;
+  // whether they must be filled in is checked against the championship's
+  // form_config in RegistrationForm so an admin's setting is honoured.
   gender: z
     .string()
-    .refine((value) => ['male', 'female'].includes(value), 'Please select Men or Women'),
-  representing: z.string().trim().min(1, 'Please enter your district / state').max(120, 'Too long'),
-  event_ids: z.array(z.string()).min(1, 'Please select at least one event'),
-  mobile_country_code: z.string().min(2, 'Please select a country code'),
+    .refine((value) => value === '' || ['male', 'female'].includes(value), 'Please select Men or Women'),
+  representing: z.string().trim().max(120, 'Too long'),
+  event_ids: z.array(z.string()),
+  mobile_country_code: z.string(),
   mobile_number: z
     .string()
     .trim()
-    .min(6, 'Please enter a valid mobile number')
     .max(15, 'Please enter a valid mobile number')
-    .regex(/^\d+$/, 'Mobile number should contain digits only'),
+    .refine((value) => value === '' || /^\d{6,15}$/.test(value), 'Please enter a valid mobile number'),
   email: z
     .union([z.literal(''), z.string().trim().email('Please enter a valid email address')])
     .optional()

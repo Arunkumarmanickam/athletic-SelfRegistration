@@ -65,6 +65,7 @@ export type DefaultFieldKey =
   | 'full_name'
   | 'date_of_birth'
   | 'gender'
+  | 'mobile'
   | 'email'
   | 'representing'
   | 'events'
@@ -78,9 +79,10 @@ export interface DefaultFieldSetting {
 
 export interface FormConfig {
   /**
-   * Per-field overrides for the built-in registration fields. Fields that the
-   * registration itself depends on (name, date of birth, gender, events) are
-   * always forced visible and required by the server.
+   * Per-field overrides for the built-in registration fields. Every field can
+   * be relabelled; gender, mobile, email, representing and events can also be
+   * hidden or made optional. Full name and date of birth stay visible and
+   * required because categories and athlete identity depend on them.
    */
   default_fields?: Partial<Record<DefaultFieldKey, DefaultFieldSetting>>
   /** @deprecated Kept for old championships; use `default_fields` instead. */

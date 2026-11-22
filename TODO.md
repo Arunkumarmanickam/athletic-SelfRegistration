@@ -112,6 +112,40 @@ supabase functions deploy public-config
 > ⚠️ **Live payments will not work until approval is complete and production
 > credentials are configured.** Do not accept real money before that.
 
+### 1g. Admin-initiated refunds (not built)
+
+The admin can only **record** a refund today, not initiate one. **Admin →
+Payments → Mark refunded** requires a reason, works only on a captured
+payment, and updates `payments.status`, `registrations.payment_status` and
+the audit log. It explicitly tells the admin to issue the refund in the
+PhonePe dashboard first. The webhook (`pg.refund.completed`) already syncs
+refunds issued outside the site; `pg.refund.failed` is ignored.
+
+**Blocker:** `POST /apis/pg/payments/v2/refund` returned
+`AUTHORIZATION_FAILED` for this merchant (see 1f step 6). Do not build a
+refund button until PhonePe confirms refunds are enabled for the account,
+otherwise it will just fail at the gateway. If PhonePe says dashboard-only,
+keep the manual recording flow and optionally add a refund-reference field.
+
+**Plan once authorized:**
+1. New Edge Function `admin-refund`: `requireAdmin`, reject viewers, require
+   a payment id + written reason, load the captured payment, call the PhonePe
+   refund API using the existing OAuth helper in `_shared/phonepe.ts`, write
+   an audit log. Use a stable `merchantRefundId` as an idempotency key so a
+   double click cannot refund twice.
+2. Small migration to store the PhonePe refund id, amount and initiated time
+   (or a `refund_attempts` table). The `refunded` status enum already exists.
+3. Extend `payment-webhook` to reconcile `pg.refund.completed` /
+   `pg.refund.failed` against the initiated refund so a failed gateway refund
+   is not left marked as refunded.
+4. UI: "Initiate refund" on Admin → Payments (captured payments only, with
+   amount, reason and confirmation). Keep "Mark refunded" as manual fallback.
+5. Deploy: `supabase db push`, `supabase functions deploy admin-refund`,
+   `supabase functions deploy payment-webhook`. Frontend auto-deploys.
+6. Test: sandbox first; otherwise one tiny live refund with explicit
+   approval — verify payment status, registration status, audit entry and
+   that the webhook does not overwrite it.
+
 ---
 
 ## 🟡 3. Email confirmations (optional)
