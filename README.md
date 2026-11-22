@@ -277,6 +277,8 @@ In the **Age categories** card, tick **Free entry — waive base, category and e
 
 The public form shows **Free entry · ₹0** instead of a fee breakdown, and those registrations are confirmed immediately without visiting PhonePe (the gateway rejects amounts below ₹1). The receipt says “Free entry — no payment is required.” The checkbox is stored on `championship_categories.is_free` (and `default_categories.is_free` for new championships) by migration `20261122000002_free_entry_categories.sql`.
 
+Enabling free entry requires all three of: the migration, a redeploy of `admin-championships` (so the checkbox is saved and returned), a redeploy of `public-config` (so the athlete form can show the ₹0 label), and a redeploy of `register` (so zero-fee drafts are promoted immediately). See [Deployment](#deployment).
+
 ### Custom registration fields
 
 **Custom registration fields** card adds extra questions to a championship's form:
@@ -355,7 +357,7 @@ supabase functions deploy fetch-athlete-basics
 supabase functions deploy
 ```
 
-`admin-championships` must be redeployed after changing field configuration logic, `register` after changing validation, and `fetch-athlete-basics` is a new function that must be deployed once before the returning-athlete lookup works. The frontend (which includes the Settings and Championships UI) deploys automatically from `main` on Vercel.
+`admin-championships` must be redeployed after changing field configuration logic, `register` after changing validation, and `public-config` after changing which columns the athlete form reads. `fetch-athlete-basics` is a new function that must be deployed once before the returning-athlete lookup works. For free-entry categories, deploy the migration first, then `admin-championships`, `public-config` and `register`; a zero-fee draft is promoted by `register` without a PhonePe order. The frontend (which includes the Settings and Championships UI) deploys automatically from `main` on Vercel.
 
 - Secrets take effect immediately and do not require a function redeploy.
 - `VITE_*` values are baked in at build time. After changing one in Vercel, trigger a new deployment.
