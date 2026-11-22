@@ -530,6 +530,12 @@ export function RegistrationForm({ championship }: RegistrationFormProps) {
           localStorage.setItem('cdmaa:lastMobile', mobileE164)
         }
       } catch {}
+      if (response.free_entry && response.confirmation) {
+        saveConfirmation(response.confirmation)
+        toast.success('Free entry confirmed', 'Your registration is confirmed. No payment is required.')
+        navigate('/registration/success')
+        return
+      }
       setDraftToken(response.draft_token)
       setResult(response)
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })

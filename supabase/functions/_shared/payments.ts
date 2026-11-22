@@ -288,6 +288,7 @@ export async function notifyConfirmedRegistration(
       amountPaise: Number(reg.fee_paise ?? 0),
       currency: String(reg.currency ?? 'INR'),
       paymentId,
+      freeEntry: Number(reg.fee_paise ?? 0) === 0,
     })
     if (!result.sent) console.log('confirmation email not sent:', result.reason)
   } catch (error) {

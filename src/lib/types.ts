@@ -15,6 +15,8 @@ export interface ChampionshipCategory {
   min_age: number
   max_age: number
   fee_paise: number
+  /** When true, base/category/event fees are waived for this age category. */
+  is_free: boolean
   is_active: boolean
   sort_order: number
 }
@@ -292,6 +294,10 @@ export interface RegisterResponse {
   prefill?: { name?: string; email?: string; contact?: string }
   /** Bearer token for the pre-payment steps (payment order). */
   draft_token: string | null
+  /** Set when a free-entry category was promoted without any payment step. */
+  free_entry?: boolean
+  /** Ready-made receipt for free entries. */
+  confirmation?: Confirmation
   message?: string
 }
 

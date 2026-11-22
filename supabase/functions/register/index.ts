@@ -23,6 +23,7 @@ import {
 import { normalizeMobile } from '../_shared/athlete-lookup.ts'
 import { newDraftToken } from '../_shared/draft.ts'
 import { phonepeConfigured } from '../_shared/phonepe.ts'
+import { loadConfirmation, notifyConfirmedRegistration } from '../_shared/payments.ts'
 
 interface PersonalInput {
   full_name: string
@@ -257,6 +258,37 @@ Deno.serve(
       fee_paise: feePaise,
       currency,
       expires_at: (result.expires_at as string | null) ?? null,
+    }
+
+    // Free-entry categories are confirmed immediately. PhonePe rejects orders
+    // below ₹1, so there is no payment step for these athletes.
+    if (feePaise === 0) {
+      const { data: promoted, error: promoteError } = await supabase.rpc('promote_draft', {
+        p_draft_id: draftId,
+      })
+      if (promoteError || (promoted as Record<string, unknown> | null)?.ok !== true) {
+        console.error('free-entry promotion failed', promoteError ?? promoted)
+        return errorJson(
+          req,
+          'CONFIRMATION_FAILED',
+          'Your details were saved but we could not confirm the free entry. Please try again or contact the organiser.',
+          500,
+        )
+      }
+      const promotedResult = promoted as Record<string, unknown>
+      const registrationId = String(promotedResult.registration_id)
+      const confirmation = await loadConfirmation(supabase, registrationId)
+      await notifyConfirmedRegistration(supabase, registrationId, null)
+      return json(req, {
+        ok: true,
+        free_entry: true,
+        confirmation,
+        draft: draftPayload,
+        payment: { configured: false },
+        draft_token: draftTokenPair.token,
+        application_number: applicationNumber,
+        message: 'Free entry confirmed — no payment is required.',
+      })
     }
 
     // Prefill the checkout with what the athlete just typed, so the gateway

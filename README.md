@@ -271,6 +271,12 @@ An unchecked **Required** removes the `*` and the validation on the athlete form
 
 When **Gender** is optional and left blank, the athlete is stored as `other` and is not restricted to gender-specific categories/events. When **Mobile number** is optional, a blank number is stored as-is — those athletes cannot be looked up by mobile, and duplicate detection falls back to name + date of birth. When **Events** are optional, an athlete may register without selecting an event. Older championships using the legacy `require_email` flag are carried forward automatically. The migration `20261122000001_configurable_required_fields.sql` updates the draft RPC.
 
+### Free entry by age category
+
+In the **Age categories** card, tick **Free entry — waive base, category and event fees** on any category (for example the 80+ bracket). This waives the **entire** payable amount — base fee, category fee and all selected event fees — for athletes in that category. It applies to men and women alike; make separate male/female categories free if only one gender should get the concession.
+
+The public form shows **Free entry · ₹0** instead of a fee breakdown, and those registrations are confirmed immediately without visiting PhonePe (the gateway rejects amounts below ₹1). The receipt says “Free entry — no payment is required.” The checkbox is stored on `championship_categories.is_free` (and `default_categories.is_free` for new championships) by migration `20261122000002_free_entry_categories.sql`.
+
 ### Custom registration fields
 
 **Custom registration fields** card adds extra questions to a championship's form:

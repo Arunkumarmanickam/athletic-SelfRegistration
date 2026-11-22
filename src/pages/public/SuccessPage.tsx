@@ -23,6 +23,7 @@ import { loadConfirmation } from '@/lib/receipt'
 export function SuccessPage() {
   const { config } = useConfig()
   const confirmation = useMemo(() => loadConfirmation(), [])
+  const isFreeEntry = (confirmation?.registration.fee_paise ?? 0) === 0
 
   if (!confirmation) {
     return (
@@ -55,8 +56,12 @@ export function SuccessPage() {
     <div className="mx-auto w-full max-w-3xl px-4 py-8 print:max-w-none print:px-0 print:py-0">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3 print-hide">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent-600">Payment received</p>
-          <h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-brand-900 sm:text-3xl">Your receipt</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent-600">
+            {isFreeEntry ? 'Free entry confirmed' : 'Payment received'}
+          </p>
+          <h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-brand-900 sm:text-3xl">
+            {isFreeEntry ? 'Your confirmation' : 'Your receipt'}
+          </h1>
         </div>
         <ReceiptDownloadButton
           confirmation={confirmation}

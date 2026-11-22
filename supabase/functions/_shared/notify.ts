@@ -18,6 +18,7 @@ export async function sendConfirmationEmail(input: {
   amountPaise: number
   currency: string
   paymentId: string | null
+  freeEntry?: boolean
 }): Promise<EmailResult> {
   const apiKey = Deno.env.get('RESEND_API_KEY')
   const from = Deno.env.get('NOTIFICATION_FROM_EMAIL')
@@ -28,12 +29,14 @@ export async function sendConfirmationEmail(input: {
     <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:auto">
       <h2 style="color:#0f172a">Registration confirmed</h2>
       <p>Hello ${escapeHtml(input.athleteName)},</p>
-      <p>Your registration for <strong>${escapeHtml(input.championshipName)}</strong> is confirmed and payment has been verified.</p>
+      <p>Your registration for <strong>${escapeHtml(input.championshipName)}</strong> is confirmed${
+        input.freeEntry ? ' with free entry' : ' and payment has been verified'
+      }.</p>
       <table style="border-collapse:collapse;width:100%">
         <tr><td style="padding:6px 0;color:#475569">Athlete ID</td><td style="padding:6px 0"><strong>${escapeHtml(input.athleteId)}</strong></td></tr>
         <tr><td style="padding:6px 0;color:#475569">Bib number / Registration ID</td><td style="padding:6px 0"><strong>${escapeHtml(input.registrationCode)}</strong></td></tr>
         <tr><td style="padding:6px 0;color:#475569">Events</td><td style="padding:6px 0">${escapeHtml(input.events.join(', '))}</td></tr>
-        <tr><td style="padding:6px 0;color:#475569">Amount paid</td><td style="padding:6px 0">${escapeHtml(amount)}</td></tr>
+        <tr><td style="padding:6px 0;color:#475569">${input.freeEntry ? 'Entry fee' : 'Amount paid'}</td><td style="padding:6px 0">${escapeHtml(amount)}</td></tr>
         <tr><td style="padding:6px 0;color:#475569">Payment reference</td><td style="padding:6px 0">${escapeHtml(input.paymentId ?? '—')}</td></tr>
       </table>
       <p style="color:#64748b;font-size:13px">Please keep this email for your records. You can retrieve your registration at any time using your Athlete ID.</p>

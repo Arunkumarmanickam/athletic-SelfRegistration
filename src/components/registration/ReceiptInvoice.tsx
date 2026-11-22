@@ -48,7 +48,11 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
       }))
     : [
         {
-          label: events.length ? `Event entries — ${events.map((event) => event.event_name).join(', ')}` : 'Registration fee',
+          label: events.length
+            ? `Event entries — ${events.map((event) => event.event_name).join(', ')}`
+            : registration.fee_paise === 0
+              ? 'Free entry'
+              : 'Registration fee',
           note: events.length ? `${events.length} event${events.length === 1 ? '' : 's'}` : 'Championship entry',
           amount: registration.fee_paise,
         },
@@ -205,7 +209,11 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
               />
             </dl>
           ) : (
-            <p className="text-sm text-slate-600">No payment record is attached to this registration.</p>
+            <p className="text-sm text-slate-600">
+              {registration.fee_paise === 0
+                ? 'Free entry — no payment is required.'
+                : 'No payment record is attached to this registration.'}
+            </p>
           )}
 
           {payments.length > 1 && (

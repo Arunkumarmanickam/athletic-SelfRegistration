@@ -14,6 +14,26 @@ export interface FeeSummaryProps {
  * always calculated again on the server from the same configuration.
  */
 export function FeeSummary({ championship, category, events = [], className }: FeeSummaryProps) {
+  if (category?.is_free) {
+    return (
+      <div className={className}>
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-emerald-900">Free entry</p>
+              <p className="mt-0.5 text-xs text-emerald-700">
+                Age category {category.name} — no payment is required.
+              </p>
+            </div>
+            <span className="shrink-0 text-lg font-bold text-emerald-900">
+              {formatMoney(0, championship.currency)}
+            </span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const categoryFee = category?.fee_paise ?? 0
   const eventFee = events.reduce((total, event) => total + (event.fee_paise ?? 0), 0)
   const total = (championship.base_fee_paise ?? 0) + categoryFee + eventFee
