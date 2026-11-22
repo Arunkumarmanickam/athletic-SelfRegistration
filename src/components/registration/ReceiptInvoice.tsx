@@ -37,6 +37,7 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
 
   const capturedPayment = payments.find((payment) => payment.status === 'captured') ?? payments[0] ?? null
   const paid = registration.payment_status === 'paid' || capturedPayment?.status === 'captured'
+  const isFreeEntry = registration.fee_paise === 0
 
   const eventFeeTotal = events.reduce((sum, event) => sum + (event.fee_paise ?? 0), 0)
   const itemised = eventFeeTotal > 0
@@ -90,7 +91,7 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
 
           <div className="min-w-0 text-left sm:max-w-[52%] sm:text-right">
             <p className="text-[9px] font-semibold uppercase leading-tight tracking-[0.12em] break-words text-accent-600">
-              Payment receipt / invoice
+              {isFreeEntry ? 'Free entry confirmation' : 'Payment receipt / invoice'}
             </p>
             <p className="mt-1.5 font-mono text-xl font-bold tracking-tight break-all text-slate-900">
               {registration.registration_code}
@@ -98,7 +99,7 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
             <p className="mt-1 text-xs break-words text-slate-500">Issued {formatDateTime(issuedAt)}</p>
             <div className="mt-2 flex flex-wrap gap-1.5 sm:justify-end">
               <span className="rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide whitespace-nowrap text-emerald-700">
-                {paid ? 'Paid' : titleCase(registration.payment_status)}
+                {isFreeEntry ? 'Free entry' : paid ? 'Paid' : titleCase(registration.payment_status)}
               </span>
               <span className="rounded border border-slate-300 bg-slate-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide whitespace-nowrap text-slate-600">
                 {titleCase(registration.status)}
@@ -178,7 +179,7 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
                 <span className="tabular-nums">{formatMoney(0, currency)}</span>
               </div>
               <div className="mt-1 flex justify-between rounded-md bg-brand-900 px-3 py-2 text-sm font-bold text-white">
-                <span>Total {paid ? 'paid' : 'due'}</span>
+                <span>{isFreeEntry ? 'Total payable' : `Total ${paid ? 'paid' : 'due'}`}</span>
                 <span className="tabular-nums">{formatMoney(registration.fee_paise, currency)}</span>
               </div>
             </div>
@@ -190,7 +191,9 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
 
         {/* Payment record */}
         <section className="mt-4 rounded-lg border border-slate-200 p-3">
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Payment record</p>
+          <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+            {isFreeEntry ? 'Entry record' : 'Payment record'}
+          </p>
           {capturedPayment ? (
             <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
               <Detail label="Amount" value={formatMoney(capturedPayment.amount_paise, capturedPayment.currency)} />
