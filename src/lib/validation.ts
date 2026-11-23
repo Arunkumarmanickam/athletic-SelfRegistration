@@ -59,7 +59,7 @@ export const registrationFormSchema = z.object({
       const date = new Date(`${value}T00:00:00Z`)
       if (Number.isNaN(date.getTime())) return false
       const age = (Date.now() - date.getTime()) / (365.25 * 24 * 3600 * 1000)
-      return age >= 3 && age <= 110
+      return age >= 3 && age <= 120
     }, 'Please check the date of birth'),
   // Fields an organiser may mark optional are validated for *format* here;
   // whether they must be filled in is checked against the championship's

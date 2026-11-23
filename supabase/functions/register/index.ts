@@ -90,7 +90,7 @@ function validatePersonal(
     if (!isDateOnly(p.date_of_birth)) return 'Please enter a valid date of birth.'
     const dob = new Date(`${p.date_of_birth}T00:00:00Z`)
     const ageYears = (Date.now() - dob.getTime()) / (365.25 * 24 * 3600 * 1000)
-    if (ageYears < 3 || ageYears > 100) return 'Please check the date of birth.'
+    if (ageYears < 3 || ageYears > 120) return 'Please check the date of birth.'
   }
   if (options.requireGender === false) {
     if (has(p.gender) && !['male', 'female', 'other'].includes(p.gender)) {
