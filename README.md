@@ -343,6 +343,10 @@ Migrations are applied in filename order. Recent ones relevant to the current ch
 - `20261101000003_site_organizer_name.sql` — configurable organiser name in `app_settings` (`site` key).
 - `20261102000001_site_authority_name.sql` — configurable receipt authority name in `app_settings` (`site` key), backfilled with `Coimbatore District Masters Athletic Association`.
 - `20261103000001_championship_registration_fields.sql` — per-championship custom registration fields table.
+- `20261122000001_configurable_required_fields.sql` — configurable required default registration fields.
+- `20261122000002_free_entry_categories.sql` — per-category free entry (`is_free`) and zero-fee draft promotion.
+- `20261122000003_dashboard_free_entries.sql` — dashboard/admin free-entry counts.
+- `20261123000001_category_waive_base_fee.sql` — per-category base-fee waiver (`waive_base_fee`).
 
 The `state-meet-2026` programme migration is data-only for that championship. It does not alter the standard defaults or other championships. Default/custom field settings and the returning-athlete lookup require no migration — field settings live in `form_config`, and the lookup is a read-only Edge Function over the existing `athlete_profiles` table.
 
@@ -367,7 +371,7 @@ supabase functions deploy fetch-athlete-basics
 supabase functions deploy
 ```
 
-`admin-championships` must be redeployed after changing field configuration logic, `register` after changing validation, and `public-config` after changing which columns the athlete form reads. `fetch-athlete-basics` is a new function that must be deployed once before the returning-athlete lookup works. For free-entry categories, deploy the migration first, then `admin-championships`, `public-config` and `register`; a zero-fee draft is promoted by `register` without a PhonePe order. The frontend (which includes the Settings and Championships UI) deploys automatically from `main` on Vercel.
+`admin-championships` must be redeployed after changing field configuration logic, `register` after changing validation, and `public-config` after changing which columns the athlete form reads. `fetch-athlete-basics` is a new function that must be deployed once before the returning-athlete lookup works. For free-entry/base-fee waiver categories, deploy migrations first, then redeploy `admin-championships`, `public-config`, and `register`; also redeploy confirmation-loading functions (`retrieve-profile`, `lookup-application-status`, `admin-athletes`) if receipt/category fee fields changed. A zero-fee draft is promoted by `register` without a PhonePe order. The frontend (which includes the Settings and Championships UI) deploys automatically from `main` on Vercel.
 
 - Secrets take effect immediately and do not require a function redeploy.
 - `VITE_*` values are baked in at build time. After changing one in Vercel, trigger a new deployment.
