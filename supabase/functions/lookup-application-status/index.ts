@@ -20,7 +20,7 @@ Deno.serve(
     const { data: reg } = await supabase
       .from('registrations')
       .select(
-        'id, registration_code, bib_number, status, payment_status, fee_paise, currency, registered_at, confirmed_at, championships (id, name, slug, starts_on, ends_on, location), championship_categories (name), athlete_profiles (athlete_id, full_name, email, mobile_e164, state, district), registration_events (event_name, fee_paise)',
+        'id, registration_code, bib_number, status, payment_status, fee_paise, currency, registered_at, confirmed_at, championships (id, name, slug, starts_on, ends_on, location), championship_categories (name, fee_paise), athlete_profiles (athlete_id, full_name, email, mobile_e164, state, district), registration_events (event_name, fee_paise)',
       )
       .eq('form_snapshot->>mobile_e164', mobile)
       .or(`registration_code.eq.${applicationNumber.replace(/[^A-Za-z0-9]/g, '')},bib_number.eq.${applicationNumber.replace(/[^A-Za-z0-9]/g, '')}`)

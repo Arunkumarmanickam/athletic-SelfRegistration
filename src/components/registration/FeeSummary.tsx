@@ -34,9 +34,10 @@ export function FeeSummary({ championship, category, events = [], className }: F
     )
   }
 
+  const baseFee = category?.waive_base_fee ? 0 : (championship.base_fee_paise ?? 0)
   const categoryFee = category?.fee_paise ?? 0
   const eventFee = events.reduce((total, event) => total + (event.fee_paise ?? 0), 0)
-  const total = (championship.base_fee_paise ?? 0) + categoryFee + eventFee
+  const total = baseFee + categoryFee + eventFee
 
   // Only show a line when it actually contributes something, so a ₹0 category
   // or an empty event list does not clutter the breakdown.
@@ -47,8 +48,11 @@ export function FeeSummary({ championship, category, events = [], className }: F
     <div className={className}>
       <dl className="space-y-2 text-sm">
         <div className="flex items-start justify-between gap-4">
-          <dt className="text-slate-600">Championship base fee</dt>
-          <dd className="font-medium text-slate-900">{formatMoney(championship.base_fee_paise, championship.currency)}</dd>
+          <dt className="text-slate-600">
+            Championship base fee
+            {category?.waive_base_fee && <span className="ml-1 text-xs text-sky-700">(waived for {category.name})</span>}
+          </dt>
+          <dd className="font-medium text-slate-900">{formatMoney(baseFee, championship.currency)}</dd>
         </div>
         {showCategory && (
           <div className="flex items-start justify-between gap-4">

@@ -39,29 +39,42 @@ export function ReceiptInvoice({ confirmation, site }: ReceiptInvoiceProps) {
   const paid = registration.payment_status === 'paid' || capturedPayment?.status === 'captured'
   const isFreeEntry = registration.fee_paise === 0
 
+  const lines: { label: string; note: string; amount: number }[] = []
   const eventFeeTotal = events.reduce((sum, event) => sum + (event.fee_paise ?? 0), 0)
-  const itemised = eventFeeTotal > 0
-  const lines = itemised
-    ? events.map((event) => ({
-        label: event.event_name,
-        note: 'Event entry',
-        amount: event.fee_paise ?? 0,
-      }))
-    : [
-        {
-          label: events.length
-            ? `Event entries — ${events.map((event) => event.event_name).join(', ')}`
-            : registration.fee_paise === 0
-              ? 'Free entry'
-              : 'Registration fee',
-          note: events.length ? `${events.length} event${events.length === 1 ? '' : 's'}` : 'Championship entry',
-          amount: registration.fee_paise,
-        },
-      ]
-  const lineTotal = lines.reduce((sum, line) => sum + line.amount, 0)
-  const adjustment = registration.fee_paise - lineTotal
-  if (adjustment !== 0) {
-    lines.push({ label: 'Other charges / adjustment', note: '', amount: adjustment })
+
+  if (isFreeEntry) {
+    lines.push({ label: 'Free entry', note: `Age category ${category?.name ?? '—'}`, amount: 0 })
+  } else {
+    const categoryFeePaise = (category as { name: string; fee_paise?: number } | null)?.fee_paise ?? 0
+    const baseFee = Math.max(0, registration.fee_paise - categoryFeePaise - eventFeeTotal)
+    if (baseFee > 0) {
+      lines.push({ label: 'Championship base fee', note: 'Base registration fee', amount: baseFee })
+    }
+    if (categoryFeePaise > 0) {
+      lines.push({ label: `Category fee — ${category?.name ?? 'Category'}`, note: 'Age category fee', amount: categoryFeePaise })
+    }
+    if (events.length > 0) {
+      if (eventFeeTotal > 0) {
+        events.forEach((event) => {
+          lines.push({ label: event.event_name, note: 'Event entry', amount: event.fee_paise ?? 0 })
+        })
+      } else {
+        lines.push({
+          label: `Event entries — ${events.map((event) => event.event_name).join(', ')}`,
+          note: `${events.length} event${events.length === 1 ? '' : 's'}`,
+          amount: 0,
+        })
+      }
+    }
+
+    const lineTotal = lines.reduce((sum, line) => sum + line.amount, 0)
+    const adjustment = registration.fee_paise - lineTotal
+    if (adjustment !== 0) {
+      lines.push({ label: adjustment < 0 ? 'Base fee waived' : 'Other charges / adjustment', note: '', amount: adjustment })
+    }
+    if (lines.length === 0) {
+      lines.push({ label: 'Registration fee', note: 'Championship entry', amount: registration.fee_paise })
+    }
   }
   const currency = registration.currency || 'INR'
   const issuedAt = registration.confirmed_at ?? capturedPayment?.verified_at ?? registration.registered_at

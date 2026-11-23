@@ -271,15 +271,20 @@ An unchecked **Required** removes the `*` and the validation on the athlete form
 
 When **Gender** is optional and left blank, the athlete is stored as `other` and is not restricted to gender-specific categories/events. When **Mobile number** is optional, a blank number is stored as-is — those athletes cannot be looked up by mobile, and duplicate detection falls back to name + date of birth. When **Events** are optional, an athlete may register without selecting an event. Older championships using the legacy `require_email` flag are carried forward automatically. The migration `20261122000001_configurable_required_fields.sql` updates the draft RPC.
 
-### Free entry by age category
+### Free entry / base-fee waiver by age category
 
-In the **Age categories** card, tick **Free entry — waive base, category and event fees** on any category (for example the 80+ bracket). This waives the **entire** payable amount — base fee, category fee and all selected event fees — for athletes in that category. It applies to men and women alike; make separate male/female categories free if only one gender should get the concession.
+In the **Age categories** card, each category has two fee controls:
 
-The public form shows **Free entry · ₹0** instead of a fee breakdown, and those registrations are confirmed immediately without visiting PhonePe (the gateway rejects amounts below ₹1). The receipt says “Free entry — no payment is required.” The checkbox is stored on `championship_categories.is_free` (and `default_categories.is_free` for new championships) by migration `20261122000002_free_entry_categories.sql`.
+- **Free entry — waive base, category and event fees**: total becomes ₹0. Registration is confirmed immediately with no PhonePe payment (gateway rejects amounts below ₹1). Applies to that category (make separate male/female categories if only one gender should get it).
+- **Waive championship base fee for this category**: waives only the championship base fee for that category; **category fee and event fees still apply**. Useful for cases like “100+ pays only ₹300 category fee”.
+
+Only one waiver mode should be used at a time; if **Free entry** is checked, base-fee waiver is disabled.
+
+The public form/receipt show the waived base fee accordingly. Stored on `championship_categories.is_free`, `championship_categories.waive_base_fee` (and defaults) by migrations `20261122000002_free_entry_categories.sql` and `20261123000001_category_waive_base_fee.sql`.
 
 The admin **Dashboard** includes a **Free entries** stat card and a **Free** column in the “By championship” table. The **Championships** list shows `X free` per championship when present. Free registrations are counted as `fee_paise = 0`; paid registrations are counted as `payment_status = 'paid' AND fee_paise > 0`. Migration `20261122000003_dashboard_free_entries.sql` updates `get_dashboard_stats()`.
 
-Enabling free entry requires the migrations, plus redeploy of `admin-championships` (checkbox save/return, championship counts), `public-config` (athlete form ₹0 label), and `register` (instant confirmation). For dashboard counts, also apply `20261122000003_dashboard_free_entries.sql`. See [Deployment](#deployment).
+Deploy order for these fee-waiver changes: apply migrations, then redeploy `admin-championships`, `public-config`, and `register` (and any confirmation-loading functions if needed). See [Deployment](#deployment).
 
 ### Custom registration fields
 

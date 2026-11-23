@@ -288,6 +288,7 @@ interface DraftCategory {
   max_age: string
   fee_rupees: string
   is_free: boolean
+  waive_base_fee: boolean
   is_active: boolean
   included: boolean
   isDefault: boolean
@@ -315,6 +316,7 @@ function draftCategoriesFromDefaults(categories: DefaultCategory[]): DraftCatego
     max_age: String(category.max_age),
     fee_rupees: paiseToRupees(category.fee_paise),
     is_free: category.is_free,
+    waive_base_fee: category.waive_base_fee === true,
     is_active: category.is_active,
     included: true,
     isDefault: true,
@@ -645,6 +647,7 @@ function ChampionshipEditor({
           max_age: Number(category.max_age || 0),
           fee_paise: rupeesToPaise(category.fee_rupees),
           is_free: category.is_free,
+          waive_base_fee: category.is_free ? false : category.waive_base_fee,
           is_active: category.is_active,
           sort_order: index + 1,
         }))
@@ -1298,6 +1301,7 @@ const EMPTY_CATEGORY = {
   max_age: '',
   fee_rupees: '0',
   is_free: false,
+  waive_base_fee: false,
   is_active: true,
 }
 
@@ -1317,6 +1321,7 @@ function CategoriesEditor({ championship, onChanged }: { championship: AdminCham
       max_age: String(category.max_age),
       fee_rupees: paiseToRupees(category.fee_paise),
       is_free: category.is_free,
+      waive_base_fee: category.waive_base_fee === true,
       is_active: category.is_active,
     })
   }
@@ -1339,6 +1344,7 @@ function CategoriesEditor({ championship, onChanged }: { championship: AdminCham
       max_age: Number(draft.max_age),
       fee_paise: rupeesToPaise(draft.fee_rupees),
       is_free: draft.is_free,
+      waive_base_fee: draft.is_free ? false : draft.waive_base_fee,
       is_active: draft.is_active,
     }
     setBusy(true)
@@ -1382,11 +1388,18 @@ function CategoriesEditor({ championship, onChanged }: { championship: AdminCham
                   <p className="truncate font-medium text-slate-800">
                     {category.name}
                     {category.is_free && <span className="ml-2 text-xs font-medium text-emerald-700">(free entry)</span>}
+                    {!category.is_free && category.waive_base_fee && (
+                      <span className="ml-2 text-xs font-medium text-sky-700">(base fee waived)</span>
+                    )}
                     {!category.is_active && <span className="ml-2 text-xs text-slate-400">(inactive)</span>}
                   </p>
                   <p className="text-xs text-slate-500">
                     {genderLabel(category.gender)} · {category.min_age}–{category.max_age} yrs ·{' '}
-                    {category.is_free ? 'No payment required' : formatMoney(category.fee_paise, championship.currency)}
+                    {category.is_free
+                      ? 'No payment required'
+                      : category.waive_base_fee
+                        ? `${formatMoney(category.fee_paise, championship.currency)} + events (base waived)`
+                        : formatMoney(category.fee_paise, championship.currency)}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-1">
@@ -1446,11 +1459,22 @@ function CategoriesEditor({ championship, onChanged }: { championship: AdminCham
               <Checkbox
                 label="Free entry — waive base, category and event fees"
                 checked={draft.is_free}
-                onChange={(e) => setDraft({ ...draft, is_free: e.target.checked })}
+                onChange={(e) => setDraft({ ...draft, is_free: e.target.checked, waive_base_fee: e.target.checked ? false : draft.waive_base_fee })}
               />
               {draft.is_free && (
                 <p className="pl-6 text-xs text-emerald-700">
                   Athletes in this category are registered instantly without payment, for both men and women.
+                </p>
+              )}
+              <Checkbox
+                label="Waive championship base fee for this category"
+                checked={draft.waive_base_fee}
+                disabled={draft.is_free}
+                onChange={(e) => setDraft({ ...draft, waive_base_fee: e.target.checked })}
+              />
+              {!draft.is_free && draft.waive_base_fee && (
+                <p className="pl-6 text-xs text-sky-700">
+                  Base fee is waived for this category. Category fee and event fees still apply.
                 </p>
               )}
               <Checkbox
@@ -1771,6 +1795,7 @@ function DraftCategoriesEditor({
         max_age: draft.max_age,
         fee_rupees: draft.fee_rupees || '0',
         is_free: draft.is_free,
+        waive_base_fee: draft.is_free ? false : draft.waive_base_fee,
         is_active: draft.is_active,
         included: true,
         isDefault: false,
@@ -1812,13 +1837,20 @@ function DraftCategoriesEditor({
                         {category.is_free && (
                           <span className="ml-2 text-xs font-normal text-emerald-700">(free entry)</span>
                         )}
+                        {!category.is_free && category.waive_base_fee && (
+                          <span className="ml-2 text-xs font-normal text-sky-700">(base fee waived)</span>
+                        )}
                         {!category.isDefault && (
                           <span className="ml-2 text-xs font-normal text-emerald-700">(added)</span>
                         )}
                       </span>
                       <span className="block text-xs text-slate-500">
                         {genderLabel(category.gender)} · {category.min_age}–{category.max_age} yrs ·{' '}
-                        {category.is_free ? 'No payment required' : formatMoney(rupeesToPaise(category.fee_rupees), 'INR')}
+                        {category.is_free
+                          ? 'No payment required'
+                          : category.waive_base_fee
+                            ? `${formatMoney(rupeesToPaise(category.fee_rupees), 'INR')} + events (base waived)`
+                            : formatMoney(rupeesToPaise(category.fee_rupees), 'INR')}
                       </span>
                     </span>
                   }
@@ -1889,7 +1921,13 @@ function DraftCategoriesEditor({
             <Checkbox
               label="Free entry — waive base, category and event fees"
               checked={draft.is_free}
-              onChange={(event) => setDraft({ ...draft, is_free: event.target.checked })}
+              onChange={(event) => setDraft({ ...draft, is_free: event.target.checked, waive_base_fee: event.target.checked ? false : draft.waive_base_fee })}
+            />
+            <Checkbox
+              label="Waive championship base fee for this category"
+              checked={draft.waive_base_fee}
+              disabled={draft.is_free}
+              onChange={(event) => setDraft({ ...draft, waive_base_fee: event.target.checked })}
             />
             <div>
               <Button variant="accent" size="sm" disabled={!canAdd} onClick={add}>

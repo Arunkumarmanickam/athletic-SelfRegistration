@@ -17,6 +17,8 @@ export interface ChampionshipCategory {
   fee_paise: number
   /** When true, base/category/event fees are waived for this age category. */
   is_free: boolean
+  /** When true, championship base fee is waived for this category (category/event fees still apply). */
+  waive_base_fee?: boolean
   is_active: boolean
   sort_order: number
 }

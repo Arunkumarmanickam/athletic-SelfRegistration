@@ -101,7 +101,7 @@ function toInt(value: unknown): number | null {
 
 const MAX_CATEGORIES = 60
 const MAX_EVENTS = 120
-const DEFAULT_CATEGORY_COLUMNS = 'id, name, gender, min_age, max_age, fee_paise, is_free, is_active, sort_order'
+const DEFAULT_CATEGORY_COLUMNS = 'id, name, gender, min_age, max_age, fee_paise, is_free, waive_base_fee, is_active, sort_order'
 const DEFAULT_EVENT_COLUMNS = 'id, name, gender, fee_paise, is_active, sort_order'
 
 interface CategoryRow {
@@ -111,6 +111,7 @@ interface CategoryRow {
   max_age: number
   fee_paise: number
   is_free: boolean
+  waive_base_fee: boolean
   is_active: boolean
   sort_order: number
 }
@@ -153,6 +154,7 @@ function parseCategoryRows(raw: unknown): { rows: CategoryRow[]; error?: string 
       max_age: maxAge,
       fee_paise: fee,
       is_free: source.is_free === true,
+      waive_base_fee: source.is_free === true ? false : source.waive_base_fee === true,
       is_active: source.is_active === false ? false : true,
       sort_order: toInt(source.sort_order) ?? rows.length + 1,
     })
@@ -214,6 +216,7 @@ function defaultCategoryRows(
       max_age: category.max_age,
       fee_paise: category.fee_paise ?? 0,
       is_free: category.is_free === true,
+      waive_base_fee: category.is_free === true ? false : category.waive_base_fee === true,
       is_active: true,
       sort_order: category.sort_order ?? 0,
     }))
@@ -435,7 +438,7 @@ Deno.serve(
       const { data: championships, error } = await supabase
         .from('championships')
         .select(
-          'id, slug, name, description, location, starts_on, ends_on, registration_opens_at, registration_closes_at, status, currency, base_fee_paise, form_config, terms_text, level, nation, state_name, max_events_per_athlete, created_at, updated_at, championship_categories (id, name, gender, min_age, max_age, fee_paise, is_free, is_active, sort_order), championship_events (id, name, gender, category_ids, male_category_ids, female_category_ids, fee_paise, is_active, sort_order), championship_registration_fields (id, field_key, label, field_type, options, is_required, sort_order)',
+          'id, slug, name, description, location, starts_on, ends_on, registration_opens_at, registration_closes_at, status, currency, base_fee_paise, form_config, terms_text, level, nation, state_name, max_events_per_athlete, created_at, updated_at, championship_categories (id, name, gender, min_age, max_age, fee_paise, is_free, waive_base_fee, is_active, sort_order), championship_events (id, name, gender, category_ids, male_category_ids, female_category_ids, fee_paise, is_active, sort_order), championship_registration_fields (id, field_key, label, field_type, options, is_required, sort_order)',
         )
         .order('created_at', { ascending: false })
       if (error) {
@@ -753,6 +756,7 @@ Deno.serve(
         max_age: maxAge,
         fee_paise: feePaise,
         is_free: body.is_free === true,
+        waive_base_fee: body.is_free === true ? false : body.waive_base_fee === true,
         is_active: body.is_active === false ? false : true,
         sort_order: toInt(body.sort_order) ?? 0,
       }
