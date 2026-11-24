@@ -351,6 +351,7 @@ Migrations are applied in filename order. Recent ones relevant to the current ch
 - `20261123000001_category_waive_base_fee.sql` — per-category base-fee waiver (`waive_base_fee`).
 - `20261124000001_tnmaa_2026_event_eligibility.sql` — initial TNMAA programme migration; superseded because it targeted the wrong slug.
 - `20261124000002_tnmaa_2026_event_eligibility_corrected.sql` — restores `state-meet-2026` and applies the 21-event TNMAA programme to `tnmaa-state-meet-2026` only.
+- `20261124000003_remove_stray_district_event.sql` — removes the stray district `5000m Race Walk` row introduced by the wrong-slug migration.
 
 The `state-meet-2026` and `tnmaa-state-meet-2026` programme migrations are data-only for their respective championships. They do not alter the standard defaults or other championships. Default/custom field settings and the returning-athlete lookup require no migration — field settings live in `form_config`, and the lookup is a read-only Edge Function over the existing `athlete_profiles` table.
 
