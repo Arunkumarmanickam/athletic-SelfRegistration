@@ -196,6 +196,7 @@ The 44th TNMAA Championship 2026 (`tnmaa-state-meet-2026`) uses the organiser's 
 - Ineligible events are disabled, shown with an amber background and a **“Not eligible”** badge, and explain the reason (“Not open to your gender” or “Not offered in your category”).
 - An event fee is shown only when the event actually has a fee configured. Events without an event fee show no fee text.
 - When the championship has a per-athlete event cap, the picker enforces it and explains how to swap a selected event.
+- The championship config is refetched when the athlete navigates to another page or returns to the tab, so admin changes appear without a hard reload in the same browser session.
 
 ### Admin event management
 

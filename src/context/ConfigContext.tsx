@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { publicConfig } from '@/lib/api'
 import type { Championship, PublicConfig } from '@/lib/types'
 import { isSupabaseConfigured } from '@/lib/env'
@@ -7,7 +8,8 @@ interface ConfigContextValue {
   config: PublicConfig | null
   loading: boolean
   error: string | null
-  refresh: () => Promise<void>
+  /** `silent` skips the loading state, used for background refreshes. */
+  refresh: (silent?: boolean) => Promise<void>
   championshipBySlug: (slug: string) => Championship | undefined
 }
 
@@ -17,16 +19,18 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
   const [config, setConfig] = useState<PublicConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const location = useLocation()
+  const lastPath = useRef(location.pathname)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (silent = false) => {
     if (!isSupabaseConfigured) {
       setError(
         'The backend is not configured yet. Copy .env.example to .env, add your Supabase URL and anon key, then restart the app.',
       )
-      setLoading(false)
+      if (!silent) setLoading(false)
       return
     }
-    setLoading(true)
+    if (!silent) setLoading(true)
     try {
       const result = await publicConfig()
       setConfig(result)
@@ -34,12 +38,35 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load championship information.')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
     void refresh()
+  }, [refresh])
+
+  // Admin edits go straight to the database. Refetch silently when the
+  // athlete navigates so a config loaded on the first mount is not reused.
+  useEffect(() => {
+    if (lastPath.current === location.pathname) return
+    lastPath.current = location.pathname
+    void refresh(true)
+  }, [location.pathname, refresh])
+
+  // Covers the common case where the admin saves in one tab and the athlete
+  // form is already open in another; switching back refreshes the config.
+  useEffect(() => {
+    const onFocus = () => { void refresh(true) }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refresh(true)
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [refresh])
 
   const value = useMemo<ConfigContextValue>(
