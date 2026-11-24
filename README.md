@@ -188,7 +188,7 @@ The event's `gender` field (`any`, `male`, `female`) is applied first, then the 
 
 Age ranges use the **lower bound of each bracket**. For example, `30+ to 85+` includes every bracket from `30+` through `85–89`, and `90+` includes `90–94` (up to the championship's highest category).
 
-The 44th TNMAA Championship 2026 (`state-meet-2026`) uses the organiser's spreadsheet as its programme: 21 events with separate men's and women's age groups. Migration `20261124000001_tnmaa_2026_event_eligibility.sql` applies that data to this championship only. **“All Age Groups”** is unrestricted (including `100+`); a bounded range such as `70+ to 95+` excludes `100+`, while `& above` includes it. `Pole Vault` and `5000m Race Walk` are open to both genders in every category, and `110m Hurdles` is men-only. Events outside the programme (for example `3000m Race Walk` and `10000m`) are deactivated, not deleted.
+The 44th TNMAA Championship 2026 (`tnmaa-state-meet-2026`) uses the organiser's spreadsheet as its programme: 21 events with separate men's and women's age groups. Migration `20261124000002_tnmaa_2026_event_eligibility_corrected.sql` applies that data to this championship only. **“All Age Groups”** is unrestricted (including `100+`); a bounded range such as `70+ to 95+` excludes `100+`, while `& above` includes it. `Pole Vault` and `5000m Race Walk` are open to both genders in every category, and `110m Hurdles` is men-only. Events outside the programme (for example `3000m Race Walk` and `10000m`) are deactivated, not deleted.
 
 ### Event picker behaviour
 
@@ -209,11 +209,11 @@ The editor supports:
 - Editing an event preserves its existing order; changing a name or eligibility list does not reset `sort_order`.
 - Deleting an event is blocked once registrations reference it — deactivate it instead.
 
-### `state-meet-2026` programme
+### `state-meet-2026` (district) programme
 
-The live championship is `state-meet-2026` (44th Coimbatore District Masters Athletic Championship — 2026).
+The closed district championship is `state-meet-2026` (44th Coimbatore District Masters Athletic Championship — 2026). The current live championship is `tnmaa-state-meet-2026` (44th Tamil Nadu State Masters Athletic Championship — 2026).
 
-- **Status:** open for registration.
+- **Status:** closed; registration is open for `tnmaa-state-meet-2026` instead.
 - **Event date:** 22 November 2026.
 - **Registration window:** 20 October 2026 16:30 UTC → 19 November 2026 13:02 UTC.
 - **Age categories:** 15 brackets, `30+` through `100+`.
@@ -349,15 +349,16 @@ Migrations are applied in filename order. Recent ones relevant to the current ch
 - `20261122000002_free_entry_categories.sql` — per-category free entry (`is_free`) and zero-fee draft promotion.
 - `20261122000003_dashboard_free_entries.sql` — dashboard/admin free-entry counts.
 - `20261123000001_category_waive_base_fee.sql` — per-category base-fee waiver (`waive_base_fee`).
-- `20261124000001_tnmaa_2026_event_eligibility.sql` — applies the organiser's 21-event TNMAA 2026 programme and per-gender category eligibility to `state-meet-2026` only.
+- `20261124000001_tnmaa_2026_event_eligibility.sql` — initial TNMAA programme migration; superseded because it targeted the wrong slug.
+- `20261124000002_tnmaa_2026_event_eligibility_corrected.sql` — restores `state-meet-2026` and applies the 21-event TNMAA programme to `tnmaa-state-meet-2026` only.
 
-The `state-meet-2026` programme migrations are data-only for that championship. They do not alter the standard defaults or other championships. Default/custom field settings and the returning-athlete lookup require no migration — field settings live in `form_config`, and the lookup is a read-only Edge Function over the existing `athlete_profiles` table.
+The `state-meet-2026` and `tnmaa-state-meet-2026` programme migrations are data-only for their respective championships. They do not alter the standard defaults or other championships. Default/custom field settings and the returning-athlete lookup require no migration — field settings live in `form_config`, and the lookup is a read-only Edge Function over the existing `athlete_profiles` table.
 
 ## Operations
 
 - **Resetting test data:** the October 2026 cleanup was a one-off manual operation, not a migration. It removed athletes, registrations, drafts, payments, audit logs, sessions, tokens, and rate-limit rows, and reset `id_sequences` and `application_number_seq`. Admin accounts and championship configuration were kept. The next real application starts at `APP-2026-000001`, and the next athlete ID/bib starts at `000001`.
 - **Audit logs:** cleared during that reset. New admin actions continue to be recorded.
-- **Registration:** intentionally left open for `state-meet-2026`.
+- **Registration:** intentionally left open for `tnmaa-state-meet-2026`.
 
 ## Deployment
 
